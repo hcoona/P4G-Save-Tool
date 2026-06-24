@@ -19,9 +19,14 @@
 
   <PropertyGroup Label="NativeAOT">
     <PublishAot>true</PublishAot>
+    <WindowsSdkPackageVersion Condition="'$(WindowsSdkPackageVersion)' == ''">10.0.22000.57</WindowsSdkPackageVersion>
+    <CsWinRTWindowsMetadataPackageVersion Condition="'$(CsWinRTWindowsMetadataPackageVersion)' == ''">10.0.22000.196</CsWinRTWindowsMetadataPackageVersion>
+    <CsWinRTWindowsMetadata Condition="'$(CsWinRTWindowsMetadata)' == ''">$(NuGetPackageRoot)\microsoft.windows.sdk.cpp\$(CsWinRTWindowsMetadataPackageVersion)\c</CsWinRTWindowsMetadata>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.CsWinRT" />
+    <PackageReference Include="Microsoft.Windows.SDK.CPP" ExcludeAssets="all" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>

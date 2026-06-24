@@ -26,6 +26,14 @@ public sealed class WinUIArchitectureTests
     ];
 
     private static readonly TimeSpan MsBuildEvaluationTimeout = TimeSpan.FromSeconds(60);
+    private static readonly Version MinimumCsWinRTAotVersion = new(2, 1, 1);
+
+    private const string CsWinRTPackageName = "Microsoft.Windows.CsWinRT";
+    private const string CsWinRTWindowsMetadataPackageName = "Microsoft.Windows.SDK.CPP";
+    private const string CsWinRTWindowsMetadataPath = @"$(NuGetPackageRoot)\microsoft.windows.sdk.cpp\$(CsWinRTWindowsMetadataPackageVersion)\c";
+    private const string RequiredCsWinRTWindowsMetadataPackageVersion = "10.0.22000.196";
+    private const string RequiredCsWinRTWindowsMetadataPlatformVersion = "10.0.22000.0";
+    private const string RequiredWindowsSdkPackageVersion = "10.0.22000.57";
 
     [Fact]
     public void WinUISourceDoesNotReferenceDomainOrSaveFormat()
@@ -117,8 +125,30 @@ public sealed class WinUIArchitectureTests
         AssertProperty(project, "SelfContained", "true");
         AssertProperty(project, "WindowsAppSDKSelfContained", "true");
         AssertProperty(project, "PublishAot", "true");
+        AssertProperty(project, "WindowsSdkPackageVersion", RequiredWindowsSdkPackageVersion);
+        AssertProperty(project, "CsWinRTWindowsMetadataPackageVersion", RequiredCsWinRTWindowsMetadataPackageVersion);
+        AssertProperty(project, "CsWinRTWindowsMetadata", CsWinRTWindowsMetadataPath);
         AssertNoTrueProperty(project, "PublishSingleFile");
         Assert.DoesNotContain(project.Descendants(), static element => element.Name.LocalName == "RuntimeIdentifiers");
+    }
+
+    [Fact]
+    public void WinUIProjectReferencesCsWinRTSourceGeneratorForNativeAot()
+    {
+        XDocument project = XDocument.Load(GetWinUIProjectFile());
+        string[] directPackageReferences = GetPackageIncludes(project, "PackageReference");
+        Assert.Contains(CsWinRTPackageName, directPackageReferences);
+        Assert.Contains(CsWinRTWindowsMetadataPackageName, directPackageReferences);
+
+        XDocument centralPackages = XDocument.Load(Path.Combine(FindRepositoryRoot(), "Directory.Packages.props"));
+        string packageVersion = GetRequiredPackageVersion(centralPackages, CsWinRTPackageName);
+        Version parsedVersion = ParsePackageVersion(packageVersion, CsWinRTPackageName);
+        Assert.True(
+            parsedVersion.CompareTo(MinimumCsWinRTAotVersion) >= 0,
+            $"{CsWinRTPackageName} must be at least {MinimumCsWinRTAotVersion} for WinUI NativeAOT source generation.");
+        Assert.Equal(
+            RequiredCsWinRTWindowsMetadataPackageVersion,
+            GetRequiredPackageVersion(centralPackages, CsWinRTWindowsMetadataPackageName));
     }
 
     [Fact]
@@ -190,6 +220,10 @@ public sealed class WinUIArchitectureTests
                 "PublishAot",
                 "PublishSingleFile",
                 "PublishDir",
+                "WindowsSdkPackageVersion",
+                "CsWinRTWindowsMetadataPackageVersion",
+                "CsWinRTWindowsMetadata",
+                "NuGetPackageRoot",
             ]);
  
         AssertEvaluatedProperty(properties, "Configuration", "Release");
@@ -200,6 +234,7 @@ public sealed class WinUIArchitectureTests
         AssertEvaluatedProperty(properties, "WindowsAppSDKSelfContained", "true");
         AssertEvaluatedProperty(properties, "PublishAot", "true");
         AssertEvaluatedFalseOrEmptyProperty(properties, "PublishSingleFile");
+        AssertEvaluatedWindowsSdkMetadataProperties(properties);
 
         string expectedPublishDirectory = NormalizeDirectoryPath(Path.Combine(
             FindRepositoryRoot(),
@@ -235,6 +270,10 @@ public sealed class WinUIArchitectureTests
                 "RuntimeIdentifier",
                 "Platform",
                 "PublishDir",
+                "WindowsSdkPackageVersion",
+                "CsWinRTWindowsMetadataPackageVersion",
+                "CsWinRTWindowsMetadata",
+                "NuGetPackageRoot",
             ]);
 
         AssertEvaluatedProperty(properties, "WindowsPackageType", "None");
@@ -244,6 +283,7 @@ public sealed class WinUIArchitectureTests
         AssertEvaluatedFalseOrEmptyProperty(properties, "PublishSingleFile");
         AssertEvaluatedProperty(properties, "RuntimeIdentifier", "win-x64");
         AssertEvaluatedProperty(properties, "Platform", "x64");
+        AssertEvaluatedWindowsSdkMetadataProperties(properties);
 
         string expectedPublishDirectory = NormalizeDirectoryPath(Path.Combine(
             FindRepositoryRoot(),
@@ -388,6 +428,43 @@ public sealed class WinUIArchitectureTests
             .ToArray();
     }
 
+    private static string[] GetPackageIncludes(XDocument project, string itemName)
+    {
+        return project
+            .Descendants()
+            .Where(element => element.Name.LocalName == itemName)
+            .Select(static element => ((string?)element.Attribute("Include"))?.Trim())
+            .Where(static include => !string.IsNullOrWhiteSpace(include))
+            .Select(static include => include!)
+            .ToArray();
+    }
+
+    private static string GetRequiredPackageVersion(XDocument centralPackages, string packageName)
+    {
+        string[] packageVersions = centralPackages
+            .Descendants()
+            .Where(element => element.Name.LocalName == "PackageVersion"
+                && string.Equals((string?)element.Attribute("Include"), packageName, StringComparison.OrdinalIgnoreCase))
+            .Select(static element => ((string?)element.Attribute("Version"))?.Trim())
+            .Where(static version => !string.IsNullOrWhiteSpace(version))
+            .Select(static version => version!)
+            .ToArray();
+
+        Assert.True(
+            packageVersions.Length == 1,
+            $"Expected exactly one central {packageName} version. Found values: {FormatPropertyValues(packageVersions)}.");
+        return packageVersions[0];
+    }
+
+    private static Version ParsePackageVersion(string packageVersion, string packageName)
+    {
+        string stableVersion = packageVersion.Split('-', 2)[0];
+        Assert.True(
+            Version.TryParse(stableVersion, out Version? parsedVersion),
+            $"Expected {packageName} version '{packageVersion}' to be a valid semantic version.");
+        return parsedVersion;
+    }
+
     private static string GetRequiredEvaluatedProperty(
         IReadOnlyDictionary<string, string> properties,
         string propertyName)
@@ -396,6 +473,47 @@ public sealed class WinUIArchitectureTests
             properties.TryGetValue(propertyName, out string? value),
             $"Expected MSBuild to return {propertyName}. Returned properties: {string.Join(", ", properties.Keys)}.");
         return value;
+    }
+
+    private static void AssertEvaluatedWindowsSdkMetadataProperties(
+        IReadOnlyDictionary<string, string> properties)
+    {
+        AssertEvaluatedProperty(properties, "WindowsSdkPackageVersion", RequiredWindowsSdkPackageVersion);
+        AssertEvaluatedProperty(
+            properties,
+            "CsWinRTWindowsMetadataPackageVersion",
+            RequiredCsWinRTWindowsMetadataPackageVersion);
+
+        string nugetPackageRoot = NormalizeDirectoryPath(GetRequiredEvaluatedProperty(properties, "NuGetPackageRoot"));
+        string expectedMetadataRoot = NormalizeDirectoryPath(Path.Combine(
+            nugetPackageRoot,
+            "microsoft.windows.sdk.cpp",
+            RequiredCsWinRTWindowsMetadataPackageVersion,
+            "c"));
+        string actualMetadataRoot = NormalizeDirectoryPath(GetRequiredEvaluatedProperty(
+            properties,
+            "CsWinRTWindowsMetadata"));
+
+        Assert.False(
+            actualMetadataRoot.Contains("$(", StringComparison.Ordinal),
+            $"CsWinRTWindowsMetadata must be fully expanded but evaluated to '{actualMetadataRoot}'.");
+        Assert.True(
+            string.Equals(expectedMetadataRoot, actualMetadataRoot, StringComparison.OrdinalIgnoreCase),
+            $"CsWinRTWindowsMetadata must evaluate to '{expectedMetadataRoot}' but evaluated to '{actualMetadataRoot}'.");
+        Assert.DoesNotContain(
+            Path.Combine("Windows Kits", "10"),
+            actualMetadataRoot,
+            StringComparison.OrdinalIgnoreCase);
+
+        string platformMetadataFile = Path.Combine(
+            actualMetadataRoot,
+            "Platforms",
+            "UAP",
+            RequiredCsWinRTWindowsMetadataPlatformVersion,
+            "Platform.xml");
+        Assert.True(
+            File.Exists(platformMetadataFile),
+            $"CsWinRTWindowsMetadata must resolve to a NuGet Windows SDK package root containing {platformMetadataFile}.");
     }
 
     private static async Task<IReadOnlyDictionary<string, string>> GetEvaluatedPropertiesAsync(

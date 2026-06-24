@@ -154,6 +154,36 @@ public sealed class SaveEditorViewModel : ViewModelBase
     public SaveEditorOperationResult SetYen(uint yen) =>
         ApplyEdits([new SetYenEdit(yen)]);
 
+    public SaveEditorOperationResult ApplyEditorValues(
+        string familyName,
+        string givenName,
+        uint yen,
+        IReadOnlyList<byte> partyMemberValues)
+    {
+        if (familyName is null || givenName is null)
+        {
+            return FailOperation("P4GPRES002", "Save names cannot be null.", "Names");
+        }
+
+        if (partyMemberValues is null)
+        {
+            return FailOperation("P4GPRES007", "Party member values cannot be null.", "PartyMembers");
+        }
+
+        List<SaveEditCommand> edits =
+        [
+            new SetSaveNamesEdit(new SaveNames(familyName, givenName)),
+            new SetYenEdit(yen),
+        ];
+
+        for (int index = 0; index < partyMemberValues.Count; index++)
+        {
+            edits.Add(new SetPartyMemberEdit(index, new PartyMemberId(partyMemberValues[index])));
+        }
+
+        return ApplyEdits(edits);
+    }
+
     public SaveEditorOperationResult SetPartyMember(int slotIndex, PartyMemberId memberId) =>
         ApplyEdits([new SetPartyMemberEdit(slotIndex, memberId)]);
 
@@ -492,7 +522,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static ReadOnlyCollection<PartyMemberSlotViewState> ProjectPartyMembers(
         IReadOnlyList<PartyMemberId> members) =>
         Array.AsReadOnly(members
-            .Select(static (member, index) => new PartyMemberSlotViewState(index, member))
+            .Select(static (member, index) => new PartyMemberSlotViewState(index, member.Value))
             .ToArray());
 
     private static ReadOnlyCollection<PersonaSlotViewState> ProjectPersonaSlots(

@@ -41,18 +41,17 @@ public sealed class SaveEditorViewModelTests
             static member =>
             {
                 Assert.Equal(0, member.SlotIndex);
-                Assert.Equal(new PartyMemberId(0x01), member.MemberId);
                 Assert.Equal((byte)0x01, member.MemberValue);
             },
             static member =>
             {
                 Assert.Equal(1, member.SlotIndex);
-                Assert.Equal(new PartyMemberId(0xfe), member.MemberId);
+                Assert.Equal((byte)0xfe, member.MemberValue);
             },
             static member =>
             {
                 Assert.Equal(2, member.SlotIndex);
-                Assert.Equal(new PartyMemberId(0x80), member.MemberId);
+                Assert.Equal((byte)0x80, member.MemberValue);
             });
         PersonaSlotViewState protagonistPersona = Assert.Single(viewModel.ProtagonistPersonaSlots);
         Assert.True(protagonistPersona.Exists);
@@ -80,7 +79,7 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal((byte)22, compendiumPersona.Level);
         Assert.Equal(0x03030303u, compendiumPersona.TotalExperience);
         Assert.Equal(new ushort[] { 0x3301, 0x3302, 0x3303, 0x3304, 0x3305, 0x3306, 0x3307, 0x3308 }, compendiumPersona.SkillIds);
-        AssertReadOnlyListDoesNotAllowMutation(viewModel.PartyMembers, new PartyMemberSlotViewState(0, new PartyMemberId(0xff)));
+        AssertReadOnlyListDoesNotAllowMutation(viewModel.PartyMembers, new PartyMemberSlotViewState(0, 0xff));
         AssertReadOnlyListDoesNotAllowMutation(viewModel.ProtagonistPersonaSlots, protagonistPersona);
         AssertReadOnlyListDoesNotAllowMutation(viewModel.PartyPersonaSlots, partyPersona);
         AssertReadOnlyListDoesNotAllowMutation(viewModel.CompendiumPersonaSlots, compendiumPersona);
@@ -130,13 +129,45 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal("Dojima", viewModel.FamilyName);
         Assert.Equal("Nanako", viewModel.GivenName);
         Assert.Equal(9_999_999u, viewModel.Yen);
-        Assert.Equal(new PartyMemberId(0x07), viewModel.PartyMembers[1].MemberId);
+        Assert.Equal((byte)0x07, viewModel.PartyMembers[1].MemberValue);
         Assert.True(viewModel.IsDirty);
         Assert.Collection(
             service.AppliedEdits,
             static edits => Assert.IsType<SetSaveNamesEdit>(Assert.Single(edits)),
             static edits => Assert.IsType<SetYenEdit>(Assert.Single(edits)),
             static edits => Assert.IsType<SetPartyMemberEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void ApplyEditorValuesConvertsPrimitiveValuesToSingleEditBatch()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.ApplyEditorValues(
+            "Dojima",
+            "Nanako",
+            9_999_999u,
+            [(byte)0x01, (byte)0x07, (byte)0x80]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Equal("Dojima", viewModel.FamilyName);
+        Assert.Equal("Nanako", viewModel.GivenName);
+        Assert.Equal(9_999_999u, viewModel.Yen);
+        Assert.Equal((byte)0x07, viewModel.PartyMembers[1].MemberValue);
+        SaveEditCommand[] editBatch = Assert.Single(service.AppliedEdits);
+        Assert.Collection(
+            editBatch,
+            static edit => Assert.Equal(new SaveNames("Dojima", "Nanako"), Assert.IsType<SetSaveNamesEdit>(edit).Names),
+            static edit => Assert.Equal(9_999_999u, Assert.IsType<SetYenEdit>(edit).Yen),
+            static edit => AssertPartyMemberEdit(edit, 0, 0x01),
+            static edit => AssertPartyMemberEdit(edit, 1, 0x07),
+            static edit => AssertPartyMemberEdit(edit, 2, 0x80));
     }
 
     [Fact]
@@ -169,6 +200,7 @@ public sealed class SaveEditorViewModelTests
             ("SetNames strings", static viewModel => viewModel.SetNames("Dojima", "Nanako")),
             ("SetNames value", static viewModel => viewModel.SetNames(new SaveNames("Dojima", "Nanako"))),
             ("SetYen", static viewModel => viewModel.SetYen(500_000u)),
+            ("ApplyEditorValues", static viewModel => viewModel.ApplyEditorValues("Dojima", "Nanako", 500_000u, [0x01, 0x02, 0x03])),
             ("SetPartyMember", static viewModel => viewModel.SetPartyMember(1, new PartyMemberId(0x07))),
             ("ApplyEdits", static viewModel => viewModel.ApplyEdits([new SetYenEdit(500_000u)])),
         ];
@@ -1027,6 +1059,13 @@ public sealed class SaveEditorViewModelTests
             Environment.NewLine,
             diagnostics.Select(static diagnostic =>
                 $"{diagnostic.Severity} {diagnostic.Code} {diagnostic.Target}: {diagnostic.Message}"));
+
+    private static void AssertPartyMemberEdit(SaveEditCommand edit, int slotIndex, byte memberValue)
+    {
+        SetPartyMemberEdit partyMemberEdit = Assert.IsType<SetPartyMemberEdit>(edit);
+        Assert.Equal(slotIndex, partyMemberEdit.SlotIndex);
+        Assert.Equal(new PartyMemberId(memberValue), partyMemberEdit.MemberId);
+    }
 
     private static SaveEditorWriteToken AssertOperationToken(SaveEditorWriteResult result)
     {

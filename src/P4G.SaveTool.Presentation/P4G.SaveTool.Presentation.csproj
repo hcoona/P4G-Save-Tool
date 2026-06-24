@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\P4G.SaveTool.Catalog\P4G.SaveTool.Catalog.csproj" />
     <ProjectReference Include="..\P4G.SaveTool.Contracts\P4G.SaveTool.Contracts.csproj" />
     <ProjectReference Include="..\P4G.SaveTool.Domain\P4G.SaveTool.Domain.csproj" />
   </ItemGroup>

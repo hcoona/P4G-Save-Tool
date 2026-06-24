@@ -18,6 +18,34 @@ $RECYCLE.BIN/
 *.lnk
 
 # =========================
+# Visual Studio / .NET
+# =========================
+
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build and package outputs
+artifacts/
+*.nupkg
+*.snupkg
+
+# Local machine-specific agent instructions
+AGENTS.local.md
+
+# Private save fixtures must stay local.
+fixtures/private/
+tests/fixtures/private/
+fixtures/private/**/*.sav
+fixtures/private/**/*.bin
+tests/fixtures/private/**/*.sav
+tests/fixtures/private/**/*.bin
+
+# =========================
 # Operating System Files
 # =========================
 

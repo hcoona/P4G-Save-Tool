@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(TF_BUILD)' == 'true'">true</ContinuousIntegrationBuild>
+    <RestorePackagesWithLockFile Condition="'$(RestorePackagesWithLockFile)' == '' and '$(MSBuildProjectExtension)' == '.csproj'">true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(RestoreLockedMode)' == '' and '$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
+    <RestoreUseStaticGraphEvaluation>true</RestoreUseStaticGraphEvaluation>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+</Project>

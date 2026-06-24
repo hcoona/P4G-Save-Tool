@@ -1,0 +1,10 @@
+[tools]
+"core:dotnet" = "10.0.300"
+pkl = "0.31.1"
+powershell = "7.6.1"
+
+[tasks.update-global-json]
+description = "Update global.json from global.pkl and mise.lock"
+run = "pkl eval -f json global.pkl -o global.json"
+sources = ["global.pkl", "mise.lock"]
+outputs = ["global.json"]

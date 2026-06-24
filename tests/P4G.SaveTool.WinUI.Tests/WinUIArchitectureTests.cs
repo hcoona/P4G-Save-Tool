@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text.Json;
 using System.Xml.Linq;
 using P4G.SaveTool.Presentation;
 using P4G.SaveTool.WinUI;
@@ -12,6 +14,18 @@ public sealed class WinUIArchitectureTests
         "P4G.SaveTool.Domain",
         "P4G.SaveTool.SaveFormat",
     ];
+
+    private static readonly string[] AotCompatibleProductionProjects =
+    [
+        "P4G.SaveTool.Domain",
+        "P4G.SaveTool.Catalog",
+        "P4G.SaveTool.Contracts",
+        "P4G.SaveTool.SaveFormat",
+        "P4G.SaveTool.Application",
+        "P4G.SaveTool.Presentation",
+    ];
+
+    private static readonly TimeSpan MsBuildEvaluationTimeout = TimeSpan.FromSeconds(60);
 
     [Fact]
     public void WinUISourceDoesNotReferenceDomainOrSaveFormat()
@@ -47,6 +61,7 @@ public sealed class WinUIArchitectureTests
             .Where(static element => element.Name.LocalName is "ProjectReference" or "Reference")
             .Select(static element => (string?)element.Attribute("Include"))
             .Where(static include => !string.IsNullOrWhiteSpace(include))
+            .Select(static include => include!)
             .Select(GetReferencedAssemblyName)
             .ToArray();
 
@@ -90,6 +105,183 @@ public sealed class WinUIArchitectureTests
         }
     }
 
+    [Fact]
+    public void WinUIProjectDeclaresUnpackagedNativeAotPublishSettings()
+    {
+        XDocument project = XDocument.Load(GetWinUIProjectFile());
+
+        AssertProperty(project, "UseWinUI", "true");
+        AssertProperty(project, "WindowsPackageType", "None");
+        AssertProperty(project, "Platforms", "x64");
+        AssertProperty(project, "RuntimeIdentifier", "win-x64");
+        AssertProperty(project, "SelfContained", "true");
+        AssertProperty(project, "WindowsAppSDKSelfContained", "true");
+        AssertProperty(project, "PublishAot", "true");
+        AssertNoTrueProperty(project, "PublishSingleFile");
+        Assert.DoesNotContain(project.Descendants(), static element => element.Name.LocalName == "RuntimeIdentifiers");
+    }
+
+    [Fact]
+    public void NativeAotPublishProfileDeclaresStableFolderPublishSettings()
+    {
+        string winUIProjectDirectory = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string publishProfile = Path.Combine(
+            winUIProjectDirectory,
+            "Properties",
+            "PublishProfiles",
+            "nativeaot-win-x64.pubxml");
+        XDocument profile = XDocument.Load(publishProfile);
+
+        AssertProperty(profile, "Configuration", "Release");
+        AssertProperty(profile, "Platform", "x64");
+        AssertProperty(profile, "RuntimeIdentifier", "win-x64");
+        AssertProperty(profile, "PublishAot", "true");
+        AssertProperty(profile, "SelfContained", "true");
+        AssertProperty(profile, "WindowsAppSDKSelfContained", "true");
+        AssertNoTrueProperty(profile, "PublishSingleFile");
+
+        string expectedPublishDirectory = NormalizeDirectoryPath(Path.Combine(
+            winUIProjectDirectory,
+            "..",
+            "..",
+            "artifacts",
+            "publish",
+            "P4G.SaveTool.WinUI",
+            "nativeaot-win-x64"));
+        string publishDirectory = EvaluatePublishDirectory(
+            GetRequiredPropertyValue(profile, "PublishDir"),
+            winUIProjectDirectory);
+        string actualPublishDirectory = NormalizeDirectoryPath(publishDirectory);
+        Assert.True(
+            string.Equals(expectedPublishDirectory, actualPublishDirectory, StringComparison.OrdinalIgnoreCase),
+            $"PublishDir must resolve to '{expectedPublishDirectory}' but resolved to '{actualPublishDirectory}'.");
+    }
+
+    [Fact]
+    public void ProductionLibraryProjectsAreMarkedAotCompatible()
+    {
+        foreach (string projectName in AotCompatibleProductionProjects)
+        {
+            string projectFile = Path.Combine(
+                FindRepositoryDirectory("src", projectName),
+                $"{projectName}.csproj");
+            XDocument project = XDocument.Load(projectFile);
+
+            AssertProperty(project, "IsAotCompatible", "true");
+        }
+    }
+
+    [Fact]
+    public async Task NativeAotPublishProfileDefaultsEvaluateWithoutExplicitGlobals()
+    {
+        IReadOnlyDictionary<string, string> properties = await GetEvaluatedPropertiesAsync(
+            GetWinUIProjectFile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["PublishProfile"] = "nativeaot-win-x64",
+            },
+            [
+                "Configuration",
+                "Platform",
+                "RuntimeIdentifier",
+                "WindowsPackageType",
+                "SelfContained",
+                "WindowsAppSDKSelfContained",
+                "PublishAot",
+                "PublishSingleFile",
+                "PublishDir",
+            ]);
+ 
+        AssertEvaluatedProperty(properties, "Configuration", "Release");
+        AssertEvaluatedProperty(properties, "Platform", "x64");
+        AssertEvaluatedProperty(properties, "RuntimeIdentifier", "win-x64");
+        AssertEvaluatedProperty(properties, "WindowsPackageType", "None");
+        AssertEvaluatedProperty(properties, "SelfContained", "true");
+        AssertEvaluatedProperty(properties, "WindowsAppSDKSelfContained", "true");
+        AssertEvaluatedProperty(properties, "PublishAot", "true");
+        AssertEvaluatedFalseOrEmptyProperty(properties, "PublishSingleFile");
+
+        string expectedPublishDirectory = NormalizeDirectoryPath(Path.Combine(
+            FindRepositoryRoot(),
+            "artifacts",
+            "publish",
+            "P4G.SaveTool.WinUI",
+            "nativeaot-win-x64"));
+        string actualPublishDirectory = NormalizeDirectoryPath(
+            GetRequiredEvaluatedProperty(properties, "PublishDir"));
+        Assert.True(
+            string.Equals(expectedPublishDirectory, actualPublishDirectory, StringComparison.OrdinalIgnoreCase),
+            $"PublishDir must evaluate to '{expectedPublishDirectory}' but evaluated to '{actualPublishDirectory}'.");
+    }
+
+    [Fact]
+    public async Task NativeAotPublishProfileEvaluatesExpectedPublishSettings()
+    {
+        IReadOnlyDictionary<string, string> properties = await GetEvaluatedPropertiesAsync(
+            GetWinUIProjectFile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Configuration"] = "Release",
+                ["Platform"] = "x64",
+                ["RuntimeIdentifier"] = "win-x64",
+                ["PublishProfile"] = "nativeaot-win-x64",
+            },
+            [
+                "WindowsPackageType",
+                "SelfContained",
+                "WindowsAppSDKSelfContained",
+                "PublishAot",
+                "PublishSingleFile",
+                "RuntimeIdentifier",
+                "Platform",
+                "PublishDir",
+            ]);
+
+        AssertEvaluatedProperty(properties, "WindowsPackageType", "None");
+        AssertEvaluatedProperty(properties, "SelfContained", "true");
+        AssertEvaluatedProperty(properties, "WindowsAppSDKSelfContained", "true");
+        AssertEvaluatedProperty(properties, "PublishAot", "true");
+        AssertEvaluatedFalseOrEmptyProperty(properties, "PublishSingleFile");
+        AssertEvaluatedProperty(properties, "RuntimeIdentifier", "win-x64");
+        AssertEvaluatedProperty(properties, "Platform", "x64");
+
+        string expectedPublishDirectory = NormalizeDirectoryPath(Path.Combine(
+            FindRepositoryRoot(),
+            "artifacts",
+            "publish",
+            "P4G.SaveTool.WinUI",
+            "nativeaot-win-x64"));
+        string actualPublishDirectory = NormalizeDirectoryPath(
+            GetRequiredEvaluatedProperty(properties, "PublishDir"));
+        Assert.True(
+            string.Equals(expectedPublishDirectory, actualPublishDirectory, StringComparison.OrdinalIgnoreCase),
+            $"PublishDir must evaluate to '{expectedPublishDirectory}' but evaluated to '{actualPublishDirectory}'.");
+    }
+
+    [Fact]
+    public async Task ProductionLibraryProjectsEvaluateAotCompatible()
+    {
+        IReadOnlyDictionary<string, string> globalProperties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Configuration"] = "Release",
+            ["Platform"] = "x64",
+            ["RuntimeIdentifier"] = "win-x64",
+        };
+
+        foreach (string projectName in AotCompatibleProductionProjects)
+        {
+            string projectFile = Path.Combine(
+                FindRepositoryDirectory("src", projectName),
+                $"{projectName}.csproj");
+            IReadOnlyDictionary<string, string> properties = await GetEvaluatedPropertiesAsync(
+                projectFile,
+                globalProperties,
+                ["IsAotCompatible"]);
+
+            AssertEvaluatedProperty(properties, "IsAotCompatible", "true");
+        }
+    }
+
     private static string FindRepositoryDirectory(params string[] relativePathSegments)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
@@ -108,11 +300,211 @@ public sealed class WinUIArchitectureTests
             $"Could not find {Path.Combine(relativePathSegments)} from {AppContext.BaseDirectory}.");
     }
 
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "P4G.SaveTool.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException(
+            $"Could not find P4G.SaveTool.sln from {AppContext.BaseDirectory}.");
+    }
+
     private static string GetReferencedAssemblyName(string include)
     {
         string reference = include.Split(',', 2)[0];
         return string.Equals(Path.GetExtension(reference), ".csproj", StringComparison.OrdinalIgnoreCase)
             ? Path.GetFileNameWithoutExtension(reference)
             : reference;
+    }
+
+    private static string GetWinUIProjectFile()
+    {
+        return Path.Combine(
+            FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"),
+            "P4G.SaveTool.WinUI.csproj");
+    }
+
+    private static void AssertProperty(XDocument project, string propertyName, string expectedValue)
+    {
+        string actualValue = GetRequiredPropertyValue(project, propertyName);
+        Assert.Equal(expectedValue, actualValue);
+    }
+
+    private static void AssertNoTrueProperty(XDocument project, string propertyName)
+    {
+        string[] actualValues = GetPropertyValues(project, propertyName);
+        Assert.True(
+            actualValues.Length <= 1,
+            $"{propertyName} must not be declared more than once. Found values: {FormatPropertyValues(actualValues)}.");
+        Assert.False(
+            actualValues.Any(static actualValue => string.Equals(actualValue, "true", StringComparison.OrdinalIgnoreCase)),
+            $"{propertyName} must not be set to true.");
+    }
+
+    private static void AssertEvaluatedProperty(
+        IReadOnlyDictionary<string, string> properties,
+        string propertyName,
+        string expectedValue)
+    {
+        string actualValue = GetRequiredEvaluatedProperty(properties, propertyName);
+        Assert.Equal(expectedValue, actualValue);
+    }
+
+    private static void AssertEvaluatedFalseOrEmptyProperty(
+        IReadOnlyDictionary<string, string> properties,
+        string propertyName)
+    {
+        string actualValue = GetRequiredEvaluatedProperty(properties, propertyName);
+        Assert.True(
+            string.IsNullOrWhiteSpace(actualValue)
+            || string.Equals(actualValue, "false", StringComparison.OrdinalIgnoreCase),
+            $"{propertyName} must evaluate empty or false, but evaluated to '{actualValue}'.");
+    }
+
+    private static string GetRequiredPropertyValue(XDocument project, string propertyName)
+    {
+        string[] values = GetPropertyValues(project, propertyName);
+        Assert.True(values.Length > 0, $"Expected {propertyName} to be set.");
+        Assert.True(
+            values.Length == 1,
+            $"{propertyName} must be declared exactly once. Found values: {FormatPropertyValues(values)}.");
+        return values[0];
+    }
+
+    private static string[] GetPropertyValues(XDocument project, string propertyName)
+    {
+        return project
+            .Descendants()
+            .Where(element => element.Name.LocalName == propertyName)
+            .Select(static element => element.Value.Trim())
+            .ToArray();
+    }
+
+    private static string GetRequiredEvaluatedProperty(
+        IReadOnlyDictionary<string, string> properties,
+        string propertyName)
+    {
+        Assert.True(
+            properties.TryGetValue(propertyName, out string? value),
+            $"Expected MSBuild to return {propertyName}. Returned properties: {string.Join(", ", properties.Keys)}.");
+        return value;
+    }
+
+    private static async Task<IReadOnlyDictionary<string, string>> GetEvaluatedPropertiesAsync(
+        string projectFile,
+        IReadOnlyDictionary<string, string> globalProperties,
+        string[] propertyNames)
+    {
+        Assert.NotEmpty(propertyNames);
+
+        ProcessStartInfo startInfo = new(GetDotNetExecutable())
+        {
+            WorkingDirectory = FindRepositoryRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("msbuild");
+        startInfo.ArgumentList.Add(projectFile);
+        startInfo.ArgumentList.Add("-nologo");
+        startInfo.ArgumentList.Add("-v:quiet");
+        startInfo.ArgumentList.Add($"-getProperty:{string.Join(",", propertyNames)}");
+        foreach (KeyValuePair<string, string> globalProperty in globalProperties)
+        {
+            startInfo.ArgumentList.Add($"-p:{globalProperty.Key}={globalProperty.Value}");
+        }
+
+        using Process process = new() { StartInfo = startInfo };
+        process.Start();
+        Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
+        Task waitTask = process.WaitForExitAsync();
+        Task completedTask = await Task.WhenAny(waitTask, Task.Delay(MsBuildEvaluationTimeout)).ConfigureAwait(false);
+        if (completedTask != waitTask)
+        {
+            process.Kill(entireProcessTree: true);
+            Assert.Fail(
+                $"dotnet msbuild did not complete within {MsBuildEvaluationTimeout.TotalSeconds} seconds for {projectFile}.");
+        }
+
+        await waitTask.ConfigureAwait(false);
+        string standardOutput = await standardOutputTask.ConfigureAwait(false);
+        string standardError = await standardErrorTask.ConfigureAwait(false);
+
+        Assert.True(
+            process.ExitCode == 0,
+            $"dotnet msbuild failed for {projectFile} with exit code {process.ExitCode}."
+            + $"{Environment.NewLine}STDOUT:{Environment.NewLine}{standardOutput}"
+            + $"{Environment.NewLine}STDERR:{Environment.NewLine}{standardError}");
+
+        return ParseMsBuildProperties(standardOutput, propertyNames);
+    }
+
+    private static Dictionary<string, string> ParseMsBuildProperties(
+        string standardOutput,
+        string[] propertyNames)
+    {
+        string trimmedOutput = standardOutput.Trim();
+        if (propertyNames.Length == 1)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [propertyNames[0]] = trimmedOutput,
+            };
+        }
+
+        using JsonDocument document = JsonDocument.Parse(trimmedOutput);
+        JsonElement propertiesElement = document.RootElement.GetProperty("Properties");
+        Dictionary<string, string> properties = new(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonProperty property in propertiesElement.EnumerateObject())
+        {
+            properties[property.Name] = property.Value.GetString() ?? string.Empty;
+        }
+
+        return properties;
+    }
+
+    private static string GetDotNetExecutable()
+    {
+        string? dotNetHostPath = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
+        return string.IsNullOrWhiteSpace(dotNetHostPath)
+            ? "dotnet"
+            : dotNetHostPath;
+    }
+
+    private static string EvaluatePublishDirectory(string publishDirectory, string projectDirectory)
+    {
+        string expandedPublishDirectory = publishDirectory.Replace(
+            "$(MSBuildProjectDirectory)",
+            projectDirectory,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.False(
+            expandedPublishDirectory.Contains("$(", StringComparison.Ordinal),
+            $"PublishDir contains unevaluated MSBuild properties: {publishDirectory}");
+        return expandedPublishDirectory;
+    }
+
+    private static string NormalizeDirectoryPath(string directoryPath)
+    {
+        string fullPath = Path.GetFullPath(directoryPath);
+        return Path.EndsInDirectorySeparator(fullPath)
+            ? fullPath
+            : fullPath + Path.DirectorySeparatorChar;
+    }
+
+    private static string FormatPropertyValues(string[] values)
+    {
+        return values.Length == 0
+            ? "<none>"
+            : string.Join(", ", values.Select(static value => $"'{value}'"));
     }
 }

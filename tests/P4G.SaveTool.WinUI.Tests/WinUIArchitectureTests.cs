@@ -85,6 +85,43 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowPersonaHandlersRefreshShellStateAfterSelectionChanges()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("PersonaMemberComboBox_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("PersonaSlotComboBox_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("PersonaChoiceComboBox_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("PersonaSkillBox_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("RefreshPersonaState();", content, StringComparison.Ordinal);
+        Assert.Contains("TryBuildEditBatch(", content, StringComparison.Ordinal);
+        Assert.Contains("SetProtagonistPersonaSlotEdit", content, StringComparison.Ordinal);
+        Assert.Contains("SetPartyPersonaSlotEdit", content, StringComparison.Ordinal);
+        Assert.Contains("int partyPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1, 0, personaSlots.Count - 1);", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("selectedPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowPersonaSummaryRefreshesWithPersonaSelectionState()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string refreshPersonaStateBody = GetSection(
+            content,
+            "private void RefreshPersonaState()",
+            "private void PersonaMemberComboBox_SelectionChanged(");
+        string memberHandlerBody = GetSection(
+            content,
+            "private void PersonaMemberComboBox_SelectionChanged(",
+            "private void PersonaSlotComboBox_SelectionChanged(");
+
+        Assert.Contains("RefreshPersonaSummary();", refreshPersonaStateBody, StringComparison.Ordinal);
+        Assert.Contains("selectedPersonaMemberId = null;", memberHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshPersonaSummary();", memberHandlerBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowEquipmentEditsRefreshOnlyEquipmentState()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
@@ -93,11 +130,78 @@ public sealed class WinUIArchitectureTests
             content,
             "private void ApplyEquipmentSelection(",
             "private bool TryReadInventoryQuantity(");
+        string propertyChangedBody = GetSection(
+            content,
+            "private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)",
+            "private async Task RunBusyAsync(Func<Task<BusyOperationCompletion>> operation)");
 
         Assert.Contains("RefreshEquipmentState();", methodBody, StringComparison.Ordinal);
         Assert.Contains("DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);", methodBody, StringComparison.Ordinal);
         Assert.Contains("UpdateShellState();", methodBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModel();", methodBody, StringComparison.Ordinal);
+        Assert.Contains("preservePersonaEditorStateDuringEquipmentRefresh", methodBody, StringComparison.Ordinal);
+        Assert.Contains("if (preservePersonaEditorStateDuringEquipmentRefresh)", propertyChangedBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshEquipmentState();", propertyChangedBody, StringComparison.Ordinal);
+        Assert.Contains("return;", propertyChangedBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowInventoryEditsPreserveEditorTextDuringRefresh()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string propertyChangedBody = GetSection(
+            content,
+            "private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)",
+            "private async Task RunBusyAsync(Func<Task<BusyOperationCompletion>> operation)");
+        string addUpdateBody = GetSection(
+            content,
+            "private void InventoryAddUpdateButton_Click(object sender, RoutedEventArgs e)",
+            "private void InventoryDeleteButton_Click(");
+        string deleteBody = GetSection(
+            content,
+            "private void InventoryDeleteButton_Click(object sender, RoutedEventArgs e)",
+            "private void PersonaMemberComboBox_SelectionChanged(");
+
+        Assert.Contains("if (preserveEditorTextDuringInventoryRefresh)", propertyChangedBody, StringComparison.Ordinal);
+        Assert.Contains("preserveEditorTextDuringInventoryRefresh = true;", addUpdateBody, StringComparison.Ordinal);
+        Assert.Contains("preserveEditorTextDuringInventoryRefresh = false;", addUpdateBody, StringComparison.Ordinal);
+        Assert.Contains("preserveEditorTextDuringInventoryRefresh = true;", deleteBody, StringComparison.Ordinal);
+        Assert.Contains("preserveEditorTextDuringInventoryRefresh = false;", deleteBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowSaveValidationFailurePreservesEditorState()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string runBusyBody = GetSection(
+            content,
+            "private async Task RunBusyAsync(Func<Task<BusyOperationCompletion>> operation)",
+            "private async Task<BusyOperationCompletion> OpenSaveFileAsync()");
+        string propertyChangedBody = GetSection(
+            content,
+            "private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)",
+            "private async Task RunBusyAsync(Func<Task<BusyOperationCompletion>> operation)");
+        string applyEditorFieldsBody = GetSection(
+            content,
+            "private bool ApplyEditorFields()",
+            "private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)");
+        string saveBody = GetSection(
+            content,
+            "private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)",
+            "private async Task<string?> PickSavePathAsync()");
+
+        Assert.Contains("BusyOperationCompletion completion = BusyOperationCompletion.RefreshViewModel;", runBusyBody, StringComparison.Ordinal);
+        Assert.Contains("if (completion == BusyOperationCompletion.RefreshViewModel)", runBusyBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellState();", runBusyBody, StringComparison.Ordinal);
+        Assert.Contains("preserveSaveEditorStateDuringRefresh", propertyChangedBody, StringComparison.Ordinal);
+        Assert.Contains("DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);", propertyChangedBody, StringComparison.Ordinal);
+        Assert.Contains("preserveSaveEditorStateDuringRefresh = true;", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("preserveSaveEditorStateDuringRefresh = false;", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
+        Assert.Contains("return BusyOperationCompletion.PreserveEditorState;", saveBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshFromViewModel();", saveBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -145,6 +249,25 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentAccessoryComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentCostumeComboBox\"", xaml);
+    }
+
+    [Fact]
+    public void MainWindowXamlExposesPersonaEditorSurface()
+    {
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+
+        Assert.Contains("x:Name=\"PersonaMemberComboBox\"", xaml);
+        Assert.Contains("x:Name=\"PersonaSlotComboBox\"", xaml);
+        Assert.Contains("x:Name=\"PersonaChoiceComboBox\"", xaml);
+        Assert.Contains("x:Name=\"PersonaXpTextBox\"", xaml);
+        Assert.Contains("x:Name=\"PersonaLevelSlider\"", xaml);
+        Assert.Contains("x:Name=\"PersonaStrengthSlider\"", xaml);
+        Assert.Contains("x:Name=\"PersonaMagicSlider\"", xaml);
+        Assert.Contains("x:Name=\"PersonaEnduranceSlider\"", xaml);
+        Assert.Contains("x:Name=\"PersonaAgilitySlider\"", xaml);
+        Assert.Contains("x:Name=\"PersonaLuckSlider\"", xaml);
+        Assert.Contains("x:Name=\"PersonaSkillBox1\"", xaml);
+        Assert.Contains("x:Name=\"PersonaSkillBox8\"", xaml);
     }
 
     [Fact]

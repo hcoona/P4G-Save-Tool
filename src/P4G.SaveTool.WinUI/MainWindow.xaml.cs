@@ -13,6 +13,12 @@ namespace P4G.SaveTool.WinUI;
 
 public sealed partial class MainWindow : Window
 {
+    private enum BusyOperationCompletion
+    {
+        RefreshViewModel,
+        PreserveEditorState,
+    }
+
     private readonly SaveEditorViewModel viewModel;
     private readonly InventorySelectionState inventorySelectionState = new();
     private IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride;
@@ -20,12 +26,17 @@ public sealed partial class MainWindow : Window
     private bool isBusy;
     private bool suppressInventoryEvents;
     private bool suppressEquipmentEvents;
+    private bool suppressPersonaEvents;
     private bool preserveEditorTextDuringInventoryRefresh;
+    private bool preservePersonaEditorStateDuringEquipmentRefresh;
+    private bool preserveSaveEditorStateDuringRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private byte? selectedInventoryCategoryId;
     private ushort? selectedInventoryItemId;
     private ushort? selectedInventoryEntryId;
     private byte? selectedEquipmentCharacterId;
+    private byte? selectedPersonaMemberId;
+    private int selectedPersonaSlotIndex;
 
     public MainWindow()
     {
@@ -60,10 +71,25 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (preservePersonaEditorStateDuringEquipmentRefresh)
+        {
+            RefreshEquipmentState();
+            DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+            UpdateShellState();
+            return;
+        }
+
+        if (preserveSaveEditorStateDuringRefresh)
+        {
+            DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+            UpdateShellState();
+            return;
+        }
+
         RefreshFromViewModel();
     }
 
-    private async Task RunBusyAsync(Func<Task> operation)
+    private async Task RunBusyAsync(Func<Task<BusyOperationCompletion>> operation)
     {
         if (isBusy)
         {
@@ -72,18 +98,26 @@ public sealed partial class MainWindow : Window
 
         isBusy = true;
         UpdateShellState();
+        BusyOperationCompletion completion = BusyOperationCompletion.RefreshViewModel;
         try
         {
-            await operation();
+            completion = await operation();
         }
         finally
         {
             isBusy = false;
-            RefreshFromViewModel();
+            if (completion == BusyOperationCompletion.RefreshViewModel)
+            {
+                RefreshFromViewModel();
+            }
+            else
+            {
+                UpdateShellState();
+            }
         }
     }
 
-    private async Task OpenSaveFileAsync()
+    private async Task<BusyOperationCompletion> OpenSaveFileAsync()
     {
         FileOpenPicker picker = new()
         {
@@ -98,13 +132,13 @@ public sealed partial class MainWindow : Window
         StorageFile? file = await picker.PickSingleFileAsync();
         if (file is null)
         {
-            return;
+            return BusyOperationCompletion.RefreshViewModel;
         }
 
         if (string.IsNullOrWhiteSpace(file.Path))
         {
             SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI001", "The selected file does not expose a local path.", "Open")]);
-            return;
+            return BusyOperationCompletion.RefreshViewModel;
         }
 
         try
@@ -119,6 +153,8 @@ public sealed partial class MainWindow : Window
                 selectedInventoryItemId = null;
                 selectedInventoryEntryId = null;
                 selectedEquipmentCharacterId = null;
+                selectedPersonaMemberId = 0;
+                selectedPersonaSlotIndex = 0;
                 inventorySelectionState.Reset();
                 autoSelectInventoryEntryAfterOpen = true;
                 InventoryQuantityTextBox.Text = string.Empty;
@@ -139,6 +175,8 @@ public sealed partial class MainWindow : Window
             SetUiDiagnostics(diagnostics);
             await ShowMessageAsync("Open failed", FormatDiagnostics(diagnostics));
         }
+
+        return BusyOperationCompletion.RefreshViewModel;
     }
 
     private bool ApplyEditorFields()
@@ -149,11 +187,8 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        if (!TryReadEditorValues(
-            out string familyName,
-            out string givenName,
-            out uint yen,
-            out IReadOnlyList<byte> partyMemberValues,
+        if (!TryBuildEditBatch(
+            out IReadOnlyList<SaveEditCommand> edits,
             out IReadOnlyList<SaveDiagnostic> diagnostics))
         {
             SetUiDiagnostics(diagnostics);
@@ -161,16 +196,33 @@ public sealed partial class MainWindow : Window
         }
 
         uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = viewModel.ApplyEditorValues(familyName, givenName, yen, partyMemberValues);
+        preserveSaveEditorStateDuringRefresh = true;
+        SaveEditorOperationResult result;
+        try
+        {
+            result = viewModel.ApplyEdits(edits);
+        }
+        finally
+        {
+            preserveSaveEditorStateDuringRefresh = false;
+        }
+
+        if (!result.Succeeded)
+        {
+            DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+            UpdateShellState();
+            return false;
+        }
+
         RefreshFromViewModel();
-        return result.Succeeded;
+        return true;
     }
 
-    private async Task SaveAsync(bool forcePicker)
+    private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)
     {
         if (!ApplyEditorFields())
         {
-            return;
+            return BusyOperationCompletion.PreserveEditorState;
         }
 
         string? targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)
@@ -178,7 +230,7 @@ public sealed partial class MainWindow : Window
             : currentFilePath;
         if (string.IsNullOrWhiteSpace(targetPath))
         {
-            return;
+            return BusyOperationCompletion.RefreshViewModel;
         }
 
         uiDiagnosticsOverride = null;
@@ -187,7 +239,7 @@ public sealed partial class MainWindow : Window
         if (!writeResult.Succeeded || writeResult.Bytes is null || writeResult.OperationToken is null)
         {
             await ShowMessageAsync("Save failed", FormatDiagnostics(writeResult.Diagnostics));
-            return;
+            return BusyOperationCompletion.RefreshViewModel;
         }
 
         SaveEditorWriteToken operationToken = writeResult.OperationToken.Value;
@@ -204,7 +256,7 @@ public sealed partial class MainWindow : Window
             SaveEditorOperationResult reportResult = viewModel.ReportSaveFailed(operationToken, diagnostics);
             RefreshFromViewModel();
             await ShowMessageAsync("Save failed", FormatDiagnostics(reportResult.Diagnostics));
-            return;
+            return BusyOperationCompletion.RefreshViewModel;
         }
 
         currentFilePath = targetPath;
@@ -214,6 +266,8 @@ public sealed partial class MainWindow : Window
         {
             await ShowMessageAsync("Save acknowledgement failed", FormatDiagnostics(acknowledgeResult.Diagnostics));
         }
+
+        return BusyOperationCompletion.RefreshViewModel;
     }
 
     private async Task<string?> PickSavePathAsync()
@@ -245,34 +299,32 @@ public sealed partial class MainWindow : Window
         return null;
     }
 
-    private bool TryReadEditorValues(
-        out string familyName,
-        out string givenName,
-        out uint yen,
-        out IReadOnlyList<byte> partyMemberValues,
+    private bool TryBuildEditBatch(
+        out IReadOnlyList<SaveEditCommand> edits,
         out IReadOnlyList<SaveDiagnostic> diagnostics)
     {
         List<SaveDiagnostic> validationDiagnostics = [];
-        List<byte> parsedPartyMemberValues = [];
+        List<SaveEditCommand> batch = [];
 
-        familyName = FamilyNameTextBox.Text ?? string.Empty;
-        givenName = GivenNameTextBox.Text ?? string.Empty;
+        string familyName = FamilyNameTextBox.Text ?? string.Empty;
+        string givenName = GivenNameTextBox.Text ?? string.Empty;
 
         if (uint.TryParse(YenTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsedYen))
         {
-            yen = parsedYen;
+            batch.Add(new SetYenEdit(parsedYen));
         }
         else
         {
-            yen = 0;
             validationDiagnostics.Add(CreateUiDiagnostic("P4GWINUI006", "Yen must be an unsigned whole number.", "Yen"));
         }
 
-        AddPartyMemberValue(PartySlot0TextBox, 0, parsedPartyMemberValues, validationDiagnostics);
-        AddPartyMemberValue(PartySlot1TextBox, 1, parsedPartyMemberValues, validationDiagnostics);
-        AddPartyMemberValue(PartySlot2TextBox, 2, parsedPartyMemberValues, validationDiagnostics);
+        batch.Add(new SetSaveNamesEdit(familyName, givenName));
+        AddPartyMemberValue(PartySlot0TextBox, 0, batch, validationDiagnostics);
+        AddPartyMemberValue(PartySlot1TextBox, 1, batch, validationDiagnostics);
+        AddPartyMemberValue(PartySlot2TextBox, 2, batch, validationDiagnostics);
+        AddPersonaEdit(batch, validationDiagnostics);
 
-        partyMemberValues = validationDiagnostics.Count == 0 ? parsedPartyMemberValues : [];
+        edits = validationDiagnostics.Count == 0 ? batch : [];
         diagnostics = validationDiagnostics;
         return validationDiagnostics.Count == 0;
     }
@@ -280,12 +332,12 @@ public sealed partial class MainWindow : Window
     private static void AddPartyMemberValue(
         TextBox textBox,
         int slotIndex,
-        List<byte> partyMemberValues,
+        List<SaveEditCommand> edits,
         List<SaveDiagnostic> diagnostics)
     {
         if (byte.TryParse(textBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out byte memberValue))
         {
-            partyMemberValues.Add(memberValue);
+            edits.Add(new SetPartyMemberEdit(slotIndex, memberValue));
             return;
         }
 
@@ -294,6 +346,146 @@ public sealed partial class MainWindow : Window
             $"Party slot {slotIndex + 1} must be a whole number from 0 to 255.",
             $"PartyMembers[{slotIndex}]"));
     }
+
+    private void AddPersonaEdit(List<SaveEditCommand> edits, List<SaveDiagnostic> diagnostics)
+    {
+        if (!selectedPersonaMemberId.HasValue)
+        {
+            diagnostics.Add(CreateUiDiagnostic("P4GWINUI012", "Select a persona member before applying persona edits.", "Persona.Member"));
+            return;
+        }
+
+        if (selectedPersonaMemberId.Value == 0)
+        {
+            if (PersonaSlotComboBox.SelectedItem is not PersonaSlotViewState selectedSlot)
+            {
+                diagnostics.Add(CreateUiDiagnostic("P4GWINUI013", "Select a protagonist persona slot before applying edits.", "Persona.Slot"));
+                return;
+            }
+
+            if (!TryBuildPersonaSlotEdit(out PersonaSlotEdit personaSlotEdit, out SaveDiagnostic diagnostic))
+            {
+                diagnostics.Add(diagnostic);
+                return;
+            }
+
+            if (ShouldSkipPersonaEdit(selectedSlot, personaSlotEdit))
+            {
+                return;
+            }
+
+            edits.Add(new SetProtagonistPersonaSlotEdit(selectedSlot.SlotIndex, personaSlotEdit));
+            return;
+        }
+
+        int partySlotIndex = selectedPersonaMemberId.Value - 1;
+        PersonaSlotViewState currentPartySlot = viewModel.PartyPersonaSlots[partySlotIndex];
+        if (!TryBuildPersonaSlotEdit(out PersonaSlotEdit partyPersonaSlotEdit, out SaveDiagnostic partyDiagnostic))
+        {
+            diagnostics.Add(partyDiagnostic);
+            return;
+        }
+
+        if (ShouldSkipPersonaEdit(currentPartySlot, partyPersonaSlotEdit))
+        {
+            return;
+        }
+
+        edits.Add(new SetPartyPersonaSlotEdit(partySlotIndex, partyPersonaSlotEdit));
+    }
+
+    internal static bool ShouldSkipPersonaEdit(PersonaSlotViewState currentSlot, PersonaSlotEdit personaSlotEdit)
+    {
+        ArgumentNullException.ThrowIfNull(currentSlot);
+        ArgumentNullException.ThrowIfNull(personaSlotEdit);
+
+        return currentSlot.PersonaId == personaSlotEdit.PersonaId &&
+            currentSlot.Level == personaSlotEdit.Level &&
+            currentSlot.TotalExperience == personaSlotEdit.TotalExperience &&
+            currentSlot.SkillIds.SequenceEqual(personaSlotEdit.SkillIds) &&
+            currentSlot.Strength == personaSlotEdit.Strength &&
+            currentSlot.Magic == personaSlotEdit.Magic &&
+            currentSlot.Endurance == personaSlotEdit.Endurance &&
+            currentSlot.Agility == personaSlotEdit.Agility &&
+            currentSlot.Luck == personaSlotEdit.Luck;
+    }
+
+    private bool TryBuildPersonaSlotEdit(
+        out PersonaSlotEdit personaSlotEdit,
+        out SaveDiagnostic diagnostic)
+    {
+        personaSlotEdit = new PersonaSlotEdit(0, 0, 0, Array.Empty<ushort>(), 0, 0, 0, 0, 0);
+        diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
+
+        if (!uint.TryParse(PersonaXpTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint totalExperience))
+        {
+            diagnostic = CreateUiDiagnostic("P4GWINUI015", "Persona total experience must be an unsigned whole number.", "Persona.Xp");
+            return false;
+        }
+
+        if (!TryReadSelectedPersonaId(out ushort personaId, out diagnostic) ||
+            !TryReadSelectedSkillIds(out IReadOnlyList<ushort> skillIds, out diagnostic))
+        {
+            return false;
+        }
+
+        byte level = (byte)Math.Round(PersonaLevelSlider.Value, MidpointRounding.AwayFromZero);
+        personaSlotEdit = new PersonaSlotEdit(
+            personaId,
+            level,
+            totalExperience,
+            skillIds,
+            (byte)Math.Round(PersonaStrengthSlider.Value, MidpointRounding.AwayFromZero),
+            (byte)Math.Round(PersonaMagicSlider.Value, MidpointRounding.AwayFromZero),
+            (byte)Math.Round(PersonaEnduranceSlider.Value, MidpointRounding.AwayFromZero),
+            (byte)Math.Round(PersonaAgilitySlider.Value, MidpointRounding.AwayFromZero),
+            (byte)Math.Round(PersonaLuckSlider.Value, MidpointRounding.AwayFromZero));
+        diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
+        return true;
+    }
+
+    private bool TryReadSelectedPersonaId(out ushort personaId, out SaveDiagnostic diagnostic)
+    {
+        if (PersonaChoiceComboBox.SelectedItem is PersonaChoiceViewState selectedPersona)
+        {
+            personaId = selectedPersona.PersonaId;
+            diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
+            return true;
+        }
+
+        personaId = 0;
+        diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
+        return false;
+    }
+
+    private bool TryReadSelectedSkillIds(out IReadOnlyList<ushort> skillIds, out SaveDiagnostic diagnostic)
+    {
+        ushort[] selectedSkillIds =
+        [
+            ReadSkillId(PersonaSkillBox1),
+            ReadSkillId(PersonaSkillBox2),
+            ReadSkillId(PersonaSkillBox3),
+            ReadSkillId(PersonaSkillBox4),
+            ReadSkillId(PersonaSkillBox5),
+            ReadSkillId(PersonaSkillBox6),
+            ReadSkillId(PersonaSkillBox7),
+            ReadSkillId(PersonaSkillBox8),
+        ];
+
+        if (selectedSkillIds.Any(static skillId => skillId == ushort.MaxValue))
+        {
+            skillIds = Array.Empty<ushort>();
+            diagnostic = CreateUiDiagnostic("P4GWINUI016", "Select a skill for each persona slot.", "Persona.Skills");
+            return false;
+        }
+
+        skillIds = selectedSkillIds;
+        diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
+        return true;
+    }
+
+    private static ushort ReadSkillId(ComboBox comboBox) =>
+        comboBox.SelectedItem is SkillChoiceViewState selectedSkill ? selectedSkill.SkillId : ushort.MaxValue;
 
     private void RefreshFromViewModel()
     {
@@ -311,8 +503,8 @@ public sealed partial class MainWindow : Window
         PartySlot0TextBox.Text = GetPartyMemberValue(0);
         PartySlot1TextBox.Text = GetPartyMemberValue(1);
         PartySlot2TextBox.Text = GetPartyMemberValue(2);
-        PersonaSummaryTextBox.Text = BuildPersonaSummary();
         RefreshEquipmentState();
+        RefreshPersonaState();
     }
 
     private void UpdateShellState()
@@ -330,6 +522,24 @@ public sealed partial class MainWindow : Window
         PartySlot0TextBox.IsEnabled = canEdit;
         PartySlot1TextBox.IsEnabled = canEdit;
         PartySlot2TextBox.IsEnabled = canEdit;
+        PersonaMemberComboBox.IsEnabled = canEdit;
+        PersonaSlotComboBox.IsEnabled = canEdit && selectedPersonaMemberId == 0;
+        PersonaChoiceComboBox.IsEnabled = canEdit;
+        PersonaXpTextBox.IsEnabled = canEdit;
+        PersonaLevelSlider.IsEnabled = canEdit;
+        PersonaStrengthSlider.IsEnabled = canEdit;
+        PersonaMagicSlider.IsEnabled = canEdit;
+        PersonaEnduranceSlider.IsEnabled = canEdit;
+        PersonaAgilitySlider.IsEnabled = canEdit;
+        PersonaLuckSlider.IsEnabled = canEdit;
+        PersonaSkillBox1.IsEnabled = canEdit;
+        PersonaSkillBox2.IsEnabled = canEdit;
+        PersonaSkillBox3.IsEnabled = canEdit;
+        PersonaSkillBox4.IsEnabled = canEdit;
+        PersonaSkillBox5.IsEnabled = canEdit;
+        PersonaSkillBox6.IsEnabled = canEdit;
+        PersonaSkillBox7.IsEnabled = canEdit;
+        PersonaSkillBox8.IsEnabled = canEdit;
         EquipmentCharacterComboBox.IsEnabled = canEdit;
         EquipmentWeaponComboBox.IsEnabled = canEdit;
         EquipmentArmorComboBox.IsEnabled = canEdit;
@@ -515,6 +725,146 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void RefreshPersonaState()
+    {
+        suppressPersonaEvents = true;
+        try
+        {
+            PersonaMemberComboBox.ItemsSource = viewModel.HasSave
+                ? viewModel.PartyMemberChoices
+                : Array.Empty<PartyMemberChoiceViewState>();
+
+            if (!viewModel.HasSave || viewModel.PartyMemberChoices.Count == 0)
+            {
+                selectedPersonaMemberId = null;
+                selectedPersonaSlotIndex = 0;
+                PersonaMemberComboBox.SelectedItem = null;
+                PersonaSlotComboBox.ItemsSource = Array.Empty<PersonaSlotViewState>();
+                PersonaSlotComboBox.SelectedItem = null;
+                PersonaChoiceComboBox.ItemsSource = Array.Empty<PersonaChoiceViewState>();
+                PersonaChoiceComboBox.SelectedItem = null;
+                PersonaXpTextBox.Text = string.Empty;
+                PersonaLevelSlider.Value = 0;
+                PersonaStrengthSlider.Value = 0;
+                PersonaMagicSlider.Value = 0;
+                PersonaEnduranceSlider.Value = 0;
+                PersonaAgilitySlider.Value = 0;
+                PersonaLuckSlider.Value = 0;
+                PersonaSkillBox1.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox1.SelectedItem = null;
+                PersonaSkillBox2.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox2.SelectedItem = null;
+                PersonaSkillBox3.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox3.SelectedItem = null;
+                PersonaSkillBox4.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox4.SelectedItem = null;
+                PersonaSkillBox5.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox5.SelectedItem = null;
+                PersonaSkillBox6.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox6.SelectedItem = null;
+                PersonaSkillBox7.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox7.SelectedItem = null;
+                PersonaSkillBox8.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox8.SelectedItem = null;
+                return;
+            }
+
+            PartyMemberChoiceViewState? selectedMember = null;
+            if (selectedPersonaMemberId.HasValue)
+            {
+                selectedMember = viewModel.PartyMemberChoices.FirstOrDefault(
+                    member => member.MemberId == selectedPersonaMemberId.Value);
+            }
+
+            selectedMember ??= viewModel.PartyMemberChoices[0];
+            PersonaMemberComboBox.SelectedItem = selectedMember;
+            selectedPersonaMemberId = selectedMember.MemberId;
+
+            bool isProtagonist = selectedMember.MemberId == 0;
+            IReadOnlyList<PersonaSlotViewState> personaSlots = isProtagonist
+                ? viewModel.ProtagonistPersonaSlots
+                : viewModel.PartyPersonaSlots;
+
+            if (personaSlots.Count == 0)
+            {
+                PersonaSlotComboBox.ItemsSource = Array.Empty<PersonaSlotViewState>();
+                PersonaSlotComboBox.SelectedItem = null;
+                return;
+            }
+
+            if (isProtagonist)
+            {
+                selectedPersonaSlotIndex = Math.Clamp(selectedPersonaSlotIndex, 0, personaSlots.Count - 1);
+                PersonaSlotComboBox.ItemsSource = personaSlots;
+                PersonaSlotComboBox.SelectedItem = personaSlots[selectedPersonaSlotIndex];
+            }
+            else
+            {
+                int partyPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1, 0, personaSlots.Count - 1);
+                PersonaSlotComboBox.ItemsSource = Array.Empty<PersonaSlotViewState>();
+                PersonaSlotComboBox.SelectedItem = null;
+                PersonaChoiceComboBox.ItemsSource = Array.Empty<PersonaChoiceViewState>();
+                PersonaChoiceComboBox.SelectedItem = null;
+                PersonaXpTextBox.Text = string.Empty;
+                PersonaLevelSlider.Value = 0;
+                PersonaStrengthSlider.Value = 0;
+                PersonaMagicSlider.Value = 0;
+                PersonaEnduranceSlider.Value = 0;
+                PersonaAgilitySlider.Value = 0;
+                PersonaLuckSlider.Value = 0;
+                PersonaSkillBox1.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox1.SelectedItem = null;
+                PersonaSkillBox2.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox2.SelectedItem = null;
+                PersonaSkillBox3.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox3.SelectedItem = null;
+                PersonaSkillBox4.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox4.SelectedItem = null;
+                PersonaSkillBox5.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox5.SelectedItem = null;
+                PersonaSkillBox6.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox6.SelectedItem = null;
+                PersonaSkillBox7.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox7.SelectedItem = null;
+                PersonaSkillBox8.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                PersonaSkillBox8.SelectedItem = null;
+                PersonaSlotViewState partyCurrentSlot = personaSlots[partyPersonaSlotIndex];
+                PersonaChoiceComboBox.ItemsSource = viewModel.GetPersonaChoices(
+                    partyCurrentSlot.PersonaId,
+                    out PersonaChoiceViewState partySelectedPersonaChoice);
+                PersonaChoiceComboBox.SelectedItem = partySelectedPersonaChoice;
+                PersonaXpTextBox.Text = partyCurrentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
+                PersonaLevelSlider.Value = partyCurrentSlot.Level;
+                PersonaStrengthSlider.Value = partyCurrentSlot.Strength;
+                PersonaMagicSlider.Value = partyCurrentSlot.Magic;
+                PersonaEnduranceSlider.Value = partyCurrentSlot.Endurance;
+                PersonaAgilitySlider.Value = partyCurrentSlot.Agility;
+                PersonaLuckSlider.Value = partyCurrentSlot.Luck;
+                SetPersonaSkillChoices(partyCurrentSlot.SkillIds);
+                UpdateShellState();
+                return;
+            }
+
+            PersonaSlotViewState currentSlot = personaSlots[selectedPersonaSlotIndex];
+            PersonaChoiceComboBox.ItemsSource = viewModel.GetPersonaChoices(currentSlot.PersonaId, out PersonaChoiceViewState selectedPersonaChoice);
+            PersonaChoiceComboBox.SelectedItem = selectedPersonaChoice;
+            PersonaXpTextBox.Text = currentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
+            PersonaLevelSlider.Value = currentSlot.Level;
+            PersonaStrengthSlider.Value = currentSlot.Strength;
+            PersonaMagicSlider.Value = currentSlot.Magic;
+            PersonaEnduranceSlider.Value = currentSlot.Endurance;
+            PersonaAgilitySlider.Value = currentSlot.Agility;
+            PersonaLuckSlider.Value = currentSlot.Luck;
+
+            SetPersonaSkillChoices(currentSlot.SkillIds);
+        }
+        finally
+        {
+            suppressPersonaEvents = false;
+            RefreshPersonaSummary();
+        }
+    }
+
     private static void SetEquipmentChoices(
         ComboBox comboBox,
         IReadOnlyList<InventoryItemChoiceViewState> itemChoices,
@@ -525,6 +875,35 @@ public sealed partial class MainWindow : Window
             selectedItemId,
             out InventoryItemChoiceViewState? selectedItem);
         comboBox.SelectedItem = selectedItem;
+    }
+
+    private void SetPersonaSkillChoices(IReadOnlyList<ushort> skillIds)
+    {
+        IReadOnlyList<SkillChoiceViewState> skill1Choices = viewModel.GetSkillChoices(skillIds[0], out SkillChoiceViewState skill1);
+        IReadOnlyList<SkillChoiceViewState> skill2Choices = viewModel.GetSkillChoices(skillIds[1], out SkillChoiceViewState skill2);
+        IReadOnlyList<SkillChoiceViewState> skill3Choices = viewModel.GetSkillChoices(skillIds[2], out SkillChoiceViewState skill3);
+        IReadOnlyList<SkillChoiceViewState> skill4Choices = viewModel.GetSkillChoices(skillIds[3], out SkillChoiceViewState skill4);
+        IReadOnlyList<SkillChoiceViewState> skill5Choices = viewModel.GetSkillChoices(skillIds[4], out SkillChoiceViewState skill5);
+        IReadOnlyList<SkillChoiceViewState> skill6Choices = viewModel.GetSkillChoices(skillIds[5], out SkillChoiceViewState skill6);
+        IReadOnlyList<SkillChoiceViewState> skill7Choices = viewModel.GetSkillChoices(skillIds[6], out SkillChoiceViewState skill7);
+        IReadOnlyList<SkillChoiceViewState> skill8Choices = viewModel.GetSkillChoices(skillIds[7], out SkillChoiceViewState skill8);
+
+        PersonaSkillBox1.ItemsSource = skill1Choices;
+        PersonaSkillBox1.SelectedItem = skill1;
+        PersonaSkillBox2.ItemsSource = skill2Choices;
+        PersonaSkillBox2.SelectedItem = skill2;
+        PersonaSkillBox3.ItemsSource = skill3Choices;
+        PersonaSkillBox3.SelectedItem = skill3;
+        PersonaSkillBox4.ItemsSource = skill4Choices;
+        PersonaSkillBox4.SelectedItem = skill4;
+        PersonaSkillBox5.ItemsSource = skill5Choices;
+        PersonaSkillBox5.SelectedItem = skill5;
+        PersonaSkillBox6.ItemsSource = skill6Choices;
+        PersonaSkillBox6.SelectedItem = skill6;
+        PersonaSkillBox7.ItemsSource = skill7Choices;
+        PersonaSkillBox7.SelectedItem = skill7;
+        PersonaSkillBox8.ItemsSource = skill8Choices;
+        PersonaSkillBox8.SelectedItem = skill8;
     }
 
     private byte GetInventoryQuantityOrDefault(ushort itemId)
@@ -691,6 +1070,62 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void PersonaMemberComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressPersonaEvents)
+        {
+            return;
+        }
+
+        if (PersonaMemberComboBox.SelectedItem is not PartyMemberChoiceViewState selectedMember)
+        {
+            selectedPersonaMemberId = null;
+            RefreshPersonaSummary();
+            UpdateShellState();
+            return;
+        }
+
+        selectedPersonaMemberId = selectedMember.MemberId;
+
+        RefreshPersonaState();
+        UpdateShellState();
+    }
+
+    private void PersonaSlotComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressPersonaEvents)
+        {
+            return;
+        }
+
+        if (PersonaSlotComboBox.SelectedItem is PersonaSlotViewState selectedSlot)
+        {
+            selectedPersonaSlotIndex = selectedSlot.SlotIndex;
+            RefreshPersonaState();
+            UpdateShellState();
+        }
+    }
+
+    private void PersonaChoiceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressPersonaEvents)
+        {
+            return;
+        }
+
+        UpdateShellState();
+    }
+
+    private void PersonaSkillBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressPersonaEvents)
+        {
+            return;
+        }
+
+        UpdateShellState();
+    }
+
     private void EquipmentCharacterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (suppressEquipmentEvents)
@@ -743,7 +1178,17 @@ public sealed partial class MainWindow : Window
         }
 
         uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = apply(viewModel, selectedEquipmentCharacterId.Value, selectedItem.ItemId);
+        preservePersonaEditorStateDuringEquipmentRefresh = true;
+        SaveEditorOperationResult result;
+        try
+        {
+            result = apply(viewModel, selectedEquipmentCharacterId.Value, selectedItem.ItemId);
+        }
+        finally
+        {
+            preservePersonaEditorStateDuringEquipmentRefresh = false;
+        }
+
         RefreshEquipmentState();
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateShellState();
@@ -778,17 +1223,42 @@ public sealed partial class MainWindow : Window
             return "Open a save to inspect persona slot projections.";
         }
 
-        List<string> lines =
-        [
-            $"Protagonist slots: {viewModel.ProtagonistPersonaSlots.Count}",
-            $"Party persona slots: {viewModel.PartyPersonaSlots.Count}",
-            $"Compendium slots: {viewModel.CompendiumPersonaSlots.Count}",
-            string.Empty,
-            "First protagonist slots:",
-        ];
+        PartyMemberChoiceViewState? selectedMember = selectedPersonaMemberId.HasValue
+            ? viewModel.PartyMemberChoices.FirstOrDefault(member => member.MemberId == selectedPersonaMemberId.Value)
+            : null;
+        if (selectedMember is null)
+        {
+            return "Select a persona member to inspect the active persona slot.";
+        }
 
-        lines.AddRange(viewModel.ProtagonistPersonaSlots.Take(8).Select(FormatPersonaSlot));
-        return string.Join(Environment.NewLine, lines);
+        IReadOnlyList<PersonaSlotViewState> personaSlots = selectedMember.MemberId == 0
+            ? viewModel.ProtagonistPersonaSlots
+            : viewModel.PartyPersonaSlots;
+        if (personaSlots.Count == 0)
+        {
+            return $"{selectedMember.Name}: no persona slots are available.";
+        }
+
+        int slotIndex = selectedMember.MemberId == 0
+            ? Math.Clamp(selectedPersonaSlotIndex, 0, personaSlots.Count - 1)
+            : Math.Clamp(selectedMember.MemberId - 1, 0, personaSlots.Count - 1);
+        PersonaSlotViewState slot = personaSlots[slotIndex];
+        viewModel.GetPersonaChoices(slot.PersonaId, out PersonaChoiceViewState selectedPersona);
+
+        return string.Join(
+            Environment.NewLine,
+            [
+                $"Member: {selectedMember.Name}",
+                $"Slot: {slotIndex}",
+                $"Persona: {selectedPersona.Name}",
+                $"Level: {slot.Level}",
+                $"XP: {slot.TotalExperience}",
+            ]);
+    }
+
+    private void RefreshPersonaSummary()
+    {
+        PersonaSummaryTextBox.Text = BuildPersonaSummary();
     }
 
     private void DisplayDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)

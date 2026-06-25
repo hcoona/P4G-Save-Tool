@@ -122,6 +122,34 @@ public sealed class WorkingSaveState
             inventoryStacks);
     }
 
+    public WorkingSaveState WithProtagonistPersonaSlot(int slotIndex, PersonaSlot personaSlot) =>
+        WithPersonaSlot(protagonistPersonaSlots, slotIndex, personaSlot, nameof(slotIndex), static (state, slots) => new(
+            state.Names,
+            state.Yen,
+            state.partyMembers,
+            state.equippedWeapons,
+            state.equippedArmors,
+            state.equippedAccessories,
+            state.equippedCostumes,
+            slots,
+            state.partyPersonaSlots,
+            state.compendiumPersonaSlots,
+            state.inventoryStacks));
+
+    public WorkingSaveState WithPartyPersonaSlot(int slotIndex, PersonaSlot personaSlot) =>
+        WithPersonaSlot(partyPersonaSlots, slotIndex, personaSlot, nameof(slotIndex), static (state, slots) => new(
+            state.Names,
+            state.Yen,
+            state.partyMembers,
+            state.equippedWeapons,
+            state.equippedArmors,
+            state.equippedAccessories,
+            state.equippedCostumes,
+            state.protagonistPersonaSlots,
+            slots,
+            state.compendiumPersonaSlots,
+            state.inventoryStacks));
+
     public WorkingSaveState WithEquippedWeapon(int characterId, ushort itemId) =>
         WithEquipment(characterId, itemId, EquipmentKind.Weapon);
 
@@ -224,6 +252,31 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             updatedInventory);
+    }
+
+    private WorkingSaveState WithPersonaSlot(
+        IReadOnlyList<PersonaSlot> slots,
+        int slotIndex,
+        PersonaSlot personaSlot,
+        string parameterName,
+        Func<WorkingSaveState, IReadOnlyList<PersonaSlot>, WorkingSaveState> createState)
+    {
+        ArgumentNullException.ThrowIfNull(slots);
+        ArgumentNullException.ThrowIfNull(personaSlot);
+
+        if ((uint)slotIndex >= (uint)slots.Count)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, slotIndex, "Persona slot is out of range.");
+        }
+
+        if (slots[slotIndex].Equals(personaSlot))
+        {
+            return this;
+        }
+
+        PersonaSlot[] updatedSlots = slots.ToArray();
+        updatedSlots[slotIndex] = personaSlot;
+        return createState(this, updatedSlots);
     }
 
     private WorkingSaveState WithEquipment(int characterId, ushort itemId, EquipmentKind kind)

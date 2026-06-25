@@ -105,6 +105,12 @@ public static class P4GSaveCodec
                 string.Equals(region.Name, patch.FieldName, StringComparison.Ordinal));
             if (field is null)
             {
+                if (TryGetPersonaSlotPatch(layout, patch.FieldName, out PersonaBlockDescriptor? block, out int slotIndex))
+                {
+                    ApplyPersonaSlotPatch(output, patch, block, slotIndex, diagnostics);
+                    continue;
+                }
+
                 diagnostics.Add(new SaveDiagnostic(
                     DiagnosticSeverity.Error,
                     "P4G003",
@@ -125,6 +131,64 @@ public static class P4GSaveCodec
 
             patch.BytesSpan.CopyTo(output.AsSpan(field.Offset, field.Length));
         }
+    }
+
+    private static void ApplyPersonaSlotPatch(
+        byte[] output,
+        SaveFieldPatch patch,
+        PersonaBlockDescriptor block,
+        int slotIndex,
+        List<SaveDiagnostic> diagnostics)
+    {
+        if ((uint)slotIndex >= (uint)block.Count)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4G004",
+                "Save field patch data is invalid for the target.",
+                PatchDiagnosticTarget));
+            return;
+        }
+
+        if (patch.ByteLength != PersonaSlotBinaryCodec.BinaryLength)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4G004",
+                "Save field patch data is invalid for the target.",
+                PatchDiagnosticTarget));
+            return;
+        }
+
+        int offset = block.Offset + (slotIndex * block.Stride) + block.PersonaOffsetWithinStride;
+        patch.BytesSpan.CopyTo(output.AsSpan(offset, PersonaSlotBinaryCodec.BinaryLength));
+    }
+
+    private static bool TryGetPersonaSlotPatch(
+        P4GSaveLayout layout,
+        string patchFieldName,
+        out PersonaBlockDescriptor? block,
+        out int slotIndex)
+    {
+        block = null;
+        slotIndex = 0;
+
+        int openBracketIndex = patchFieldName.LastIndexOf('[');
+        if (openBracketIndex <= 0 || !patchFieldName.EndsWith(']'))
+        {
+            return false;
+        }
+
+        string blockName = patchFieldName[..openBracketIndex];
+        string slotIndexText = patchFieldName[(openBracketIndex + 1)..^1];
+        if (!int.TryParse(slotIndexText, out slotIndex))
+        {
+            return false;
+        }
+
+        block = layout.PersonaBlocks.FirstOrDefault(candidate =>
+            string.Equals(candidate.Name, blockName, StringComparison.Ordinal));
+        return block is not null;
     }
 
     private static IReadOnlyList<PartyMemberId> ReadPartyMembers(ReadOnlySpan<byte> source, P4GSaveLayout layout)

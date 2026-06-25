@@ -350,6 +350,52 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void OpenSaveProjectsPersonaMemberAndChoiceSelectors()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult result = viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.NotEmpty(viewModel.PartyMemberChoices);
+        Assert.Collection(
+            viewModel.PartyMemberChoices.Take(2),
+            static member =>
+            {
+                Assert.Equal((byte)0, member.MemberId);
+                Assert.Equal("Yu Sato", member.Name);
+                Assert.False(member.IsUnknown);
+            },
+            static member =>
+            {
+                Assert.Equal((byte)1, member.MemberId);
+                Assert.Equal("Yosuke Hanamura", member.Name);
+                Assert.False(member.IsUnknown);
+            });
+        Assert.Contains(viewModel.PartyMemberChoices, static member => member.MemberId == 4 && member.Name == "Rise Kujikawa");
+
+        ushort knownPersonaId = P4GCatalog.Personas[1].Id;
+        IReadOnlyList<PersonaChoiceViewState> personaChoices = viewModel.GetPersonaChoices(knownPersonaId, out PersonaChoiceViewState selectedPersona);
+        Assert.Contains(personaChoices, static choice => choice.PersonaId == P4GCatalog.Personas[1].Id);
+        Assert.Equal(knownPersonaId, selectedPersona.PersonaId);
+        Assert.False(selectedPersona.IsUnknown);
+
+        IReadOnlyList<PersonaChoiceViewState> unknownPersonaChoices = viewModel.GetPersonaChoices(0xDEAD, out PersonaChoiceViewState unknownPersona);
+        Assert.True(unknownPersona.IsUnknown);
+        Assert.Equal((ushort)0xDEAD, unknownPersona.PersonaId);
+        Assert.Contains(unknownPersonaChoices, static choice => choice.PersonaId == 0xDEAD && choice.IsUnknown);
+
+        IReadOnlyList<SkillChoiceViewState> skillChoices = viewModel.GetSkillChoices(0xBEEF, out SkillChoiceViewState unknownSkill);
+        Assert.True(unknownSkill.IsUnknown);
+        Assert.Equal((ushort)0xBEEF, unknownSkill.SkillId);
+        Assert.Contains(skillChoices, static choice => choice.SkillId == 0xBEEF && choice.IsUnknown);
+    }
+
+    [Fact]
     public void NameEditsRefreshEquipmentCharactersProjectionAndTrackDirtyState()
     {
         FakeSaveApplicationService service = new()
@@ -426,6 +472,61 @@ public sealed class SaveEditorViewModelTests
             static edits => Assert.IsType<SetEquippedArmorEdit>(Assert.Single(edits)),
             static edits => Assert.IsType<SetEquippedAccessoryEdit>(Assert.Single(edits)),
             static edits => Assert.IsType<SetEquippedCostumeEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void PersonaEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        PersonaSlotEdit protagonistEdit = CreatePersonaSlotEdit(0x0102, 88, 0x11111111, 0x1401);
+        PersonaSlotEdit partyEdit = CreatePersonaSlotEdit(0x0203, 66, 0x22222222, 0x1501);
+
+        SaveEditorOperationResult protagonistResult = viewModel.SetProtagonistPersonaSlot(0, protagonistEdit);
+        SaveEditorOperationResult partyResult = viewModel.SetPartyPersonaSlot(0, partyEdit);
+
+        Assert.True(protagonistResult.Succeeded, FormatDiagnostics(protagonistResult.Diagnostics));
+        Assert.True(partyResult.Succeeded, FormatDiagnostics(partyResult.Diagnostics));
+        Assert.Equal((ushort)0x0102, viewModel.ProtagonistPersonaSlots[0].PersonaId);
+        Assert.Equal((ushort)0x0203, viewModel.PartyPersonaSlots[0].PersonaId);
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits => Assert.IsType<SetProtagonistPersonaSlotEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetPartyPersonaSlotEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void PersonaEditMethodsRejectBlankPersonaIdAndSurfaceDiagnostics()
+    {
+        WorkingSaveState blankPersonaState = CreateState().WithProtagonistPersonaSlot(
+            0,
+            new PersonaSlot(false, 0, 0, 0, [0, 0, 0], 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0));
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(blankPersonaState), []),
+            ApplyEditsHandler = static (_, _) => new SaveEditResult<WorkingSave>(
+                null,
+                [new SaveDiagnostic(DiagnosticSeverity.Error, "P4GAPP009", "Persona slot edit must specify a persona id.", "Persona")]),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.SetProtagonistPersonaSlot(0, CreatePersonaSlotEdit(0, 88, 0x11111111, 0x1401));
+
+        Assert.False(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Equal(new[] { result.Diagnostics.Single() }, viewModel.Diagnostics);
+        Assert.False(viewModel.IsDirty);
+        Assert.False(viewModel.ProtagonistPersonaSlots[0].Exists);
+        Assert.Equal((ushort)0, viewModel.ProtagonistPersonaSlots[0].PersonaId);
+        Assert.Equal("P4GAPP009", result.Diagnostics.Single().Code);
+        Assert.Equal("Persona", result.Diagnostics.Single().Target);
     }
 
     [Fact]
@@ -639,7 +740,12 @@ public sealed class SaveEditorViewModelTests
         SaveEditCommand[] editBatch = Assert.Single(service.AppliedEdits);
         Assert.Collection(
             editBatch,
-            static edit => Assert.Equal(new SaveNames("Dojima", "Nanako"), Assert.IsType<SetSaveNamesEdit>(edit).Names),
+            static edit =>
+            {
+                SetSaveNamesEdit setNames = Assert.IsType<SetSaveNamesEdit>(edit);
+                Assert.Equal("Dojima", setNames.FamilyName);
+                Assert.Equal("Nanako", setNames.GivenName);
+            },
             static edit => Assert.Equal(9_999_999u, Assert.IsType<SetYenEdit>(edit).Yen),
             static edit => AssertPartyMemberEdit(edit, 0, 0x01),
             static edit => AssertPartyMemberEdit(edit, 1, 0x07),
@@ -1493,13 +1599,15 @@ public sealed class SaveEditorViewModelTests
         {
             state = edit switch
             {
-                SetSaveNamesEdit setNames => state.WithNames(setNames.Names),
+                SetSaveNamesEdit setNames => state.WithNames(new SaveNames(setNames.FamilyName, setNames.GivenName)),
                 SetYenEdit setYen => state.WithYen(setYen.Yen),
-                SetPartyMemberEdit setPartyMember => state.WithPartyMember(setPartyMember.SlotIndex, setPartyMember.MemberId),
+                SetPartyMemberEdit setPartyMember => state.WithPartyMember(setPartyMember.SlotIndex, new PartyMemberId(setPartyMember.MemberValue)),
                 SetEquippedWeaponEdit setEquippedWeapon => state.WithEquippedWeapon(setEquippedWeapon.CharacterId, setEquippedWeapon.ItemId),
                 SetEquippedArmorEdit setEquippedArmor => state.WithEquippedArmor(setEquippedArmor.CharacterId, setEquippedArmor.ItemId),
                 SetEquippedAccessoryEdit setEquippedAccessory => state.WithEquippedAccessory(setEquippedAccessory.CharacterId, setEquippedAccessory.ItemId),
                 SetEquippedCostumeEdit setEquippedCostume => state.WithEquippedCostume(setEquippedCostume.CharacterId, setEquippedCostume.ItemId),
+                SetProtagonistPersonaSlotEdit setProtagonistPersonaSlot => state.WithProtagonistPersonaSlot(setProtagonistPersonaSlot.SlotIndex, BuildPersonaSlot(setProtagonistPersonaSlot.PersonaSlot, state.ProtagonistPersonaSlots[setProtagonistPersonaSlot.SlotIndex])),
+                SetPartyPersonaSlotEdit setPartyPersonaSlot => state.WithPartyPersonaSlot(setPartyPersonaSlot.SlotIndex, BuildPersonaSlot(setPartyPersonaSlot.PersonaSlot, state.PartyPersonaSlots[setPartyPersonaSlot.SlotIndex])),
                 SetInventoryItemQuantityEdit setInventoryItemQuantity => state.WithInventoryItemQuantity(setInventoryItemQuantity.ItemId, setInventoryItemQuantity.Quantity),
                 RemoveInventoryItemEdit removeInventoryItem => state.WithInventoryItemRemoved(removeInventoryItem.ItemId),
                 _ => state,
@@ -1550,6 +1658,37 @@ public sealed class SaveEditorViewModelTests
             agility: 44,
             luck: 55);
 
+    private static PersonaSlotEdit CreatePersonaSlotEdit(
+        ushort personaId,
+        byte level,
+        uint totalExperience,
+        ushort firstSkillId) =>
+        new(
+            personaId,
+            level,
+            totalExperience,
+            Enumerable.Range(0, PersonaSlot.SkillCount).Select(index => (ushort)(firstSkillId + index)).ToArray(),
+            11,
+            22,
+            33,
+            44,
+            55);
+
+    private static PersonaSlot BuildPersonaSlot(PersonaSlotEdit edit, PersonaSlot currentSlot) =>
+        new(
+            currentSlot.ExistsRawByte,
+            currentSlot.Unknown0,
+            edit.PersonaId,
+            edit.PersonaId != 0 && edit.Level == 0 ? (byte)1 : edit.Level,
+            currentSlot.ReservedAfterLevel,
+            edit.TotalExperience,
+            edit.SkillIds,
+            edit.Strength,
+            edit.Magic,
+            edit.Endurance,
+            edit.Agility,
+            edit.Luck);
+
     private static string FormatDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics) =>
         string.Join(
             Environment.NewLine,
@@ -1560,7 +1699,7 @@ public sealed class SaveEditorViewModelTests
     {
         SetPartyMemberEdit partyMemberEdit = Assert.IsType<SetPartyMemberEdit>(edit);
         Assert.Equal(slotIndex, partyMemberEdit.SlotIndex);
-        Assert.Equal(new PartyMemberId(memberValue), partyMemberEdit.MemberId);
+        Assert.Equal(memberValue, partyMemberEdit.MemberValue);
     }
 
     private static SaveEditorWriteToken AssertOperationToken(SaveEditorWriteResult result)

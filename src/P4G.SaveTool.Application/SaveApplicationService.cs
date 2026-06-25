@@ -13,6 +13,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
     private const string PartyMembersDiagnosticTarget = "PartyMembers";
     private const string InventoryDiagnosticTarget = "Inventory";
     private const string EquipmentDiagnosticTarget = "Equipment";
+    private const string PersonaDiagnosticTarget = "Persona";
 
     private readonly IApplicationSaveCodec codec;
 
@@ -81,7 +82,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
         switch (edit)
         {
             case SetSaveNamesEdit setNames:
-                if (!AreSupportedNames(setNames.Names))
+                SaveNames names = new(setNames.FamilyName, setNames.GivenName);
+                if (!AreSupportedNames(names))
                 {
                     diagnostics.Add(new SaveDiagnostic(
                         DiagnosticSeverity.Error,
@@ -91,7 +93,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     return state;
                 }
 
-                return state.WithNames(setNames.Names);
+                return state.WithNames(names);
 
             case SetYenEdit setYen:
                 return state.WithYen(setYen.Yen);
@@ -107,7 +109,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     return state;
                 }
 
-                return state.WithPartyMember(setPartyMember.SlotIndex, setPartyMember.MemberId);
+                return state.WithPartyMember(setPartyMember.SlotIndex, new PartyMemberId(setPartyMember.MemberValue));
 
             case SetEquippedWeaponEdit setEquippedWeapon:
                 return ApplyEquipmentEdit(
@@ -170,6 +172,26 @@ public sealed class SaveApplicationService : ISaveApplicationService
                 }
 
                 return state.WithInventoryItemRemoved(removeInventoryItem.ItemId);
+
+            case SetProtagonistPersonaSlotEdit setProtagonistPersonaSlot:
+                return ApplyPersonaSlotEdit(
+                    state,
+                    diagnostics,
+                    setProtagonistPersonaSlot.SlotIndex,
+                    setProtagonistPersonaSlot.PersonaSlot,
+                    static (currentState, slotIndex, personaSlot) => currentState.WithProtagonistPersonaSlot(slotIndex, personaSlot),
+                    state.ProtagonistPersonaSlots,
+                    "ProtagonistPersonaSlots");
+
+            case SetPartyPersonaSlotEdit setPartyPersonaSlot:
+                return ApplyPersonaSlotEdit(
+                    state,
+                    diagnostics,
+                    setPartyPersonaSlot.SlotIndex,
+                    setPartyPersonaSlot.PersonaSlot,
+                    static (currentState, slotIndex, personaSlot) => currentState.WithPartyPersonaSlot(slotIndex, personaSlot),
+                    state.PartyPersonaSlots,
+                    "PartyPersonaSlots");
 
             default:
                 diagnostics.Add(new SaveDiagnostic(
@@ -258,6 +280,17 @@ public sealed class SaveApplicationService : ISaveApplicationService
             patches.Add(CreateInventoryPatch(layout.Inventory, state.InventoryStacks));
         }
 
+        AddPersonaSlotPatches(
+            patches,
+            snapshot.ProtagonistPersonaSlots,
+            state.ProtagonistPersonaSlots,
+            layout.ProtagonistPersonaSlots);
+        AddPersonaSlotPatches(
+            patches,
+            snapshot.PartyPersonaSlots,
+            state.PartyPersonaSlots,
+            layout.PartyPersonaSlots);
+
         return patches;
     }
 
@@ -305,6 +338,35 @@ public sealed class SaveApplicationService : ISaveApplicationService
         }
 
         return new SaveFieldPatch(field.Name, bytes);
+    }
+
+    private static void AddPersonaSlotPatches(
+        List<SaveFieldPatch> patches,
+        IReadOnlyList<PersonaSlot> snapshotSlots,
+        IReadOnlyList<PersonaSlot> stateSlots,
+        PersonaBlockDescriptor block)
+    {
+        int slotCount = Math.Min(snapshotSlots.Count, stateSlots.Count);
+        for (int slotIndex = 0; slotIndex < slotCount; slotIndex++)
+        {
+            if (snapshotSlots[slotIndex].Equals(stateSlots[slotIndex]))
+            {
+                continue;
+            }
+
+            patches.Add(CreatePersonaSlotPatch(block, slotIndex, stateSlots[slotIndex]));
+        }
+    }
+
+    private static SaveFieldPatch CreatePersonaSlotPatch(
+        PersonaBlockDescriptor block,
+        int slotIndex,
+        PersonaSlot personaSlot)
+    {
+        SaveWriteResult writeResult = PersonaSlotBinaryCodec.Write(personaSlot);
+        return new SaveFieldPatch(
+            $"{block.Name}[{slotIndex}]",
+            writeResult.Bytes ?? Array.Empty<byte>());
     }
 
     private static void AddEquipmentPatches(
@@ -401,6 +463,69 @@ public sealed class SaveApplicationService : ISaveApplicationService
         }
 
         return apply(state, characterId, itemId);
+    }
+
+    private static WorkingSaveState ApplyPersonaSlotEdit(
+        WorkingSaveState state,
+        List<SaveDiagnostic> diagnostics,
+        int slotIndex,
+        PersonaSlotEdit personaSlotEdit,
+        Func<WorkingSaveState, int, PersonaSlot, WorkingSaveState> apply,
+        IReadOnlyList<PersonaSlot> currentSlots,
+        string diagnosticTarget)
+    {
+        if ((uint)slotIndex >= (uint)currentSlots.Count)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP007",
+                "Persona slot edit targets an unsupported slot.",
+                PersonaDiagnosticTarget));
+            return state;
+        }
+
+        if (personaSlotEdit.SkillIds is null || personaSlotEdit.SkillIds.Count != PersonaSlot.SkillCount)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP008",
+                "Persona slot edit contains an invalid skill list.",
+                PersonaDiagnosticTarget));
+            return state;
+        }
+
+        if (personaSlotEdit.PersonaId == 0)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP009",
+                "Persona slot edit must specify a persona id.",
+                PersonaDiagnosticTarget));
+            return state;
+        }
+
+        PersonaSlot currentSlot = currentSlots[slotIndex];
+        byte existsRawByte = currentSlot.ExistsRawByte != 0
+            ? currentSlot.ExistsRawByte
+            : (byte)1;
+        byte level = personaSlotEdit.Level == 0
+            ? (byte)1
+            : personaSlotEdit.Level;
+        PersonaSlot updatedSlot = new(
+            existsRawByte,
+            currentSlot.Unknown0,
+            personaSlotEdit.PersonaId,
+            level,
+            currentSlot.ReservedAfterLevel,
+            personaSlotEdit.TotalExperience,
+            personaSlotEdit.SkillIds,
+            personaSlotEdit.Strength,
+            personaSlotEdit.Magic,
+            personaSlotEdit.Endurance,
+            personaSlotEdit.Agility,
+            personaSlotEdit.Luck);
+
+        return apply(state, slotIndex, updatedSlot);
     }
 
     private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>

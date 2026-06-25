@@ -39,6 +39,101 @@
             <TextBox x:Name="PartySlot0TextBox" Header="Slot 1" InputScope="Number" IsEnabled="False" />
             <TextBox x:Name="PartySlot1TextBox" Header="Slot 2" InputScope="Number" IsEnabled="False" />
             <TextBox x:Name="PartySlot2TextBox" Header="Slot 3" InputScope="Number" IsEnabled="False" />
+            <TextBlock Text="Persona editing" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+            <ComboBox
+              x:Name="PersonaMemberComboBox"
+              Header="Member"
+              IsEnabled="False"
+              IsTextSearchEnabled="True"
+              SelectionChanged="PersonaMemberComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox
+              x:Name="PersonaSlotComboBox"
+              Header="Protagonist slot"
+              IsEnabled="False"
+              SelectionChanged="PersonaSlotComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding SlotIndex}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox
+              x:Name="PersonaChoiceComboBox"
+              Header="Persona"
+              IsEnabled="False"
+              IsTextSearchEnabled="True"
+              SelectionChanged="PersonaChoiceComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBox x:Name="PersonaXpTextBox" Header="Total XP" InputScope="Number" IsEnabled="False" />
+            <StackPanel Spacing="4">
+              <TextBlock Text="Level" />
+              <Slider x:Name="PersonaLevelSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+            </StackPanel>
+            <StackPanel Spacing="4">
+              <TextBlock Text="Strength" />
+              <Slider x:Name="PersonaStrengthSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+            </StackPanel>
+            <StackPanel Spacing="4">
+              <TextBlock Text="Magic" />
+              <Slider x:Name="PersonaMagicSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+            </StackPanel>
+            <StackPanel Spacing="4">
+              <TextBlock Text="Endurance" />
+              <Slider x:Name="PersonaEnduranceSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+            </StackPanel>
+            <StackPanel Spacing="4">
+              <TextBlock Text="Agility" />
+              <Slider x:Name="PersonaAgilitySlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+            </StackPanel>
+            <StackPanel Spacing="4">
+              <TextBlock Text="Luck" />
+              <Slider x:Name="PersonaLuckSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+            </StackPanel>
+            <Grid ColumnSpacing="8" Margin="0,4,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="1*" />
+              </Grid.ColumnDefinitions>
+              <StackPanel Spacing="8">
+                <ComboBox x:Name="PersonaSkillBox1" Header="Skill 1" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox x:Name="PersonaSkillBox2" Header="Skill 2" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox x:Name="PersonaSkillBox3" Header="Skill 3" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox x:Name="PersonaSkillBox4" Header="Skill 4" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="8">
+                <ComboBox x:Name="PersonaSkillBox5" Header="Skill 5" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox x:Name="PersonaSkillBox6" Header="Skill 6" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox x:Name="PersonaSkillBox7" Header="Skill 7" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox x:Name="PersonaSkillBox8" Header="Skill 8" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+            </Grid>
             <TextBlock Text="Equipment" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
             <ComboBox
               x:Name="EquipmentCharacterComboBox"

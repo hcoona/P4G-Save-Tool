@@ -191,6 +191,50 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
+    public void PersonaFieldPatchChangesOnlyProtagonistPersonaSlotRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        const int slotIndex = 3;
+        int offset = layout.ProtagonistPersonaSlots.Offset + (slotIndex * layout.ProtagonistPersonaSlots.Stride) + layout.ProtagonistPersonaSlots.PersonaOffsetWithinStride;
+        byte[] personaBytes = snapshot.OriginalBytes.Slice(offset, PersonaSlotBinaryCodec.BinaryLength).ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(personaBytes.AsSpan(2, sizeof(ushort)), 0x1234);
+        personaBytes[4] = 99;
+        BinaryPrimitives.WriteUInt32LittleEndian(personaBytes.AsSpan(8, sizeof(uint)), 0x55667788);
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch($"{layout.ProtagonistPersonaSlots.Name}[{slotIndex}]", personaBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((ushort)0x1234, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(offset + 2, sizeof(ushort))));
+        Assert.Equal((byte)99, output[offset + 4]);
+        Assert.Equal(0x55667788u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(offset + 8, sizeof(uint))));
+        AssertOnlyRangesChanged(input, output, (offset, PersonaSlotBinaryCodec.BinaryLength));
+    }
+
+    [Fact]
+    public void PersonaFieldPatchChangesOnlyPartyPersonaSlotRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        const int slotIndex = 0;
+        int offset = layout.PartyPersonaSlots.Offset + (slotIndex * layout.PartyPersonaSlots.Stride) + layout.PartyPersonaSlots.PersonaOffsetWithinStride;
+        byte[] personaBytes = snapshot.OriginalBytes.Slice(offset, PersonaSlotBinaryCodec.BinaryLength).ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(personaBytes.AsSpan(2, sizeof(ushort)), 0x4321);
+        personaBytes[4] = 77;
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch($"{layout.PartyPersonaSlots.Name}[{slotIndex}]", personaBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((ushort)0x4321, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(offset + 2, sizeof(ushort))));
+        Assert.Equal((byte)77, output[offset + 4]);
+        AssertOnlyRangesChanged(input, output, (offset, PersonaSlotBinaryCodec.BinaryLength));
+    }
+
+    [Fact]
     public void FieldPatchesUpdateBothLegacyNameEncodings()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);

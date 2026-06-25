@@ -24,6 +24,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static readonly ReadOnlyCollection<EquipmentCharacterViewState> EmptyEquipmentCharacters =
         Array.AsReadOnly(Array.Empty<EquipmentCharacterViewState>());
 
+    private static readonly ReadOnlyCollection<PartyMemberChoiceViewState> EmptyPartyMemberChoices =
+        Array.AsReadOnly(Array.Empty<PartyMemberChoiceViewState>());
+
     private readonly ISaveApplicationService saveApplicationService;
     private WorkingSave? workingSave;
     private WorkingSaveState? lastPersistedState;
@@ -35,6 +38,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private string givenName = string.Empty;
     private uint yen;
     private IReadOnlyList<PartyMemberSlotViewState> partyMembers = EmptyPartyMembers;
+    private IReadOnlyList<PartyMemberChoiceViewState> partyMemberChoices = EmptyPartyMemberChoices;
     private IReadOnlyList<PersonaSlotViewState> protagonistPersonaSlots = EmptyPersonaSlots;
     private IReadOnlyList<PersonaSlotViewState> partyPersonaSlots = EmptyPersonaSlots;
     private IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots = EmptyPersonaSlots;
@@ -82,6 +86,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
     {
         get => partyMembers;
         private set => SetProperty(ref partyMembers, value);
+    }
+
+    public IReadOnlyList<PartyMemberChoiceViewState> PartyMemberChoices
+    {
+        get => partyMemberChoices;
+        private set => SetProperty(ref partyMemberChoices, value);
     }
 
     public IReadOnlyList<PersonaSlotViewState> ProtagonistPersonaSlots
@@ -148,6 +158,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
     public IReadOnlyList<InventoryItemChoiceViewState> GetCostumeChoices() =>
         InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Costumes);
 
+    public IReadOnlyList<PersonaChoiceViewState> GetPersonaChoices(ushort currentPersonaId, out PersonaChoiceViewState selectedChoice) =>
+        PersonaSelectionProjection.GetPersonaChoices(currentPersonaId, out selectedChoice);
+
+    public IReadOnlyList<SkillChoiceViewState> GetSkillChoices(ushort currentSkillId, out SkillChoiceViewState selectedChoice) =>
+        PersonaSelectionProjection.GetSkillChoices(currentSkillId, out selectedChoice);
+
     public SaveEditorOperationResult OpenSave(ReadOnlyMemory<byte> bytes)
     {
         SaveOpenResult<WorkingSave> result = saveApplicationService.Open(bytes);
@@ -186,7 +202,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(names);
 
-        return ApplyEdits([new SetSaveNamesEdit(names)]);
+        return ApplyEdits([new SetSaveNamesEdit(names.FamilyName, names.GivenName)]);
     }
 
     public SaveEditorOperationResult SetYen(uint yen) =>
@@ -210,20 +226,20 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
         List<SaveEditCommand> edits =
         [
-            new SetSaveNamesEdit(new SaveNames(familyName, givenName)),
+            new SetSaveNamesEdit(familyName, givenName),
             new SetYenEdit(yen),
         ];
 
         for (int index = 0; index < partyMemberValues.Count; index++)
         {
-            edits.Add(new SetPartyMemberEdit(index, new PartyMemberId(partyMemberValues[index])));
+            edits.Add(new SetPartyMemberEdit(index, partyMemberValues[index]));
         }
 
         return ApplyEdits(edits);
     }
 
     public SaveEditorOperationResult SetPartyMember(int slotIndex, PartyMemberId memberId) =>
-        ApplyEdits([new SetPartyMemberEdit(slotIndex, memberId)]);
+        ApplyEdits([new SetPartyMemberEdit(slotIndex, memberId.Value)]);
 
     public SaveEditorOperationResult SetEquippedWeapon(int characterId, ushort itemId) =>
         ApplyEdits([new SetEquippedWeaponEdit(characterId, itemId)]);
@@ -236,6 +252,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public SaveEditorOperationResult SetEquippedCostume(int characterId, ushort itemId) =>
         ApplyEdits([new SetEquippedCostumeEdit(characterId, itemId)]);
+
+    public SaveEditorOperationResult SetProtagonistPersonaSlot(int slotIndex, PersonaSlotEdit personaSlot) =>
+        ApplyEdits([new SetProtagonistPersonaSlotEdit(slotIndex, personaSlot)]);
+
+    public SaveEditorOperationResult SetPartyPersonaSlot(int slotIndex, PersonaSlotEdit personaSlot) =>
+        ApplyEdits([new SetPartyPersonaSlotEdit(slotIndex, personaSlot)]);
 
     public SaveEditorOperationResult SetInventoryItemQuantity(ushort itemId, byte quantity)
     {
@@ -433,6 +455,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     {
         ProjectionChange changes = ProjectionChange.None;
         IReadOnlyList<PartyMemberSlotViewState> nextPartyMembers = ProjectPartyMembers(state.PartyMembers);
+        IReadOnlyList<PartyMemberChoiceViewState> nextPartyMemberChoices = ProjectPartyMemberChoices(state);
         IReadOnlyList<EquipmentCharacterViewState> nextEquipmentCharacters = ProjectEquipmentCharacters(state);
         IReadOnlyList<PersonaSlotViewState> nextProtagonistPersonaSlots = ProjectPersonaSlots(state.ProtagonistPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextPartyPersonaSlots = ProjectPersonaSlots(state.PartyPersonaSlots);
@@ -457,6 +480,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
         if (SetBacking(ref partyMembers, nextPartyMembers))
         {
             changes |= ProjectionChange.PartyMembers;
+        }
+
+        if (SetBacking(ref partyMemberChoices, nextPartyMemberChoices))
+        {
+            changes |= ProjectionChange.PartyMemberChoices;
         }
 
         if (SetBacking(ref equipmentCharacters, nextEquipmentCharacters, EquipmentCharactersEqual))
@@ -553,6 +581,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
             OnPropertyChanged(nameof(PartyMembers));
         }
 
+        if ((changes & ProjectionChange.PartyMemberChoices) != 0)
+        {
+            OnPropertyChanged(nameof(PartyMemberChoices));
+        }
+
         if ((changes & ProjectionChange.EquipmentCharacters) != 0)
         {
             OnPropertyChanged(nameof(EquipmentCharacters));
@@ -620,6 +653,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
         Array.AsReadOnly(members
             .Select(static (member, index) => new PartyMemberSlotViewState(index, member.Value))
             .ToArray());
+
+    private static ReadOnlyCollection<PartyMemberChoiceViewState> ProjectPartyMemberChoices(WorkingSaveState state) =>
+        Array.AsReadOnly(PersonaSelectionProjection.ProjectPartyMemberChoices(state).ToArray());
 
     private static ReadOnlyCollection<EquipmentCharacterViewState> ProjectEquipmentCharacters(WorkingSaveState state)
     {
@@ -751,11 +787,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
         GivenName = 2,
         Yen = 4,
         PartyMembers = 8,
-        EquipmentCharacters = 16,
-        ProtagonistPersonaSlots = 32,
-        PartyPersonaSlots = 64,
-        CompendiumPersonaSlots = 128,
-        InventoryEntries = 256,
+        PartyMemberChoices = 16,
+        EquipmentCharacters = 32,
+        ProtagonistPersonaSlots = 64,
+        PartyPersonaSlots = 128,
+        CompendiumPersonaSlots = 256,
+        InventoryEntries = 512,
     }
 
     private sealed record PendingSerializedSave(SaveEditorWriteToken OperationToken, WorkingSaveState State);

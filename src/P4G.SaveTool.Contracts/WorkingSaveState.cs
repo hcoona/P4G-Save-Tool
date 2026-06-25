@@ -9,6 +9,7 @@ public sealed class WorkingSaveState
     private readonly ReadOnlyCollection<PersonaSlot> protagonistPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> partyPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> compendiumPersonaSlots;
+    private readonly ReadOnlyCollection<InventoryStack> inventoryStacks;
 
     public WorkingSaveState(
         SaveNames names,
@@ -16,7 +17,8 @@ public sealed class WorkingSaveState
         IReadOnlyList<PartyMemberId> partyMembers,
         IReadOnlyList<PersonaSlot> protagonistPersonaSlots,
         IReadOnlyList<PersonaSlot> partyPersonaSlots,
-        IReadOnlyList<PersonaSlot> compendiumPersonaSlots)
+        IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
+        IReadOnlyList<InventoryStack>? inventoryStacks = null)
     {
         ArgumentNullException.ThrowIfNull(names);
 
@@ -26,6 +28,7 @@ public sealed class WorkingSaveState
         this.protagonistPersonaSlots = CopyReadOnly(protagonistPersonaSlots, nameof(protagonistPersonaSlots));
         this.partyPersonaSlots = CopyReadOnly(partyPersonaSlots, nameof(partyPersonaSlots));
         this.compendiumPersonaSlots = CopyReadOnly(compendiumPersonaSlots, nameof(compendiumPersonaSlots));
+        this.inventoryStacks = CopyReadOnly(inventoryStacks ?? Array.Empty<InventoryStack>(), nameof(inventoryStacks));
     }
 
     public SaveNames Names { get; }
@@ -40,6 +43,8 @@ public sealed class WorkingSaveState
 
     public IReadOnlyList<PersonaSlot> CompendiumPersonaSlots => compendiumPersonaSlots;
 
+    public IReadOnlyList<InventoryStack> InventoryStacks => inventoryStacks;
+
     public WorkingSaveState WithNames(SaveNames names)
     {
         ArgumentNullException.ThrowIfNull(names);
@@ -50,7 +55,8 @@ public sealed class WorkingSaveState
             partyMembers,
             protagonistPersonaSlots,
             partyPersonaSlots,
-            compendiumPersonaSlots);
+            compendiumPersonaSlots,
+            inventoryStacks);
     }
 
     public WorkingSaveState WithYen(uint yen) =>
@@ -60,7 +66,8 @@ public sealed class WorkingSaveState
             partyMembers,
             protagonistPersonaSlots,
             partyPersonaSlots,
-            compendiumPersonaSlots);
+            compendiumPersonaSlots,
+            inventoryStacks);
 
     public WorkingSaveState WithPartyMember(int slotIndex, PartyMemberId memberId)
     {
@@ -77,7 +84,54 @@ public sealed class WorkingSaveState
             updatedPartyMembers,
             protagonistPersonaSlots,
             partyPersonaSlots,
-            compendiumPersonaSlots);
+            compendiumPersonaSlots,
+            inventoryStacks);
+    }
+
+    public WorkingSaveState WithInventoryItemQuantity(ushort itemId, byte quantity)
+    {
+        int itemIndex = FindInventoryItemIndex(itemId);
+        if (quantity == 0)
+        {
+            return itemIndex < 0 ? this : WithInventoryItemRemoved(itemIndex);
+        }
+
+        InventoryStack updatedStack = new(itemId, quantity);
+        if (itemIndex >= 0)
+        {
+            if (inventoryStacks[itemIndex].Equals(updatedStack))
+            {
+                return this;
+            }
+
+            List<InventoryStack> updatedInventory = inventoryStacks.ToList();
+            updatedInventory[itemIndex] = updatedStack;
+            return new(
+                Names,
+                Yen,
+                partyMembers,
+                protagonistPersonaSlots,
+                partyPersonaSlots,
+                compendiumPersonaSlots,
+                updatedInventory);
+        }
+
+        List<InventoryStack> insertedInventory = inventoryStacks.ToList();
+        insertedInventory.Insert(FindInventoryInsertIndex(itemId), updatedStack);
+        return new(
+            Names,
+            Yen,
+            partyMembers,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            insertedInventory);
+    }
+
+    public WorkingSaveState WithInventoryItemRemoved(ushort itemId)
+    {
+        int itemIndex = FindInventoryItemIndex(itemId);
+        return itemIndex < 0 ? this : WithInventoryItemRemoved(itemIndex);
     }
 
     private static ReadOnlyCollection<T> CopyReadOnly<T>(IReadOnlyCollection<T> values, string parameterName)
@@ -85,5 +139,45 @@ public sealed class WorkingSaveState
         ArgumentNullException.ThrowIfNull(values, parameterName);
 
         return Array.AsReadOnly(values.ToArray());
+    }
+
+    private WorkingSaveState WithInventoryItemRemoved(int itemIndex)
+    {
+        List<InventoryStack> updatedInventory = inventoryStacks.ToList();
+        updatedInventory.RemoveAt(itemIndex);
+        return new(
+            Names,
+            Yen,
+            partyMembers,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            updatedInventory);
+    }
+
+    private int FindInventoryItemIndex(ushort itemId)
+    {
+        for (int index = 0; index < inventoryStacks.Count; index++)
+        {
+            if (inventoryStacks[index].ItemId == itemId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private int FindInventoryInsertIndex(ushort itemId)
+    {
+        for (int index = 0; index < inventoryStacks.Count; index++)
+        {
+            if (inventoryStacks[index].ItemId > itemId)
+            {
+                return index;
+            }
+        }
+
+        return inventoryStacks.Count;
     }
 }

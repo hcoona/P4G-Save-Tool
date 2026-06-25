@@ -93,6 +93,9 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "p4g.savetool.catalog": {
+        "type": "Project"
+      },
       "p4g.savetool.contracts": {
         "type": "Project",
         "dependencies": {
@@ -105,6 +108,7 @@
       "p4g.savetool.presentation": {
         "type": "Project",
         "dependencies": {
+          "P4G.SaveTool.Catalog": "[1.0.0, )",
           "P4G.SaveTool.Contracts": "[1.0.0, )",
           "P4G.SaveTool.Domain": "[1.0.0, )"
         }

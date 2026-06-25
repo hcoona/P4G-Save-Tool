@@ -13,6 +13,7 @@ public sealed class WinUIArchitectureTests
     [
         "P4G.SaveTool.Domain",
         "P4G.SaveTool.SaveFormat",
+        "P4G.SaveTool.Catalog",
     ];
 
     private static readonly string[] AotCompatibleProductionProjects =
@@ -54,6 +55,42 @@ public sealed class WinUIArchitectureTests
                     $"{sourceFile} must not reference {forbiddenReference}.");
             }
         }
+    }
+
+    [Fact]
+    public void MainWindowSourceDoesNotReferenceCatalogTypesOrLegacyInventoryIds()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile);
+
+        Assert.DoesNotContain("P4G.SaveTool.Catalog", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("ItemCategoryId", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("1792", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InventorySelectionHandlersRefreshShellStateAfterSelectionChanges()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        AssertHandlerRefreshesShellState(content, "InventoryListView_SelectionChanged");
+        AssertHandlerRefreshesShellState(content, "InventoryCategoryComboBox_SelectionChanged");
+        AssertHandlerRefreshesShellState(content, "InventoryItemComboBox_SelectionChanged");
+    }
+
+    [Fact]
+    public void MainWindowXamlExposesInventoryEditorSurface()
+    {
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+
+        Assert.Contains("x:Name=\"InventoryListView\"", xaml);
+        Assert.Contains("x:Name=\"InventoryCategoryComboBox\"", xaml);
+        Assert.Contains("x:Name=\"InventoryItemComboBox\"", xaml);
+        Assert.Contains("x:Name=\"InventoryQuantityTextBox\"", xaml);
+        Assert.Contains("x:Name=\"InventoryAddUpdateButton\"", xaml);
+        Assert.Contains("x:Name=\"InventoryDeleteButton\"", xaml);
+        Assert.Contains("Text=\"{Binding DisplayName}\"", xaml);
     }
 
     [Fact]
@@ -363,6 +400,26 @@ public sealed class WinUIArchitectureTests
         return string.Equals(Path.GetExtension(reference), ".csproj", StringComparison.OrdinalIgnoreCase)
             ? Path.GetFileNameWithoutExtension(reference)
             : reference;
+    }
+
+    private static void AssertHandlerRefreshesShellState(string content, string methodName)
+    {
+        string methodHeader = $"    private void {methodName}(object sender, SelectionChangedEventArgs e)";
+        int methodStart = content.IndexOf(methodHeader, StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, $"{methodName} was not found.");
+
+        int nextMethodStart = content.IndexOf("\n    private ", methodStart + methodHeader.Length, StringComparison.Ordinal);
+        string methodBody = nextMethodStart >= 0
+            ? content.Substring(methodStart, nextMethodStart - methodStart)
+            : content[methodStart..];
+
+        int refreshIndex = methodBody.IndexOf("RefreshInventoryState();", StringComparison.Ordinal);
+        int shellIndex = refreshIndex >= 0
+            ? methodBody.IndexOf("UpdateShellState();", refreshIndex, StringComparison.Ordinal)
+            : -1;
+
+        Assert.True(refreshIndex >= 0, $"{methodName} must refresh inventory state.");
+        Assert.True(shellIndex > refreshIndex, $"{methodName} must update shell state after refreshing inventory state.");
     }
 
     private static string GetWinUIProjectFile()

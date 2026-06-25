@@ -17,6 +17,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static readonly ReadOnlyCollection<PersonaSlotViewState> EmptyPersonaSlots =
         Array.AsReadOnly(Array.Empty<PersonaSlotViewState>());
 
+    private static readonly ReadOnlyCollection<InventoryStackViewState> EmptyInventoryStacks =
+        Array.AsReadOnly(Array.Empty<InventoryStackViewState>());
+
     private readonly ISaveApplicationService saveApplicationService;
     private WorkingSave? workingSave;
     private WorkingSaveState? lastPersistedState;
@@ -31,6 +34,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private IReadOnlyList<PersonaSlotViewState> protagonistPersonaSlots = EmptyPersonaSlots;
     private IReadOnlyList<PersonaSlotViewState> partyPersonaSlots = EmptyPersonaSlots;
     private IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots = EmptyPersonaSlots;
+    private IReadOnlyList<InventoryStackViewState> inventoryEntries = EmptyInventoryStacks;
     private IReadOnlyList<SaveDiagnostic> diagnostics = EmptyDiagnostics;
     private bool isDirty;
 
@@ -93,6 +97,14 @@ public sealed class SaveEditorViewModel : ViewModelBase
         private set => SetProperty(ref compendiumPersonaSlots, value);
     }
 
+    public IReadOnlyList<InventoryStackViewState> InventoryEntries
+    {
+        get => inventoryEntries;
+        private set => SetProperty(ref inventoryEntries, value);
+    }
+
+    public IReadOnlyList<ItemCategoryViewState> InventoryCategories => InventoryCatalogProjection.Categories;
+
     public IReadOnlyList<SaveDiagnostic> Diagnostics
     {
         get => diagnostics;
@@ -109,6 +121,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     public bool HasDiagnostics => Diagnostics.Count > 0;
 
     public bool HasErrors => Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+    public IReadOnlyList<InventoryItemChoiceViewState> GetInventoryItemsForCategory(byte categoryId) =>
+        InventoryCatalogProjection.GetItems(categoryId);
 
     public SaveEditorOperationResult OpenSave(ReadOnlyMemory<byte> bytes)
     {
@@ -186,6 +201,26 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public SaveEditorOperationResult SetPartyMember(int slotIndex, PartyMemberId memberId) =>
         ApplyEdits([new SetPartyMemberEdit(slotIndex, memberId)]);
+
+    public SaveEditorOperationResult SetInventoryItemQuantity(ushort itemId, byte quantity)
+    {
+        if (!InventoryItemEditability.IsWritableItemId(itemId))
+        {
+            return FailOperation("P4GPRES008", "Placeholder inventory items cannot be modified.", "Inventory.Item");
+        }
+
+        return ApplyEdits([new SetInventoryItemQuantityEdit(itemId, quantity)]);
+    }
+
+    public SaveEditorOperationResult RemoveInventoryItem(ushort itemId)
+    {
+        if (!InventoryItemEditability.IsWritableItemId(itemId))
+        {
+            return FailOperation("P4GPRES008", "Placeholder inventory items cannot be modified.", "Inventory.Item");
+        }
+
+        return ApplyEdits([new RemoveInventoryItemEdit(itemId)]);
+    }
 
     public SaveEditorOperationResult ApplyEdits(IEnumerable<SaveEditCommand> edits)
     {
@@ -366,6 +401,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
         IReadOnlyList<PersonaSlotViewState> nextProtagonistPersonaSlots = ProjectPersonaSlots(state.ProtagonistPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextPartyPersonaSlots = ProjectPersonaSlots(state.PartyPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextCompendiumPersonaSlots = ProjectPersonaSlots(state.CompendiumPersonaSlots);
+        IReadOnlyList<InventoryStackViewState> nextInventoryEntries = ProjectInventoryStacks(state.InventoryStacks);
 
         if (SetBacking(ref familyName, state.Names.FamilyName))
         {
@@ -400,6 +436,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
         if (SetBacking(ref compendiumPersonaSlots, nextCompendiumPersonaSlots))
         {
             changes |= ProjectionChange.CompendiumPersonaSlots;
+        }
+
+        if (SetBacking(ref inventoryEntries, nextInventoryEntries, InventoryEntriesEqual))
+        {
+            changes |= ProjectionChange.InventoryEntries;
         }
 
         return changes;
@@ -485,6 +526,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
         {
             OnPropertyChanged(nameof(CompendiumPersonaSlots));
         }
+
+        if ((changes & ProjectionChange.InventoryEntries) != 0)
+        {
+            OnPropertyChanged(nameof(InventoryEntries));
+        }
     }
 
     private bool DiagnosticsBelongToPendingWrite(SaveEditorWriteToken operationToken) =>
@@ -502,9 +548,13 @@ public sealed class SaveEditorViewModel : ViewModelBase
         return true;
     }
 
-    private static bool SetBacking<T>(ref T field, T value)
+    private static bool SetBacking<T>(ref T field, T value, Func<T, T, bool>? areEqual = null)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value))
+        bool isEqual = areEqual is null
+            ? EqualityComparer<T>.Default.Equals(field, value)
+            : areEqual(field, value);
+
+        if (isEqual)
         {
             return false;
         }
@@ -542,13 +592,48 @@ public sealed class SaveEditorViewModel : ViewModelBase
                 slot.Luck))
             .ToArray());
 
+    private static ReadOnlyCollection<InventoryStackViewState> ProjectInventoryStacks(
+        IReadOnlyList<InventoryStack> stacks) =>
+        Array.AsReadOnly(stacks
+            .Select(static (stack, index) => InventoryCatalogProjection.ProjectStack(index, stack))
+            .ToArray());
+
+    private static bool InventoryEntriesEqual(
+        IReadOnlyList<InventoryStackViewState> left,
+        IReadOnlyList<InventoryStackViewState> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < left.Count; index++)
+        {
+            InventoryStackViewState leftEntry = left[index];
+            InventoryStackViewState rightEntry = right[index];
+            if (leftEntry.SlotIndex != rightEntry.SlotIndex ||
+                leftEntry.ItemId != rightEntry.ItemId ||
+                leftEntry.ItemName != rightEntry.ItemName ||
+                leftEntry.CategoryId != rightEntry.CategoryId ||
+                leftEntry.CategoryName != rightEntry.CategoryName ||
+                leftEntry.Quantity != rightEntry.Quantity ||
+                leftEntry.IsPlaceholder != rightEntry.IsPlaceholder)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool StatesEqual(WorkingSaveState left, WorkingSaveState right) =>
         left.Names == right.Names &&
         left.Yen == right.Yen &&
         left.PartyMembers.SequenceEqual(right.PartyMembers) &&
         left.ProtagonistPersonaSlots.SequenceEqual(right.ProtagonistPersonaSlots) &&
         left.PartyPersonaSlots.SequenceEqual(right.PartyPersonaSlots) &&
-        left.CompendiumPersonaSlots.SequenceEqual(right.CompendiumPersonaSlots);
+        left.CompendiumPersonaSlots.SequenceEqual(right.CompendiumPersonaSlots) &&
+        left.InventoryStacks.SequenceEqual(right.InventoryStacks);
 
     private enum DiagnosticScope
     {
@@ -567,6 +652,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
         ProtagonistPersonaSlots = 16,
         PartyPersonaSlots = 32,
         CompendiumPersonaSlots = 64,
+        InventoryEntries = 128,
     }
 
     private sealed record PendingSerializedSave(SaveEditorWriteToken OperationToken, WorkingSaveState State);

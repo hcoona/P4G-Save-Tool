@@ -37,7 +37,8 @@ public static class P4GSaveCodec
             ReadPartyMembers(span, layout),
             ReadPersonaBlock(span, layout.ProtagonistPersonaSlots),
             ReadPersonaBlock(span, layout.PartyPersonaSlots),
-            ReadPersonaBlock(span, layout.CompendiumPersonaSlots));
+            ReadPersonaBlock(span, layout.CompendiumPersonaSlots),
+            ReadInventory(span, layout.Inventory));
 
         return new SaveOpenResult<SaveSnapshot>(snapshot, diagnostics);
     }
@@ -129,6 +130,23 @@ public static class P4GSaveCodec
             new PartyMemberId(source[layout.PartyMembers.Offset + 2]),
             new PartyMemberId(source[layout.PartyMembers.Offset + 4]),
         ];
+    }
+
+    private static IReadOnlyList<InventoryStack> ReadInventory(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
+    {
+        List<InventoryStack> stacks = [];
+        for (int index = 0; index < field.Length; index++)
+        {
+            byte quantity = source[field.Offset + index];
+            if (quantity == 0)
+            {
+                continue;
+            }
+
+            stacks.Add(new InventoryStack((ushort)index, quantity));
+        }
+
+        return stacks;
     }
 
     private static PersonaSlot[] ReadPersonaBlock(ReadOnlySpan<byte> source, PersonaBlockDescriptor block)

@@ -8,6 +8,9 @@
         "resolved": "10.0.8",
         "contentHash": "dVbSXGIFNR5nZcv2tOLoWI+a9T4jtFd77IYjuND+QVe360qWgAF7H0WtoopYhRw/+SgpGUTyrkrh+65+ClNnfw=="
       },
+      "p4g.savetool.catalog": {
+        "type": "Project"
+      },
       "p4g.savetool.contracts": {
         "type": "Project",
         "dependencies": {

@@ -53,6 +53,66 @@
               IsReadOnly="True"
               MinHeight="220"
               TextWrapping="Wrap" />
+            <TextBlock Text="Inventory" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+            <ListView x:Name="InventoryListView" MinHeight="180" MaxHeight="260" SelectionChanged="InventoryListView_SelectionChanged">
+              <ListView.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="{Binding DisplayName}" />
+                      <TextBlock Text="{Binding Quantity}" Opacity="0.7" FontSize="12" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding Quantity}" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ListView.ItemTemplate>
+            </ListView>
+            <Grid ColumnSpacing="8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="3*" />
+              </Grid.ColumnDefinitions>
+              <ComboBox
+                x:Name="InventoryCategoryComboBox"
+                Header="Category"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="InventoryCategoryComboBox_SelectionChanged">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox
+                x:Name="InventoryItemComboBox"
+                Grid.Column="1"
+                Header="Item"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="InventoryItemComboBox_SelectionChanged">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+            <Grid ColumnSpacing="8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBox x:Name="InventoryQuantityTextBox" Header="Quantity" InputScope="Number" IsEnabled="False" Width="120" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="InventoryAddUpdateButton" Content="Add/Update" Click="InventoryAddUpdateButton_Click" IsEnabled="False" />
+                <Button x:Name="InventoryDeleteButton" Content="Delete" Click="InventoryDeleteButton_Click" IsEnabled="False" />
+              </StackPanel>
+            </Grid>
           </StackPanel>
         </Grid>
       </ScrollViewer>

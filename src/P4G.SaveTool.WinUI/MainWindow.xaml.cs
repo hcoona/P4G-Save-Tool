@@ -14,9 +14,15 @@ namespace P4G.SaveTool.WinUI;
 public sealed partial class MainWindow : Window
 {
     private readonly SaveEditorViewModel viewModel;
+    private readonly InventorySelectionState inventorySelectionState = new();
     private IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride;
     private string? currentFilePath;
     private bool isBusy;
+    private bool suppressInventoryEvents;
+    private bool preserveEditorTextDuringInventoryRefresh;
+    private byte? selectedInventoryCategoryId;
+    private ushort? selectedInventoryItemId;
+    private ushort? selectedInventoryEntryId;
 
     public MainWindow()
     {
@@ -41,8 +47,18 @@ public sealed partial class MainWindow : Window
     private async void SaveAsButton_Click(object sender, RoutedEventArgs e) =>
         await RunBusyAsync(() => SaveAsync(forcePicker: true));
 
-    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (preserveEditorTextDuringInventoryRefresh)
+        {
+            RefreshInventoryState();
+            DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+            UpdateShellState();
+            return;
+        }
+
         RefreshFromViewModel();
+    }
 
     private async Task RunBusyAsync(Func<Task> operation)
     {
@@ -96,6 +112,11 @@ public sealed partial class MainWindow : Window
             if (result.Succeeded)
             {
                 currentFilePath = file.Path;
+                selectedInventoryCategoryId = null;
+                selectedInventoryItemId = null;
+                selectedInventoryEntryId = null;
+                inventorySelectionState.Reset();
+                InventoryQuantityTextBox.Text = string.Empty;
             }
 
             RefreshFromViewModel();
@@ -271,6 +292,14 @@ public sealed partial class MainWindow : Window
 
     private void RefreshFromViewModel()
     {
+        RefreshEditableFields();
+        RefreshInventoryState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+    }
+
+    private void RefreshEditableFields()
+    {
         FamilyNameTextBox.Text = viewModel.FamilyName;
         GivenNameTextBox.Text = viewModel.GivenName;
         YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
@@ -278,8 +307,6 @@ public sealed partial class MainWindow : Window
         PartySlot1TextBox.Text = GetPartyMemberValue(1);
         PartySlot2TextBox.Text = GetPartyMemberValue(2);
         PersonaSummaryTextBox.Text = BuildPersonaSummary();
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        UpdateShellState();
     }
 
     private void UpdateShellState()
@@ -297,6 +324,12 @@ public sealed partial class MainWindow : Window
         PartySlot0TextBox.IsEnabled = canEdit;
         PartySlot1TextBox.IsEnabled = canEdit;
         PartySlot2TextBox.IsEnabled = canEdit;
+        InventoryListView.IsEnabled = canEdit;
+        InventoryCategoryComboBox.IsEnabled = canEdit;
+        InventoryItemComboBox.IsEnabled = canEdit;
+        InventoryQuantityTextBox.IsEnabled = canEdit;
+        InventoryAddUpdateButton.IsEnabled = canEdit && selectedInventoryItemId.HasValue;
+        InventoryDeleteButton.IsEnabled = canEdit && selectedInventoryEntryId.HasValue && selectedInventoryItemId.HasValue;
 
         FilePathTextBlock.Text = string.IsNullOrWhiteSpace(currentFilePath)
             ? "No save file is open."
@@ -304,6 +337,276 @@ public sealed partial class MainWindow : Window
         StateTextBlock.Text = string.Create(
             CultureInfo.InvariantCulture,
             $"Has save: {FormatBoolean(viewModel.HasSave)} | Dirty: {FormatBoolean(viewModel.IsDirty)} | Can write: {FormatBoolean(viewModel.CanWrite)}");
+    }
+
+    private void RefreshInventoryState()
+    {
+        suppressInventoryEvents = true;
+        try
+        {
+            InventoryListView.ItemsSource = viewModel.HasSave
+                ? viewModel.InventoryEntries
+                : Array.Empty<InventoryStackViewState>();
+            InventoryCategoryComboBox.ItemsSource = viewModel.InventoryCategories;
+
+            if (!viewModel.HasSave || viewModel.InventoryCategories.Count == 0)
+            {
+                selectedInventoryCategoryId = null;
+                selectedInventoryItemId = null;
+                selectedInventoryEntryId = null;
+                InventoryCategoryComboBox.SelectedItem = null;
+                InventoryItemComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                InventoryItemComboBox.SelectedItem = null;
+                InventoryListView.SelectedItem = null;
+                if (inventorySelectionState.ShouldHydrateQuantityText(null, null, null, string.Empty))
+                {
+                    InventoryQuantityTextBox.Text = string.Empty;
+                }
+                InventoryAddUpdateButton.Content = "Add/Update";
+                InventoryDeleteButton.IsEnabled = false;
+                return;
+            }
+
+            InventoryStackViewState? selectedEntry = null;
+            if (selectedInventoryEntryId.HasValue)
+            {
+                selectedEntry = viewModel.InventoryEntries.FirstOrDefault(entry => entry.ItemId == selectedInventoryEntryId.Value);
+                if (selectedEntry is not null)
+                {
+                    selectedInventoryCategoryId = selectedEntry.CategoryId;
+                    selectedInventoryItemId = selectedEntry.IsPlaceholder ? null : selectedEntry.ItemId;
+                }
+            }
+
+            ItemCategoryViewState? selectedCategory = selectedInventoryCategoryId.HasValue
+                ? viewModel.InventoryCategories.FirstOrDefault(category => category.CategoryId == selectedInventoryCategoryId.Value)
+                : null;
+            if (selectedCategory is null && selectedEntry is not null)
+            {
+                selectedCategory = viewModel.InventoryCategories.FirstOrDefault(category => category.CategoryId == selectedEntry.CategoryId);
+            }
+
+            if (selectedCategory is null && selectedEntry is null && selectedInventoryCategoryId is null && selectedInventoryItemId is null)
+            {
+                InventoryCategoryComboBox.SelectedItem = null;
+                InventoryItemComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                InventoryItemComboBox.SelectedItem = null;
+                InventoryListView.SelectedItem = null;
+                if (inventorySelectionState.ShouldHydrateQuantityText(null, null, null, string.Empty))
+                {
+                    InventoryQuantityTextBox.Text = string.Empty;
+                }
+                InventoryAddUpdateButton.Content = "Add/Update";
+                InventoryDeleteButton.IsEnabled = false;
+                return;
+            }
+
+            InventoryCategoryComboBox.SelectedItem = selectedCategory;
+
+            IReadOnlyList<InventoryItemChoiceViewState> itemChoices = selectedCategory is not null
+                ? viewModel.GetInventoryItemsForCategory(selectedCategory.CategoryId)
+                : Array.Empty<InventoryItemChoiceViewState>();
+            itemChoices = InventorySelectionProjection.ResolveItemChoices(
+                itemChoices,
+                selectedEntry,
+                selectedInventoryItemId,
+                out InventoryItemChoiceViewState? selectedItem);
+
+            InventoryItemComboBox.ItemsSource = itemChoices;
+            InventoryItemComboBox.SelectedItem = selectedItem;
+            selectedInventoryItemId = selectedItem is { IsPlaceholder: false } ? selectedItem.ItemId : null;
+
+            InventoryListView.SelectedItem = selectedEntry;
+            selectedInventoryEntryId = selectedEntry?.ItemId;
+            string inventoryQuantityText = selectedEntry?.Quantity.ToString(CultureInfo.InvariantCulture)
+                ?? (selectedItem is null || selectedItem.IsPlaceholder
+                    ? string.Empty
+                    : GetInventoryQuantityOrDefault(selectedItem.ItemId).ToString(CultureInfo.InvariantCulture));
+            if (inventorySelectionState.ShouldHydrateQuantityText(
+                selectedInventoryCategoryId,
+                selectedInventoryItemId,
+                selectedInventoryEntryId,
+                inventoryQuantityText))
+            {
+                InventoryQuantityTextBox.Text = inventoryQuantityText;
+            }
+            InventoryAddUpdateButton.Content = selectedItem is null || selectedItem.IsPlaceholder || selectedEntry is null ? "Add/Update" : "Update";
+            InventoryDeleteButton.IsEnabled = selectedEntry is not null && InventoryListView.IsEnabled && selectedInventoryItemId.HasValue;
+        }
+        finally
+        {
+            suppressInventoryEvents = false;
+        }
+    }
+
+    private byte GetInventoryQuantityOrDefault(ushort itemId)
+    {
+        InventoryStackViewState? entry = viewModel.InventoryEntries.FirstOrDefault(stack => stack.ItemId == itemId);
+        return entry?.Quantity ?? (byte)1;
+    }
+
+    private void InventoryListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressInventoryEvents)
+        {
+            return;
+        }
+
+        if (InventoryListView.SelectedItem is not InventoryStackViewState selectedEntry)
+        {
+            selectedInventoryEntryId = null;
+            UpdateShellState();
+            return;
+        }
+
+        selectedInventoryEntryId = selectedEntry.ItemId;
+        selectedInventoryCategoryId = selectedEntry.CategoryId;
+        selectedInventoryItemId = selectedEntry.IsPlaceholder ? null : selectedEntry.ItemId;
+        RefreshInventoryState();
+        UpdateShellState();
+    }
+
+    private void InventoryCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressInventoryEvents)
+        {
+            return;
+        }
+
+        if (InventoryCategoryComboBox.SelectedItem is ItemCategoryViewState selectedCategory)
+        {
+            selectedInventoryCategoryId = selectedCategory.CategoryId;
+            selectedInventoryItemId = null;
+            selectedInventoryEntryId = null;
+            RefreshInventoryState();
+            UpdateShellState();
+        }
+    }
+
+    private void InventoryItemComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressInventoryEvents)
+        {
+            return;
+        }
+
+        if (InventoryItemComboBox.SelectedItem is InventoryItemChoiceViewState selectedItem)
+        {
+            selectedInventoryCategoryId = selectedItem.CategoryId;
+            selectedInventoryItemId = selectedItem.IsPlaceholder ? null : selectedItem.ItemId;
+            selectedInventoryEntryId = selectedItem.IsPlaceholder
+                ? null
+                : viewModel.InventoryEntries.FirstOrDefault(entry => entry.ItemId == selectedItem.ItemId)?.ItemId;
+            RefreshInventoryState();
+            UpdateShellState();
+            return;
+        }
+
+        selectedInventoryItemId = null;
+        selectedInventoryEntryId = null;
+        RefreshInventoryState();
+        UpdateShellState();
+    }
+
+    private void InventoryAddUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!viewModel.HasSave)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI008", "Open a save before editing inventory.", "Inventory")]);
+            return;
+        }
+
+        if (!selectedInventoryItemId.HasValue)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI009", "Select an inventory item before saving its quantity.", "Inventory.Item")]);
+            return;
+        }
+
+        if (!TryReadInventoryQuantity(out byte quantity))
+        {
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        preserveEditorTextDuringInventoryRefresh = true;
+        SaveEditorOperationResult result;
+        try
+        {
+            result = viewModel.SetInventoryItemQuantity(selectedInventoryItemId.Value, quantity);
+        }
+        finally
+        {
+            preserveEditorTextDuringInventoryRefresh = false;
+        }
+
+        if (result.Succeeded)
+        {
+            InventorySelectionState.ApplySuccessfulQuantityEdit(
+                quantity,
+                ref selectedInventoryCategoryId,
+                ref selectedInventoryItemId,
+                ref selectedInventoryEntryId);
+        }
+        RefreshInventoryState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+        if (!result.Succeeded)
+        {
+            _ = ShowMessageAsync("Inventory update failed", FormatDiagnostics(result.Diagnostics));
+        }
+    }
+
+    private void InventoryDeleteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!viewModel.HasSave)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI008", "Open a save before editing inventory.", "Inventory")]);
+            return;
+        }
+
+        if (!selectedInventoryEntryId.HasValue)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI010", "Select an inventory entry before deleting it.", "Inventory")]);
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        preserveEditorTextDuringInventoryRefresh = true;
+        SaveEditorOperationResult result;
+        try
+        {
+            result = viewModel.RemoveInventoryItem(selectedInventoryEntryId.Value);
+        }
+        finally
+        {
+            preserveEditorTextDuringInventoryRefresh = false;
+        }
+
+        if (result.Succeeded)
+        {
+            selectedInventoryCategoryId = null;
+            selectedInventoryItemId = null;
+            selectedInventoryEntryId = null;
+        }
+        RefreshInventoryState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+        if (!result.Succeeded)
+        {
+            _ = ShowMessageAsync("Inventory delete failed", FormatDiagnostics(result.Diagnostics));
+        }
+    }
+
+    private bool TryReadInventoryQuantity(out byte quantity)
+    {
+        if (byte.TryParse(InventoryQuantityTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out quantity))
+        {
+            return true;
+        }
+
+        quantity = 0;
+        SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI011", "Inventory quantity must be a whole number from 0 to 255.", "Inventory.Quantity")]);
+        return false;
     }
 
     private string GetPartyMemberValue(int slotIndex) =>

@@ -149,6 +149,27 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
+    public void FieldPatchChangesOnlyInventoryRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        byte[] inventoryBytes = new byte[layout.Inventory.Length];
+        inventoryBytes[1] = 9;
+        inventoryBytes[257] = 7;
+        inventoryBytes[1184] = 5;
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch(layout.Inventory.Name, inventoryBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((byte)9, output[layout.Inventory.Offset + 1]);
+        Assert.Equal((byte)7, output[layout.Inventory.Offset + 257]);
+        Assert.Equal((byte)5, output[layout.Inventory.Offset + 1184]);
+        AssertOnlyRangesChanged(input, output, (layout.Inventory.Offset, layout.Inventory.Length));
+    }
+
+    [Fact]
     public void FieldPatchesUpdateBothLegacyNameEncodings()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
@@ -509,6 +530,28 @@ public sealed class P4GSaveCodecTests
             static member => Assert.Equal((byte)0x01, member.Value),
             static member => Assert.Equal((byte)0xfe, member.Value),
             static member => Assert.Equal((byte)0x80, member.Value));
+        Assert.Collection(
+            snapshot.InventoryStacks,
+            static stack =>
+            {
+                Assert.Equal((ushort)1, stack.ItemId);
+                Assert.Equal((byte)2, stack.Quantity);
+            },
+            static stack =>
+            {
+                Assert.Equal((ushort)257, stack.ItemId);
+                Assert.Equal((byte)3, stack.Quantity);
+            },
+            static stack =>
+            {
+                Assert.Equal((ushort)1184, stack.ItemId);
+                Assert.Equal((byte)4, stack.Quantity);
+            },
+            static stack =>
+            {
+                Assert.Equal((ushort)2056, stack.ItemId);
+                Assert.Equal((byte)5, stack.Quantity);
+            });
         AssertPersonaSlot(
             snapshot.ProtagonistPersonaSlots[0],
             true,
@@ -551,6 +594,16 @@ public sealed class P4GSaveCodecTests
             3,
             4,
             5);
+        AssertReadOnlyListDoesNotExposeArray(snapshot.InventoryStacks, new InventoryStack(1, 0));
+        Assert.Equal(
+            new[]
+            {
+                new InventoryStack(1, 2),
+                new InventoryStack(257, 3),
+                new InventoryStack(1184, 4),
+                new InventoryStack(2056, 5),
+            },
+            snapshot.InventoryStacks);
     }
 
     private static byte[] CreateSyntheticSave()
@@ -570,6 +623,11 @@ public sealed class P4GSaveCodecTests
         bytes[LegacyPartyMembersOffset] = 0x01;
         bytes[LegacyPartyMembersOffset + 2] = 0xfe;
         bytes[LegacyPartyMembersOffset + 4] = 0x80;
+        bytes.AsSpan(LegacyInventoryOffset, LegacyInventoryLength).Clear();
+        bytes[LegacyInventoryOffset + 1] = 2;
+        bytes[LegacyInventoryOffset + 257] = 3;
+        bytes[LegacyInventoryOffset + 1184] = 4;
+        bytes[LegacyInventoryOffset + 2056] = 5;
         WritePersonaSlotBytes(
             bytes.AsSpan(LegacyProtagonistPersonaSlotsOffset, PersonaSlotBinaryCodec.BinaryLength),
             true,

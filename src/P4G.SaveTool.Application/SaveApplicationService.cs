@@ -11,6 +11,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
     private const string EditDiagnosticTarget = "Edit";
     private const string NamesDiagnosticTarget = "Names";
     private const string PartyMembersDiagnosticTarget = "PartyMembers";
+    private const string InventoryDiagnosticTarget = "Inventory";
 
     private readonly IApplicationSaveCodec codec;
 
@@ -45,10 +46,11 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
         WorkingSaveState updatedState = applicationSave.State;
         List<SaveDiagnostic> diagnostics = [];
+        P4GSaveLayout layout = P4GSaveLayout.For(applicationSave.Snapshot.LayoutKind);
 
         foreach (SaveEditCommand? edit in edits)
         {
-            updatedState = ApplyEdit(updatedState, edit, diagnostics);
+            updatedState = ApplyEdit(updatedState, layout, edit, diagnostics);
         }
 
         if (diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
@@ -71,6 +73,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
     private static WorkingSaveState ApplyEdit(
         WorkingSaveState state,
+        P4GSaveLayout layout,
         SaveEditCommand? edit,
         List<SaveDiagnostic> diagnostics)
     {
@@ -104,6 +107,32 @@ public sealed class SaveApplicationService : ISaveApplicationService
                 }
 
                 return state.WithPartyMember(setPartyMember.SlotIndex, setPartyMember.MemberId);
+
+            case SetInventoryItemQuantityEdit setInventoryItemQuantity:
+                if (!IsSupportedInventoryItem(layout, setInventoryItemQuantity.ItemId))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP004",
+                        "Inventory item edit targets an unsupported item id.",
+                        InventoryDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithInventoryItemQuantity(setInventoryItemQuantity.ItemId, setInventoryItemQuantity.Quantity);
+
+            case RemoveInventoryItemEdit removeInventoryItem:
+                if (!IsSupportedInventoryItem(layout, removeInventoryItem.ItemId))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP004",
+                        "Inventory item edit targets an unsupported item id.",
+                        InventoryDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithInventoryItemRemoved(removeInventoryItem.ItemId);
 
             default:
                 diagnostics.Add(new SaveDiagnostic(
@@ -145,7 +174,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
             snapshot.PartyMembers,
             snapshot.ProtagonistPersonaSlots,
             snapshot.PartyPersonaSlots,
-            snapshot.CompendiumPersonaSlots);
+            snapshot.CompendiumPersonaSlots,
+            snapshot.InventoryStacks);
 
     private static ApplicationWorkingSave GetApplicationSave(WorkingSave save)
     {
@@ -178,6 +208,11 @@ public sealed class SaveApplicationService : ISaveApplicationService
         if (!PartyMembersEqual(state.PartyMembers, snapshot.PartyMembers))
         {
             patches.Add(CreatePartyMembersPatch(snapshot, layout.PartyMembers, state.PartyMembers));
+        }
+
+        if (!InventoryStacksEqual(state.InventoryStacks, snapshot.InventoryStacks))
+        {
+            patches.Add(CreateInventoryPatch(layout.Inventory, state.InventoryStacks));
         }
 
         return patches;
@@ -216,9 +251,32 @@ public sealed class SaveApplicationService : ISaveApplicationService
         return new SaveFieldPatch(field.Name, bytes);
     }
 
+    private static SaveFieldPatch CreateInventoryPatch(
+        SaveFieldDescriptor field,
+        IReadOnlyList<InventoryStack> inventoryStacks)
+    {
+        byte[] bytes = new byte[field.Length];
+        foreach (InventoryStack stack in inventoryStacks)
+        {
+            bytes[stack.ItemId] = stack.Quantity;
+        }
+
+        return new SaveFieldPatch(field.Name, bytes);
+    }
+
     private static bool PartyMembersEqual(
         IReadOnlyList<PartyMemberId> left,
         IReadOnlyList<PartyMemberId> right) =>
         left.Count == right.Count &&
         left.SequenceEqual(right);
+
+    private static bool InventoryStacksEqual(
+        IReadOnlyList<InventoryStack> left,
+        IReadOnlyList<InventoryStack> right) =>
+        left.Count == right.Count &&
+        left.SequenceEqual(right);
+
+    private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>
+        itemId < (ushort)layout.Inventory.Length &&
+        InventoryItemEditability.IsWritableItemId(itemId);
 }

@@ -17,6 +17,8 @@ public sealed class SaveApplicationServiceTests
     private const int LegacyPartyMembersOffset = 92;
     private const int LegacyFamilyNamePStringOffset = 100;
     private const int LegacyGivenNamePStringOffset = 118;
+    private const int LegacyInventoryOffset = 136;
+    private const int LegacyInventoryLength = 2559;
     private const int LegacyProtagonistPersonaSlotCount = 12;
     private const int LegacyPartyPersonaSlotCount = 7;
     private const int LegacyCompendiumPersonaSlotCount = 249;
@@ -44,6 +46,28 @@ public sealed class SaveApplicationServiceTests
             static member => Assert.Equal((byte)0x01, member.Value),
             static member => Assert.Equal((byte)0xfe, member.Value),
             static member => Assert.Equal((byte)0x80, member.Value));
+        Assert.Collection(
+            save.State.InventoryStacks,
+            static stack =>
+            {
+                Assert.Equal((ushort)1, stack.ItemId);
+                Assert.Equal((byte)2, stack.Quantity);
+            },
+            static stack =>
+            {
+                Assert.Equal((ushort)257, stack.ItemId);
+                Assert.Equal((byte)3, stack.Quantity);
+            },
+            static stack =>
+            {
+                Assert.Equal((ushort)1184, stack.ItemId);
+                Assert.Equal((byte)4, stack.Quantity);
+            },
+            static stack =>
+            {
+                Assert.Equal((ushort)2056, stack.ItemId);
+                Assert.Equal((byte)5, stack.Quantity);
+            });
         AssertPersonaSlots(
             save.State.ProtagonistPersonaSlots,
             LegacyProtagonistPersonaSlotCount,
@@ -59,6 +83,7 @@ public sealed class SaveApplicationServiceTests
             LegacyCompendiumPersonaSlotCount,
             CompendiumPersonaSlot0,
             CompendiumPersonaSlot1);
+        AssertReadOnlyListDoesNotExposeArray(save.State.InventoryStacks, new InventoryStack(0, 0));
         Assert.DoesNotContain(
             typeof(WorkingSave).GetProperties().Select(static property => property.PropertyType.Namespace),
             static namespaceName => string.Equals(namespaceName, typeof(SaveSnapshot).Namespace, StringComparison.Ordinal));
@@ -80,6 +105,7 @@ public sealed class SaveApplicationServiceTests
             new SetSaveNamesEdit(new SaveNames("Amagi", "Chie")),
             new SetYenEdit(7654321),
             new SetPartyMemberEdit(1, new PartyMemberId(0x07)),
+            new SetInventoryItemQuantityEdit(257, 9),
         ];
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, edits);
@@ -96,6 +122,7 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)0x01, output[LegacyPartyMembersOffset]);
         Assert.Equal((byte)0x07, output[LegacyPartyMembersOffset + 2]);
         Assert.Equal((byte)0x80, output[LegacyPartyMembersOffset + 4]);
+        Assert.Equal((byte)9, output[LegacyInventoryOffset + 257]);
         AssertOnlyRangesChanged(
             input,
             output,
@@ -104,12 +131,14 @@ public sealed class SaveApplicationServiceTests
             (LegacyYenOffset, LegacyYenLength),
             (LegacyPartyMembersOffset + 2, 1),
             (LegacyFamilyNamePStringOffset, LegacyNameByteLength),
-            (LegacyGivenNamePStringOffset, LegacyNameByteLength));
+            (LegacyGivenNamePStringOffset, LegacyNameByteLength),
+            (LegacyInventoryOffset + 257, 1));
 
         WorkingSave reopenedSave = OpenOrThrow(service, output);
         Assert.Equal(new SaveNames("Amagi", "Chie"), reopenedSave.State.Names);
         Assert.Equal(7654321u, reopenedSave.State.Yen);
         Assert.Equal(new PartyMemberId(0x07), reopenedSave.State.PartyMembers[1]);
+        Assert.Equal(new InventoryStack(257, 9), reopenedSave.State.InventoryStacks.Single(stack => stack.ItemId == 257));
     }
 
     [Fact]
@@ -126,6 +155,8 @@ public sealed class SaveApplicationServiceTests
             new SetSaveNamesEdit(new SaveNames("Dojima", "Nanako")),
             new SetYenEdit(9999999),
             new SetPartyMemberEdit(1, new PartyMemberId(0x05)),
+            new SetInventoryItemQuantityEdit(257, 7),
+            new SetInventoryItemQuantityEdit(257, 9),
         ];
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, edits);
@@ -136,6 +167,7 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(new SaveNames("Dojima", "Nanako"), editedSave.State.Names);
         Assert.Equal(9999999u, editedSave.State.Yen);
         Assert.Equal(new PartyMemberId(0x05), editedSave.State.PartyMembers[1]);
+        Assert.Equal(new InventoryStack(257, 9), editedSave.State.InventoryStacks.Single(stack => stack.ItemId == 257));
         Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
         byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
         Assert.Equal("Dojima", SaveStringCodec.DecodeJString(output.AsMemory(LegacyFamilyNameJStringOffset, LegacyNameByteLength)));
@@ -146,6 +178,7 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)0x01, output[LegacyPartyMembersOffset]);
         Assert.Equal((byte)0x05, output[LegacyPartyMembersOffset + 2]);
         Assert.Equal((byte)0x80, output[LegacyPartyMembersOffset + 4]);
+        Assert.Equal((byte)9, output[LegacyInventoryOffset + 257]);
         AssertOnlyRangesChanged(
             input,
             output,
@@ -154,7 +187,8 @@ public sealed class SaveApplicationServiceTests
             (LegacyYenOffset, LegacyYenLength),
             (LegacyPartyMembersOffset + 2, 1),
             (LegacyFamilyNamePStringOffset, LegacyNameByteLength),
-            (LegacyGivenNamePStringOffset, LegacyNameByteLength));
+            (LegacyGivenNamePStringOffset, LegacyNameByteLength),
+            (LegacyInventoryOffset + 257, 1));
 
         WorkingSave reopenedSave = OpenOrThrow(service, output);
         Assert.Equal(new SaveNames("Dojima", "Nanako"), reopenedSave.State.Names);
@@ -256,6 +290,61 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
+    public void ApplyEditsRejectsInvalidInventoryItemId()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetInventoryItemQuantityEdit(2559, 1)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP004", diagnostic.Code);
+        Assert.Equal("Inventory", diagnostic.Target);
+        Assert.Equal(new InventoryStack(1, 2), save.State.InventoryStacks[0]);
+    }
+
+    [Theory]
+    [InlineData((ushort)1024)]
+    [InlineData((ushort)1792)]
+    public void ApplyEditsRejectsPlaceholderInventoryQuantityEdits(ushort itemId)
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetInventoryItemQuantityEdit(itemId, 1)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP004", diagnostic.Code);
+        Assert.Equal("Inventory", diagnostic.Target);
+        Assert.Equal(new InventoryStack(1, 2), save.State.InventoryStacks[0]);
+    }
+
+    [Theory]
+    [InlineData((ushort)1024)]
+    [InlineData((ushort)1792)]
+    public void ApplyEditsRejectsPlaceholderInventoryRemovalEdits(ushort itemId)
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new RemoveInventoryItemEdit(itemId)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP004", diagnostic.Code);
+        Assert.Equal("Inventory", diagnostic.Target);
+        Assert.Equal(new InventoryStack(1, 2), save.State.InventoryStacks[0]);
+    }
+
+    [Fact]
     public void WorkingSaveStateCollectionsAreImmutable()
     {
         SaveApplicationService service = new();
@@ -265,6 +354,7 @@ public sealed class SaveApplicationServiceTests
         AssertReadOnlyListDoesNotExposeArray(save.State.ProtagonistPersonaSlots, save.State.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(save.State.PartyPersonaSlots, save.State.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(save.State.CompendiumPersonaSlots, save.State.ProtagonistPersonaSlots[0]);
+        AssertReadOnlyListDoesNotExposeArray(save.State.InventoryStacks, new InventoryStack(0x42, 9));
     }
 
     private static WorkingSave OpenOrThrow(SaveApplicationService service, byte[] input)
@@ -291,6 +381,11 @@ public sealed class SaveApplicationServiceTests
         bytes[LegacyPartyMembersOffset] = 0x01;
         bytes[LegacyPartyMembersOffset + 2] = 0xfe;
         bytes[LegacyPartyMembersOffset + 4] = 0x80;
+        bytes.AsSpan(LegacyInventoryOffset, LegacyInventoryLength).Clear();
+        bytes[LegacyInventoryOffset + 1] = 2;
+        bytes[LegacyInventoryOffset + 257] = 3;
+        bytes[LegacyInventoryOffset + 1184] = 4;
+        bytes[LegacyInventoryOffset + 2056] = 5;
         WritePersonaSlotBytes(bytes, layout.ProtagonistPersonaSlots, 0, ProtagonistPersonaSlot0);
         WritePersonaSlotBytes(bytes, layout.ProtagonistPersonaSlots, 1, ProtagonistPersonaSlot1);
         WritePersonaSlotBytes(bytes, layout.PartyPersonaSlots, 0, PartyPersonaSlot0);

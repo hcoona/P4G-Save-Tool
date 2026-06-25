@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Xml.Linq;
+using P4G.SaveTool.Catalog;
 using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Domain;
 using P4G.SaveTool.Presentation;
@@ -9,7 +10,7 @@ namespace P4G.SaveTool.Presentation.Tests;
 
 public sealed class SaveEditorViewModelTests
 {
-    private static readonly string[] ForbiddenPresentationDependencyIds = ["Application", "Catalog", "SaveFormat"];
+    private static readonly string[] ForbiddenPresentationDependencyIds = ["Application", "SaveFormat"];
 
     [Fact]
     public void OpenSaveProjectsWorkingStateAndWarnings()
@@ -83,6 +84,299 @@ public sealed class SaveEditorViewModelTests
         AssertReadOnlyListDoesNotAllowMutation(viewModel.ProtagonistPersonaSlots, protagonistPersona);
         AssertReadOnlyListDoesNotAllowMutation(viewModel.PartyPersonaSlots, partyPersona);
         AssertReadOnlyListDoesNotAllowMutation(viewModel.CompendiumPersonaSlots, compendiumPersona);
+    }
+
+    [Fact]
+    public void OpenSaveProjectsInventoryEntriesAndCatalogSelectors()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(1, 2),
+                    new InventoryStack(257, 3),
+                    new InventoryStack(1184, 4),
+                    new InventoryStack(820, 5),
+                    new InventoryStack(821, 6),
+                    new InventoryStack(822, 7),
+                    new InventoryStack(823, 8),
+                ])),
+                []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult result = viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Collection(
+            viewModel.InventoryEntries,
+            static entry =>
+            {
+                Assert.Equal((ushort)1, entry.ItemId);
+                Assert.Equal("Weapons", entry.CategoryName);
+                Assert.NotEqual("Unknown item (1)", entry.ItemName);
+                Assert.Equal((byte)2, entry.Quantity);
+            },
+            static entry =>
+            {
+                Assert.Equal((ushort)257, entry.ItemId);
+                Assert.Equal("Armor", entry.CategoryName);
+                Assert.Equal((byte)3, entry.Quantity);
+            },
+            static entry =>
+            {
+                Assert.Equal((ushort)1184, entry.ItemId);
+                Assert.Equal("Social Link", entry.CategoryName);
+                Assert.Equal((byte)4, entry.Quantity);
+            },
+            static entry =>
+            {
+                Assert.Equal((ushort)820, entry.ItemId);
+                Assert.Equal("Arc Magatama", entry.ItemName);
+                Assert.Equal("Other", entry.CategoryName);
+            },
+            static entry =>
+            {
+                Assert.Equal((ushort)821, entry.ItemId);
+                Assert.Equal("Amethyst", entry.ItemName);
+                Assert.Equal("Other", entry.CategoryName);
+            },
+            static entry =>
+            {
+                Assert.Equal((ushort)822, entry.ItemId);
+                Assert.Equal("Aquamarine", entry.ItemName);
+                Assert.Equal("Other", entry.CategoryName);
+            },
+            static entry =>
+            {
+                Assert.Equal((ushort)823, entry.ItemId);
+                Assert.Equal("Emerald", entry.ItemName);
+                Assert.Equal("Other", entry.CategoryName);
+            });
+        Assert.Contains(viewModel.InventoryCategories, static category => category.Name == "Weapons");
+        Assert.Contains(viewModel.InventoryCategories, static category => category.Name == "Armor");
+        Assert.Contains(viewModel.InventoryCategories, static category => category.Name == "Other");
+
+        IReadOnlyList<InventoryItemChoiceViewState> weapons = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Weapons);
+        Assert.True(weapons[0].IsPlaceholder);
+        Assert.Equal((ushort)0, weapons[0].ItemId);
+        Assert.Equal((ushort)1, weapons[1].ItemId);
+        Assert.Contains(weapons, static item => item.ItemId == 2305);
+        Assert.Contains(weapons, static item => item.ItemId == 2432);
+        Assert.Contains(weapons, static item => item.ItemId == 2434);
+        Assert.Contains(weapons, static item => item.ItemId == 2440);
+        Assert.DoesNotContain(weapons, static item => item.ItemId == 2388);
+        Assert.DoesNotContain(weapons, static item => item.ItemId == 2433);
+
+        IReadOnlyList<InventoryItemChoiceViewState> other = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Other);
+        Assert.NotEmpty(other);
+        Assert.True(other[0].IsPlaceholder);
+        Assert.Equal((ushort)1024, other[0].ItemId);
+        Assert.Contains(other, static item => item.ItemId == 820 && item.Name == "Arc Magatama");
+        Assert.Contains(other, static item => item.ItemId == 821 && item.Name == "Amethyst");
+        Assert.Contains(other, static item => item.ItemId == 822 && item.Name == "Aquamarine");
+        Assert.Contains(other, static item => item.ItemId == 823 && item.Name == "Emerald");
+        AssertReadOnlyListDoesNotAllowMutation(
+            viewModel.InventoryEntries,
+            new InventoryStackViewState(0, 999, "Test", 0, "Weapons", 1));
+    }
+
+    [Fact]
+    public void OpenSaveProjectsOtherInventoryEntriesAndAllowsInventoryEdits()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(1025, 7),
+                ])),
+                []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult result = viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        InventoryStackViewState entry = Assert.Single(viewModel.InventoryEntries);
+        Assert.Equal((ushort)1025, entry.ItemId);
+        Assert.Equal("Other", entry.CategoryName);
+        Assert.NotEqual("Blank", entry.ItemName);
+        Assert.EndsWith(" [Other]", entry.DisplayName);
+        IReadOnlyList<InventoryItemChoiceViewState> otherChoices = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Other);
+        Assert.NotEmpty(otherChoices);
+        Assert.True(otherChoices[0].IsPlaceholder);
+        Assert.Equal((ushort)1024, otherChoices[0].ItemId);
+        Assert.Contains(otherChoices, static item => item.ItemId == 1025);
+
+        SaveEditorOperationResult updateResult = viewModel.SetInventoryItemQuantity(1025, 9);
+        SaveEditorOperationResult removeResult = viewModel.RemoveInventoryItem(1025);
+
+        Assert.True(updateResult.Succeeded, FormatDiagnostics(updateResult.Diagnostics));
+        Assert.True(removeResult.Succeeded, FormatDiagnostics(removeResult.Diagnostics));
+    }
+
+    [Theory]
+    [InlineData((ushort)0, (byte)ItemCategoryId.Weapons, "Weapons")]
+    [InlineData((ushort)256, (byte)ItemCategoryId.Armor, "Armor")]
+    [InlineData((ushort)1024, (byte)ItemCategoryId.Books, "Books")]
+    [InlineData((ushort)1792, (byte)ItemCategoryId.Costumes, "Costumes")]
+    public void PlaceholderInventoryItemsProjectToTheirCategories(ushort itemId, byte expectedCategoryId, string expectedCategoryName)
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(itemId, 1),
+                ])),
+                []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult result = viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        InventoryStackViewState entry = Assert.Single(viewModel.InventoryEntries);
+        Assert.Equal(itemId, entry.ItemId);
+        Assert.Equal(expectedCategoryId, entry.CategoryId);
+        Assert.Equal(expectedCategoryName, entry.CategoryName);
+        Assert.True(entry.IsPlaceholder);
+        Assert.EndsWith($"[{expectedCategoryName}]", entry.DisplayName);
+    }
+
+    [Fact]
+    public void CostumePickerIncludesLegacyDefaultClothingItemAsPlaceholder()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        IReadOnlyList<InventoryItemChoiceViewState> costumes = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Costumes);
+
+        Assert.NotEmpty(costumes);
+        InventoryItemChoiceViewState legacyCostumeBlank = Assert.Single(costumes, static item => item.ItemId == 1792);
+        Assert.True(legacyCostumeBlank.IsPlaceholder);
+        Assert.DoesNotContain(costumes, static item => item.ItemId == 1792 && !item.IsPlaceholder);
+        Assert.Contains(costumes, static item => item.ItemId == 2040);
+    }
+
+    [Fact]
+    public void PlaceholderInventoryItemsCannotBeModified()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult setResult = viewModel.SetInventoryItemQuantity(1792, 1);
+        SaveEditorOperationResult removeResult = viewModel.RemoveInventoryItem(1792);
+
+        Assert.False(setResult.Succeeded);
+        Assert.False(removeResult.Succeeded);
+        Assert.Single(setResult.Diagnostics, diagnostic => diagnostic.Code == "P4GPRES008");
+        Assert.Single(removeResult.Diagnostics, diagnostic => diagnostic.Code == "P4GPRES008");
+        Assert.Empty(service.AppliedEdits);
+    }
+
+    [Fact]
+    public void InventoryEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(1, 2),
+                    new InventoryStack(257, 3),
+                ])),
+                []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult updateResult = viewModel.SetInventoryItemQuantity(257, 9);
+        SaveEditorOperationResult removeResult = viewModel.RemoveInventoryItem(1);
+
+        Assert.True(updateResult.Succeeded, FormatDiagnostics(updateResult.Diagnostics));
+        Assert.True(removeResult.Succeeded, FormatDiagnostics(removeResult.Diagnostics));
+        Assert.Collection(
+            viewModel.InventoryEntries,
+            static entry =>
+            {
+                Assert.Equal((ushort)257, entry.ItemId);
+                Assert.Equal((byte)9, entry.Quantity);
+            });
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits => Assert.IsType<SetInventoryItemQuantityEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<RemoveInventoryItemEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void NonInventoryEditsDoNotRefreshInventoryEntriesProjection()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(1, 2),
+                ])),
+                []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        List<string?> changedProperties = [];
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+        changedProperties.Clear();
+        IReadOnlyList<InventoryStackViewState> initialInventoryEntries = viewModel.InventoryEntries;
+
+        SaveEditorOperationResult result = viewModel.SetNames("Dojima", "Nanako");
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Same(initialInventoryEntries, viewModel.InventoryEntries);
+        Assert.DoesNotContain(nameof(SaveEditorViewModel.InventoryEntries), changedProperties);
+    }
+
+    [Fact]
+    public void InventoryEditsRefreshInventoryEntriesProjection()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(1, 2),
+                ])),
+                []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        List<string?> changedProperties = [];
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+        changedProperties.Clear();
+        IReadOnlyList<InventoryStackViewState> initialInventoryEntries = viewModel.InventoryEntries;
+
+        SaveEditorOperationResult result = viewModel.SetInventoryItemQuantity(1, 9);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.NotSame(initialInventoryEntries, viewModel.InventoryEntries);
+        Assert.Contains(nameof(SaveEditorViewModel.InventoryEntries), changedProperties);
     }
 
     [Fact]
@@ -202,6 +496,8 @@ public sealed class SaveEditorViewModelTests
             ("SetYen", static viewModel => viewModel.SetYen(500_000u)),
             ("ApplyEditorValues", static viewModel => viewModel.ApplyEditorValues("Dojima", "Nanako", 500_000u, [0x01, 0x02, 0x03])),
             ("SetPartyMember", static viewModel => viewModel.SetPartyMember(1, new PartyMemberId(0x07))),
+            ("SetInventoryItemQuantity", static viewModel => viewModel.SetInventoryItemQuantity(257, 9)),
+            ("RemoveInventoryItem", static viewModel => viewModel.RemoveInventoryItem(257)),
             ("ApplyEdits", static viewModel => viewModel.ApplyEdits([new SetYenEdit(500_000u)])),
         ];
 
@@ -891,7 +1187,7 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
-    public void PresentationAssemblyDoesNotReferenceApplicationCatalogOrSaveFormat()
+    public void PresentationAssemblyDoesNotReferenceApplicationOrSaveFormat()
     {
         HashSet<string?> referencedAssemblies = typeof(SaveEditorViewModel)
             .Assembly
@@ -901,12 +1197,11 @@ public sealed class SaveEditorViewModelTests
 
         Assert.Contains("P4G.SaveTool.Contracts", referencedAssemblies);
         Assert.DoesNotContain("P4G.SaveTool.Application", referencedAssemblies);
-        Assert.DoesNotContain("P4G.SaveTool.Catalog", referencedAssemblies);
         Assert.DoesNotContain("P4G.SaveTool.SaveFormat", referencedAssemblies);
     }
 
     [Fact]
-    public void PresentationProjectDoesNotReferenceApplicationCatalogOrSaveFormat()
+    public void PresentationProjectReferencesCatalogWithoutApplicationOrSaveFormat()
     {
         string projectPath = FindRepositoryFile("src", "P4G.SaveTool.Presentation", "P4G.SaveTool.Presentation.csproj");
         XDocument project = XDocument.Load(projectPath);
@@ -920,10 +1215,13 @@ public sealed class SaveEditorViewModelTests
             .Where(static reference => reference.Length > 0)
             .ToArray();
 
+        Assert.Contains(
+            references,
+            static reference => reference.Contains("P4G.SaveTool.Catalog", StringComparison.OrdinalIgnoreCase));
+
         foreach (string forbiddenReference in new[]
         {
             "P4G.SaveTool.Application",
-            "P4G.SaveTool.Catalog",
             "P4G.SaveTool.SaveFormat",
         })
         {
@@ -934,7 +1232,7 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
-    public void PresentationResolvedLockFileGraphDoesNotContainApplicationCatalogOrSaveFormat()
+    public void PresentationResolvedLockFileGraphDoesNotContainApplicationOrSaveFormat()
     {
         string lockFilePath = FindRepositoryFile("src", "P4G.SaveTool.Presentation", "packages.lock.json");
         using FileStream stream = File.OpenRead(lockFilePath);
@@ -1016,6 +1314,8 @@ public sealed class SaveEditorViewModelTests
                 SetSaveNamesEdit setNames => state.WithNames(setNames.Names),
                 SetYenEdit setYen => state.WithYen(setYen.Yen),
                 SetPartyMemberEdit setPartyMember => state.WithPartyMember(setPartyMember.SlotIndex, setPartyMember.MemberId),
+                SetInventoryItemQuantityEdit setInventoryItemQuantity => state.WithInventoryItemQuantity(setInventoryItemQuantity.ItemId, setInventoryItemQuantity.Quantity),
+                RemoveInventoryItemEdit removeInventoryItem => state.WithInventoryItemRemoved(removeInventoryItem.ItemId),
                 _ => state,
             };
         }
@@ -1026,14 +1326,16 @@ public sealed class SaveEditorViewModelTests
     private static WorkingSaveState CreateState(
         string familyName = "Sato",
         string givenName = "Yu",
-        uint yen = 123456u) =>
+        uint yen = 123456u,
+        IReadOnlyList<InventoryStack>? inventoryStacks = null) =>
         new(
             new SaveNames(familyName, givenName),
             yen,
             [new PartyMemberId(0x01), new PartyMemberId(0xfe), new PartyMemberId(0x80)],
             [CreatePersonaSlot(0x0101, 77, 0x01010101, 0x1101)],
             [CreatePersonaSlot(0x0202, 44, 0x02020202, 0x2201)],
-            [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)]);
+            [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)],
+            inventoryStacks ?? []);
 
     private static PersonaSlot CreatePersonaSlot(
         ushort personaId,

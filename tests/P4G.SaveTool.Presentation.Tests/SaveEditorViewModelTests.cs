@@ -267,6 +267,112 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void OpenSaveProjectsEquipmentCharactersAndSelectors()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult result = viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Equal(7, viewModel.EquipmentCharacters.Count);
+        EquipmentCharacterViewState protagonist = viewModel.EquipmentCharacters[0];
+        Assert.Equal((byte)0, protagonist.CharacterId);
+        Assert.Equal("Yu Sato", protagonist.Name);
+        Assert.Equal((ushort)1, protagonist.WeaponItemId);
+        Assert.Equal((ushort)256, protagonist.ArmorItemId);
+        Assert.Equal((ushort)512, protagonist.AccessoryItemId);
+        Assert.Equal((ushort)1792, protagonist.CostumeItemId);
+        EquipmentCharacterViewState firstPartyMember = viewModel.EquipmentCharacters[1];
+        Assert.Equal((byte)1, firstPartyMember.CharacterId);
+        Assert.Equal("Yosuke Hanamura", firstPartyMember.Name);
+        Assert.Equal((ushort)39, firstPartyMember.WeaponItemId);
+        Assert.Equal((ushort)266, firstPartyMember.ArmorItemId);
+        Assert.DoesNotContain(viewModel.EquipmentCharacters, static character => character.CharacterId == 4);
+
+        IReadOnlyList<InventoryItemChoiceViewState> protagonistWeapons = viewModel.GetWeaponChoices(protagonist.CharacterId);
+        Assert.True(protagonistWeapons[0].IsPlaceholder);
+        Assert.Equal((ushort)0, protagonistWeapons[0].ItemId);
+        Assert.Contains(protagonistWeapons, static item => item.ItemId == 1);
+        Assert.Contains(protagonistWeapons, static item => item.ItemId == 2305);
+        Assert.Contains(protagonistWeapons, static item => item.ItemId == 2434);
+        Assert.DoesNotContain(protagonistWeapons, static item => item.ItemId == 39);
+        Assert.DoesNotContain(protagonistWeapons, static item => item.ItemId == 2435);
+
+        IReadOnlyList<InventoryItemChoiceViewState> yosukeWeapons = viewModel.GetWeaponChoices(firstPartyMember.CharacterId);
+        Assert.True(yosukeWeapons[0].IsPlaceholder);
+        Assert.Equal((ushort)0, yosukeWeapons[0].ItemId);
+        Assert.Contains(yosukeWeapons, static item => item.ItemId == 39);
+        Assert.Contains(yosukeWeapons, static item => item.ItemId == 2326);
+        Assert.Contains(yosukeWeapons, static item => item.ItemId == 2435);
+        Assert.DoesNotContain(yosukeWeapons, static item => item.ItemId == 1);
+        Assert.DoesNotContain(yosukeWeapons, static item => item.ItemId == 2434);
+
+        IReadOnlyList<InventoryItemChoiceViewState> chieWeapons = viewModel.GetWeaponChoices(2);
+        Assert.True(chieWeapons[0].IsPlaceholder);
+        Assert.Equal((ushort)0, chieWeapons[0].ItemId);
+        Assert.Contains(chieWeapons, static item => item.ItemId == 112);
+        Assert.Contains(chieWeapons, static item => item.ItemId == 142);
+        Assert.Contains(chieWeapons, static item => item.ItemId == 2367);
+        Assert.Contains(chieWeapons, static item => item.ItemId == 2375);
+        Assert.Contains(chieWeapons, static item => item.ItemId == 2436);
+        Assert.DoesNotContain(chieWeapons, static item => item.ItemId == 77);
+        Assert.DoesNotContain(chieWeapons, static item => item.ItemId == 2437);
+
+        IReadOnlyList<InventoryItemChoiceViewState> yukikoWeapons = viewModel.GetWeaponChoices(3);
+        Assert.True(yukikoWeapons[0].IsPlaceholder);
+        Assert.Equal((ushort)0, yukikoWeapons[0].ItemId);
+        Assert.Contains(yukikoWeapons, static item => item.ItemId == 77);
+        Assert.Contains(yukikoWeapons, static item => item.ItemId == 104);
+        Assert.Contains(yukikoWeapons, static item => item.ItemId == 2345);
+        Assert.Contains(yukikoWeapons, static item => item.ItemId == 2355);
+        Assert.Contains(yukikoWeapons, static item => item.ItemId == 2437);
+        Assert.DoesNotContain(yukikoWeapons, static item => item.ItemId == 112);
+        Assert.DoesNotContain(yukikoWeapons, static item => item.ItemId == 2436);
+
+        IReadOnlyList<InventoryItemChoiceViewState> kanjiWeapons = viewModel.GetWeaponChoices(5);
+        Assert.True(kanjiWeapons[0].IsPlaceholder);
+        Assert.Equal((ushort)0, kanjiWeapons[0].ItemId);
+        Assert.Contains(kanjiWeapons, static item => item.ItemId == 150);
+        Assert.Contains(kanjiWeapons, static item => item.ItemId == 2385);
+        Assert.Contains(kanjiWeapons, static item => item.ItemId == 2389);
+        Assert.Contains(kanjiWeapons, static item => item.ItemId == 2396);
+        Assert.Contains(kanjiWeapons, static item => item.ItemId == 2438);
+        Assert.DoesNotContain(kanjiWeapons, static item => item.ItemId == 2388);
+
+        Assert.Contains(viewModel.GetArmorChoices(), static item => item.ItemId == 334);
+        Assert.Contains(viewModel.GetArmorChoices(), static item => item.ItemId == 264);
+        Assert.Contains(viewModel.GetAccessoryChoices(), static item => item.ItemId == 754);
+        Assert.Contains(viewModel.GetCostumeChoices(), static item => item.ItemId == 2040);
+    }
+
+    [Fact]
+    public void NameEditsRefreshEquipmentCharactersProjectionAndTrackDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+        IReadOnlyList<EquipmentCharacterViewState> initialEquipmentCharacters = viewModel.EquipmentCharacters;
+
+        SaveEditorOperationResult result = viewModel.SetNames("Dojima", "Nanako");
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.NotSame(initialEquipmentCharacters, viewModel.EquipmentCharacters);
+        Assert.Equal("Nanako Dojima", viewModel.EquipmentCharacters[0].Name);
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits => Assert.IsType<SetSaveNamesEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
     public void PlaceholderInventoryItemsCannotBeModified()
     {
         FakeSaveApplicationService service = new()
@@ -285,6 +391,41 @@ public sealed class SaveEditorViewModelTests
         Assert.Single(setResult.Diagnostics, diagnostic => diagnostic.Code == "P4GPRES008");
         Assert.Single(removeResult.Diagnostics, diagnostic => diagnostic.Code == "P4GPRES008");
         Assert.Empty(service.AppliedEdits);
+    }
+
+    [Fact]
+    public void EquipmentEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+        IReadOnlyList<EquipmentCharacterViewState> initialEquipmentCharacters = viewModel.EquipmentCharacters;
+
+        SaveEditorOperationResult weaponResult = viewModel.SetEquippedWeapon(0, 2434);
+        SaveEditorOperationResult armorResult = viewModel.SetEquippedArmor(1, 271);
+        SaveEditorOperationResult accessoryResult = viewModel.SetEquippedAccessory(2, 687);
+        SaveEditorOperationResult costumeResult = viewModel.SetEquippedCostume(3, 1792);
+
+        Assert.True(weaponResult.Succeeded, FormatDiagnostics(weaponResult.Diagnostics));
+        Assert.True(armorResult.Succeeded, FormatDiagnostics(armorResult.Diagnostics));
+        Assert.True(accessoryResult.Succeeded, FormatDiagnostics(accessoryResult.Diagnostics));
+        Assert.True(costumeResult.Succeeded, FormatDiagnostics(costumeResult.Diagnostics));
+        Assert.NotSame(initialEquipmentCharacters, viewModel.EquipmentCharacters);
+        Assert.Equal((ushort)2434, viewModel.EquipmentCharacters[0].WeaponItemId);
+        Assert.Equal((ushort)271, viewModel.EquipmentCharacters[1].ArmorItemId);
+        Assert.Equal((ushort)687, viewModel.EquipmentCharacters[2].AccessoryItemId);
+        Assert.Equal((ushort)1792, viewModel.EquipmentCharacters[3].CostumeItemId);
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits => Assert.IsType<SetEquippedWeaponEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetEquippedArmorEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetEquippedAccessoryEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetEquippedCostumeEdit>(Assert.Single(edits)));
     }
 
     [Fact]
@@ -321,6 +462,47 @@ public sealed class SaveEditorViewModelTests
             service.AppliedEdits,
             static edits => Assert.IsType<SetInventoryItemQuantityEdit>(Assert.Single(edits)),
             static edits => Assert.IsType<RemoveInventoryItemEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void InventoryEditsThatRestoreEquivalentSetClearDirtyStateEvenWhenOrderChanges()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(1, 2),
+                    new InventoryStack(257, 3),
+                ])),
+                []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult removeResult = viewModel.RemoveInventoryItem(1);
+        SaveEditorOperationResult restoreResult = viewModel.SetInventoryItemQuantity(1, 2);
+
+        Assert.True(removeResult.Succeeded, FormatDiagnostics(removeResult.Diagnostics));
+        Assert.True(restoreResult.Succeeded, FormatDiagnostics(restoreResult.Diagnostics));
+        Assert.Collection(
+            viewModel.InventoryEntries,
+            static entry =>
+            {
+                Assert.Equal((ushort)257, entry.ItemId);
+                Assert.Equal((byte)3, entry.Quantity);
+            },
+            static entry =>
+            {
+                Assert.Equal((ushort)1, entry.ItemId);
+                Assert.Equal((byte)2, entry.Quantity);
+            });
+        Assert.False(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits => Assert.IsType<RemoveInventoryItemEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetInventoryItemQuantityEdit>(Assert.Single(edits)));
     }
 
     [Fact]
@@ -1314,6 +1496,10 @@ public sealed class SaveEditorViewModelTests
                 SetSaveNamesEdit setNames => state.WithNames(setNames.Names),
                 SetYenEdit setYen => state.WithYen(setYen.Yen),
                 SetPartyMemberEdit setPartyMember => state.WithPartyMember(setPartyMember.SlotIndex, setPartyMember.MemberId),
+                SetEquippedWeaponEdit setEquippedWeapon => state.WithEquippedWeapon(setEquippedWeapon.CharacterId, setEquippedWeapon.ItemId),
+                SetEquippedArmorEdit setEquippedArmor => state.WithEquippedArmor(setEquippedArmor.CharacterId, setEquippedArmor.ItemId),
+                SetEquippedAccessoryEdit setEquippedAccessory => state.WithEquippedAccessory(setEquippedAccessory.CharacterId, setEquippedAccessory.ItemId),
+                SetEquippedCostumeEdit setEquippedCostume => state.WithEquippedCostume(setEquippedCostume.CharacterId, setEquippedCostume.ItemId),
                 SetInventoryItemQuantityEdit setInventoryItemQuantity => state.WithInventoryItemQuantity(setInventoryItemQuantity.ItemId, setInventoryItemQuantity.Quantity),
                 RemoveInventoryItemEdit removeInventoryItem => state.WithInventoryItemRemoved(removeInventoryItem.ItemId),
                 _ => state,
@@ -1327,11 +1513,19 @@ public sealed class SaveEditorViewModelTests
         string familyName = "Sato",
         string givenName = "Yu",
         uint yen = 123456u,
+        IReadOnlyList<ushort>? equippedWeapons = null,
+        IReadOnlyList<ushort>? equippedArmors = null,
+        IReadOnlyList<ushort>? equippedAccessories = null,
+        IReadOnlyList<ushort>? equippedCostumes = null,
         IReadOnlyList<InventoryStack>? inventoryStacks = null) =>
         new(
             new SaveNames(familyName, givenName),
             yen,
             [new PartyMemberId(0x01), new PartyMemberId(0xfe), new PartyMemberId(0x80)],
+            equippedWeapons ?? [1, 39, 112, 150, 183, 217, 2305, 2434],
+            equippedArmors ?? [256, 266, 287, 293, 307, 315, 328, 334],
+            equippedAccessories ?? [512, 615, 685, 687, 754, 512, 615, 754],
+            equippedCostumes ?? [1792, 2040, 1792, 2040, 1792, 2040, 1792, 2040],
             [CreatePersonaSlot(0x0101, 77, 0x01010101, 0x1101)],
             [CreatePersonaSlot(0x0202, 44, 0x02020202, 0x2201)],
             [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)],

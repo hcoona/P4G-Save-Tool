@@ -6,8 +6,14 @@ namespace P4G.SaveTool.SaveFormat;
 
 public sealed class SaveSnapshot
 {
+    private const int EquipmentSlotCount = 8;
+
     private readonly byte[] originalBytes;
     private readonly ReadOnlyCollection<PartyMemberId> partyMembers;
+    private readonly ReadOnlyCollection<ushort> equippedWeapons;
+    private readonly ReadOnlyCollection<ushort> equippedArmors;
+    private readonly ReadOnlyCollection<ushort> equippedAccessories;
+    private readonly ReadOnlyCollection<ushort> equippedCostumes;
     private readonly ReadOnlyCollection<PersonaSlot> protagonistPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> partyPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> compendiumPersonaSlots;
@@ -19,6 +25,10 @@ public sealed class SaveSnapshot
         SaveNames names,
         uint yen,
         IReadOnlyList<PartyMemberId> partyMembers,
+        IReadOnlyList<ushort> equippedWeapons,
+        IReadOnlyList<ushort> equippedArmors,
+        IReadOnlyList<ushort> equippedAccessories,
+        IReadOnlyList<ushort> equippedCostumes,
         IReadOnlyList<PersonaSlot> protagonistPersonaSlots,
         IReadOnlyList<PersonaSlot> partyPersonaSlots,
         IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
@@ -29,6 +39,10 @@ public sealed class SaveSnapshot
         Names = names;
         Yen = yen;
         this.partyMembers = Array.AsReadOnly(partyMembers.ToArray());
+        this.equippedWeapons = CopyFixedLength(equippedWeapons, EquipmentSlotCount, nameof(equippedWeapons));
+        this.equippedArmors = CopyFixedLength(equippedArmors, EquipmentSlotCount, nameof(equippedArmors));
+        this.equippedAccessories = CopyFixedLength(equippedAccessories, EquipmentSlotCount, nameof(equippedAccessories));
+        this.equippedCostumes = CopyFixedLength(equippedCostumes, EquipmentSlotCount, nameof(equippedCostumes));
         this.protagonistPersonaSlots = Array.AsReadOnly(protagonistPersonaSlots.ToArray());
         this.partyPersonaSlots = Array.AsReadOnly(partyPersonaSlots.ToArray());
         this.compendiumPersonaSlots = Array.AsReadOnly(compendiumPersonaSlots.ToArray());
@@ -45,6 +59,14 @@ public sealed class SaveSnapshot
 
     public IReadOnlyList<PartyMemberId> PartyMembers => partyMembers;
 
+    public IReadOnlyList<ushort> EquippedWeapons => equippedWeapons;
+
+    public IReadOnlyList<ushort> EquippedArmors => equippedArmors;
+
+    public IReadOnlyList<ushort> EquippedAccessories => equippedAccessories;
+
+    public IReadOnlyList<ushort> EquippedCostumes => equippedCostumes;
+
     public IReadOnlyList<PersonaSlot> ProtagonistPersonaSlots => protagonistPersonaSlots;
 
     public IReadOnlyList<PersonaSlot> PartyPersonaSlots => partyPersonaSlots;
@@ -54,4 +76,17 @@ public sealed class SaveSnapshot
     public IReadOnlyList<InventoryStack> InventoryStacks => inventoryStacks;
 
     internal byte[] CopyOriginalBytes() => (byte[])originalBytes.Clone();
+
+    private static ReadOnlyCollection<T> CopyFixedLength<T>(IReadOnlyCollection<T> values, int expectedLength, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(values, parameterName);
+        if (values.Count != expectedLength)
+        {
+            throw new ArgumentException(
+                $"Equipment field must contain exactly {expectedLength} values.",
+                parameterName);
+        }
+
+        return Array.AsReadOnly(values.ToArray());
+    }
 }

@@ -51,4 +51,41 @@ public sealed class InventorySelectionProjectionTests
         Assert.Equal("Arc Magatama", selectedItem.Name);
         Assert.Same(itemChoices, projectedChoices);
     }
+
+    [Fact]
+    public void EquipmentChoiceResolverKeepsUnsupportedCurrentSelectionVisible()
+    {
+        IReadOnlyList<InventoryItemChoiceViewState> itemChoices =
+        [
+            new InventoryItemChoiceViewState(0, (byte)ItemCategoryId.Weapons, "Blank", true),
+            new InventoryItemChoiceViewState(1, (byte)ItemCategoryId.Weapons, "Blade"),
+        ];
+
+        IReadOnlyList<InventoryItemChoiceViewState> projectedChoices =
+            InventorySelectionProjection.ResolveEquipmentChoices(itemChoices, 9999, out InventoryItemChoiceViewState? selectedItem);
+
+        Assert.NotNull(selectedItem);
+        Assert.Equal((ushort)9999, selectedItem!.ItemId);
+        Assert.Equal("Unknown item (9999)", selectedItem.Name);
+        Assert.Contains(projectedChoices, item => item.ItemId == 9999);
+        Assert.Equal(itemChoices.Count + 1, projectedChoices.Count);
+    }
+
+    [Fact]
+    public void EquipmentChoiceResolverDoesNotDuplicateSupportedSelection()
+    {
+        IReadOnlyList<InventoryItemChoiceViewState> itemChoices =
+        [
+            new InventoryItemChoiceViewState(0, (byte)ItemCategoryId.Weapons, "Blank", true),
+            new InventoryItemChoiceViewState(1, (byte)ItemCategoryId.Weapons, "Blade"),
+        ];
+
+        IReadOnlyList<InventoryItemChoiceViewState> projectedChoices =
+            InventorySelectionProjection.ResolveEquipmentChoices(itemChoices, 1, out InventoryItemChoiceViewState? selectedItem);
+
+        Assert.NotNull(selectedItem);
+        Assert.Same(itemChoices, projectedChoices);
+        Assert.Equal((ushort)1, selectedItem!.ItemId);
+        Assert.Equal("Blade", selectedItem.Name);
+    }
 }

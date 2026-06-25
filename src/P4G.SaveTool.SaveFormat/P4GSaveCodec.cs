@@ -29,12 +29,17 @@ public static class P4GSaveCodec
             givenName = SaveStringCodec.DecodeJString(bytes.Slice(layout.GivenNameJString.Offset, layout.GivenNameJString.Length));
         }
 
+        EquipmentArrays equipmentArrays = ReadEquipmentArrays(span, layout);
         SaveSnapshot snapshot = new(
             layout.Kind,
             bytes.ToArray(),
             new SaveNames(familyName, givenName),
             BinaryPrimitives.ReadUInt32LittleEndian(span.Slice(layout.Yen.Offset, layout.Yen.Length)),
             ReadPartyMembers(span, layout),
+            equipmentArrays.Weapons,
+            equipmentArrays.Armors,
+            equipmentArrays.Accessories,
+            equipmentArrays.Costumes,
             ReadPersonaBlock(span, layout.ProtagonistPersonaSlots),
             ReadPersonaBlock(span, layout.PartyPersonaSlots),
             ReadPersonaBlock(span, layout.CompendiumPersonaSlots),
@@ -131,6 +136,35 @@ public static class P4GSaveCodec
             new PartyMemberId(source[layout.PartyMembers.Offset + 4]),
         ];
     }
+
+    private static EquipmentArrays ReadEquipmentArrays(ReadOnlySpan<byte> source, P4GSaveLayout layout)
+    {
+        ushort[] weapons = new ushort[8];
+        ushort[] armors = new ushort[8];
+        ushort[] accessories = new ushort[8];
+        ushort[] costumes = new ushort[8];
+        for (int characterIndex = 0; characterIndex < 8; characterIndex++)
+        {
+            SaveFieldDescriptor field = GetEquipmentField(layout, characterIndex);
+            weapons[characterIndex] = BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(field.Offset, sizeof(ushort)));
+            armors[characterIndex] = BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(field.Offset + 2, sizeof(ushort)));
+            accessories[characterIndex] = BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(field.Offset + 4, sizeof(ushort)));
+            costumes[characterIndex] = BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(field.Offset + 6, sizeof(ushort)));
+        }
+
+        return new EquipmentArrays(weapons, armors, accessories, costumes);
+    }
+
+    private static SaveFieldDescriptor GetEquipmentField(P4GSaveLayout layout, int characterIndex) =>
+        characterIndex == 0
+            ? layout.ProtagonistEquipment
+            : layout.PartyEquipmentSlots[characterIndex - 1];
+
+    private sealed record EquipmentArrays(
+        IReadOnlyList<ushort> Weapons,
+        IReadOnlyList<ushort> Armors,
+        IReadOnlyList<ushort> Accessories,
+        IReadOnlyList<ushort> Costumes);
 
     private static IReadOnlyList<InventoryStack> ReadInventory(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
     {

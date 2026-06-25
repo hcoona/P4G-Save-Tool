@@ -46,6 +46,7 @@ internal static class InventoryCatalogProjection
     private static readonly ReadOnlyCollection<ItemCategoryViewState> categories = CreateCategories();
     private static readonly ReadOnlyDictionary<ushort, byte> categoryByItemId = CreateCategoryByItemId();
     private static readonly ReadOnlyDictionary<byte, ReadOnlyCollection<InventoryItemChoiceViewState>> itemsByCategory = CreateItemsByCategory();
+    private static readonly ReadOnlyDictionary<byte, ReadOnlyCollection<InventoryItemChoiceViewState>> weaponChoicesByCharacter = CreateWeaponChoicesByCharacter();
     private static readonly ReadOnlyDictionary<ushort, InventoryItemMetadata> metadataByItemId = CreateMetadataByItemId();
     private static readonly string otherCategoryName = categories[(byte)ItemCategoryId.Other].Name;
 
@@ -53,6 +54,11 @@ internal static class InventoryCatalogProjection
 
     internal static IReadOnlyList<InventoryItemChoiceViewState> GetItems(byte categoryId) =>
         itemsByCategory.TryGetValue(categoryId, out ReadOnlyCollection<InventoryItemChoiceViewState>? items)
+            ? items
+            : Array.AsReadOnly(Array.Empty<InventoryItemChoiceViewState>());
+
+    internal static IReadOnlyList<InventoryItemChoiceViewState> GetWeaponChoices(byte characterId) =>
+        weaponChoicesByCharacter.TryGetValue(characterId, out ReadOnlyCollection<InventoryItemChoiceViewState>? items)
             ? items
             : Array.AsReadOnly(Array.Empty<InventoryItemChoiceViewState>());
 
@@ -103,6 +109,35 @@ internal static class InventoryCatalogProjection
         }
 
         return new ReadOnlyDictionary<byte, ReadOnlyCollection<InventoryItemChoiceViewState>>(lookup);
+    }
+
+    private static ReadOnlyDictionary<byte, ReadOnlyCollection<InventoryItemChoiceViewState>> CreateWeaponChoicesByCharacter()
+    {
+        Dictionary<byte, ReadOnlyCollection<InventoryItemChoiceViewState>> lookup = new();
+        foreach (PartyMemberCatalogEntry member in P4GCatalog.PartyMembers)
+        {
+            if (!EquipmentItemRules.IsSupportedEquipmentCharacterId(member.Id))
+            {
+                continue;
+            }
+
+            lookup.Add(member.Id, CreateWeaponChoices(member.Id));
+        }
+
+        return new ReadOnlyDictionary<byte, ReadOnlyCollection<InventoryItemChoiceViewState>>(lookup);
+    }
+
+    private static ReadOnlyCollection<InventoryItemChoiceViewState> CreateWeaponChoices(byte characterId)
+    {
+        List<InventoryItemChoiceViewState> items = [];
+        HashSet<ushort> seen = [];
+        AddPlaceholderChoice(items, 0, (byte)ItemCategoryId.Weapons);
+        foreach (ushort itemId in EquipmentItemRules.EnumerateWeaponItemIds(characterId))
+        {
+            AddChoice(items, seen, itemId, (byte)ItemCategoryId.Weapons);
+        }
+
+        return Array.AsReadOnly(items.ToArray());
     }
 
     private static HashSet<ushort> CreateLegacyCategorizedItemIds()

@@ -40,4 +40,26 @@ internal static class InventorySelectionProjection
         projectedChoices.Add(selectedItem);
         return projectedChoices;
     }
+
+    internal static IReadOnlyList<InventoryItemChoiceViewState> ResolveEquipmentChoices(
+        IReadOnlyList<InventoryItemChoiceViewState> itemChoices,
+        ushort selectedItemId,
+        out InventoryItemChoiceViewState? selectedItem)
+    {
+        selectedItem = itemChoices.FirstOrDefault(item => item.ItemId == selectedItemId);
+        if (selectedItem is not null)
+        {
+            return itemChoices;
+        }
+
+        selectedItem = new InventoryItemChoiceViewState(
+            selectedItemId,
+            itemChoices.Count > 0 ? itemChoices[0].CategoryId : default,
+            $"Unknown item ({selectedItemId})");
+
+        List<InventoryItemChoiceViewState> projectedChoices = new(itemChoices.Count + 1);
+        projectedChoices.AddRange(itemChoices);
+        projectedChoices.Add(selectedItem);
+        return projectedChoices;
+    }
 }

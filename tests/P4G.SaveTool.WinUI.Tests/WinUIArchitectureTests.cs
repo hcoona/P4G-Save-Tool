@@ -74,9 +74,58 @@ public sealed class WinUIArchitectureTests
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
 
-        AssertHandlerRefreshesShellState(content, "InventoryListView_SelectionChanged");
-        AssertHandlerRefreshesShellState(content, "InventoryCategoryComboBox_SelectionChanged");
-        AssertHandlerRefreshesShellState(content, "InventoryItemComboBox_SelectionChanged");
+        AssertHandlerRefreshesShellState(content, "InventoryListView_SelectionChanged", "RefreshInventoryState();");
+        AssertHandlerRefreshesShellState(content, "InventoryCategoryComboBox_SelectionChanged", "RefreshInventoryState();");
+        AssertHandlerRefreshesShellState(content, "InventoryItemComboBox_SelectionChanged", "RefreshInventoryState();");
+        AssertHandlerRefreshesShellState(content, "EquipmentCharacterComboBox_SelectionChanged", "RefreshEquipmentState();");
+        Assert.Contains("ApplyEquipmentSelection(EquipmentWeaponComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("ApplyEquipmentSelection(EquipmentArmorComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("ApplyEquipmentSelection(EquipmentAccessoryComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("ApplyEquipmentSelection(EquipmentCostumeComboBox", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowEquipmentEditsRefreshOnlyEquipmentState()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string methodBody = GetSection(
+            content,
+            "private void ApplyEquipmentSelection(",
+            "private bool TryReadInventoryQuantity(");
+
+        Assert.Contains("RefreshEquipmentState();", methodBody, StringComparison.Ordinal);
+        Assert.Contains("DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);", methodBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellState();", methodBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshFromViewModel();", methodBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowZeroQuantityInventoryUpdatesSuppressAutoSelectLikeDelete()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string methodBody = GetSection(
+            content,
+            "private void InventoryAddUpdateButton_Click(",
+            "private void InventoryDeleteButton_Click(");
+
+        Assert.Contains("if (quantity == 0)", methodBody, StringComparison.Ordinal);
+        Assert.Contains("inventorySelectionState.DisableAutoSelectAfterDelete();", methodBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowAutoSelectsInventoryEntryOnOpenAndSuppressesItAfterDelete()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("inventorySelectionState.Reset();", content, StringComparison.Ordinal);
+        Assert.Contains("autoSelectInventoryEntryAfterOpen = true;", content, StringComparison.Ordinal);
+        Assert.Contains("ShouldAutoSelectFirstEntry(", content, StringComparison.Ordinal);
+        Assert.Contains("selectedEntry = viewModel.InventoryEntries[lastInventoryEntryIndex];", content, StringComparison.Ordinal);
+        Assert.Contains("int lastInventoryEntryIndex = viewModel.InventoryEntries.Count - 1;", content, StringComparison.Ordinal);
+        Assert.Contains("inventorySelectionState.DisableAutoSelectAfterDelete();", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,6 +140,11 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"InventoryAddUpdateButton\"", xaml);
         Assert.Contains("x:Name=\"InventoryDeleteButton\"", xaml);
         Assert.Contains("Text=\"{Binding DisplayName}\"", xaml);
+        Assert.Contains("x:Name=\"EquipmentCharacterComboBox\"", xaml);
+        Assert.Contains("x:Name=\"EquipmentWeaponComboBox\"", xaml);
+        Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", xaml);
+        Assert.Contains("x:Name=\"EquipmentAccessoryComboBox\"", xaml);
+        Assert.Contains("x:Name=\"EquipmentCostumeComboBox\"", xaml);
     }
 
     [Fact]
@@ -138,6 +192,22 @@ public sealed class WinUIArchitectureTests
     public void PartyMemberViewStateDoesNotExposeDomainOrSaveFormatTypes()
     {
         Type[] exposedPropertyTypes = typeof(PartyMemberSlotViewState)
+            .GetProperties()
+            .Select(static property => property.PropertyType)
+            .ToArray();
+
+        foreach (string forbiddenAssemblyName in ForbiddenBoundaryAssemblyNames)
+        {
+            Assert.DoesNotContain(
+                exposedPropertyTypes,
+                propertyType => propertyType.Assembly.GetName().Name == forbiddenAssemblyName);
+        }
+    }
+
+    [Fact]
+    public void EquipmentCharacterViewStateDoesNotExposeDomainOrSaveFormatTypes()
+    {
+        Type[] exposedPropertyTypes = typeof(EquipmentCharacterViewState)
             .GetProperties()
             .Select(static property => property.PropertyType)
             .ToArray();
@@ -394,6 +464,17 @@ public sealed class WinUIArchitectureTests
             $"Could not find P4G.SaveTool.sln from {AppContext.BaseDirectory}.");
     }
 
+    private static string GetSection(string content, string startMarker, string endMarker)
+    {
+        int startIndex = content.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(startIndex >= 0, $"Could not find start marker '{startMarker}'.");
+
+        int endIndex = content.IndexOf(endMarker, startIndex + startMarker.Length, StringComparison.Ordinal);
+        Assert.True(endIndex > startIndex, $"Could not find end marker '{endMarker}'.");
+
+        return content.Substring(startIndex, endIndex - startIndex);
+    }
+
     private static string GetReferencedAssemblyName(string include)
     {
         string reference = include.Split(',', 2)[0];
@@ -402,7 +483,7 @@ public sealed class WinUIArchitectureTests
             : reference;
     }
 
-    private static void AssertHandlerRefreshesShellState(string content, string methodName)
+    private static void AssertHandlerRefreshesShellState(string content, string methodName, string refreshMethodName)
     {
         string methodHeader = $"    private void {methodName}(object sender, SelectionChangedEventArgs e)";
         int methodStart = content.IndexOf(methodHeader, StringComparison.Ordinal);
@@ -413,13 +494,13 @@ public sealed class WinUIArchitectureTests
             ? content.Substring(methodStart, nextMethodStart - methodStart)
             : content[methodStart..];
 
-        int refreshIndex = methodBody.IndexOf("RefreshInventoryState();", StringComparison.Ordinal);
+        int refreshIndex = methodBody.IndexOf(refreshMethodName, StringComparison.Ordinal);
         int shellIndex = refreshIndex >= 0
             ? methodBody.IndexOf("UpdateShellState();", refreshIndex, StringComparison.Ordinal)
             : -1;
 
-        Assert.True(refreshIndex >= 0, $"{methodName} must refresh inventory state.");
-        Assert.True(shellIndex > refreshIndex, $"{methodName} must update shell state after refreshing inventory state.");
+        Assert.True(refreshIndex >= 0, $"{methodName} must refresh state.");
+        Assert.True(shellIndex > refreshIndex, $"{methodName} must update shell state after refreshing state.");
     }
 
     private static string GetWinUIProjectFile()

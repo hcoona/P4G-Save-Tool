@@ -19,10 +19,13 @@ public sealed partial class MainWindow : Window
     private string? currentFilePath;
     private bool isBusy;
     private bool suppressInventoryEvents;
+    private bool suppressEquipmentEvents;
     private bool preserveEditorTextDuringInventoryRefresh;
+    private bool autoSelectInventoryEntryAfterOpen;
     private byte? selectedInventoryCategoryId;
     private ushort? selectedInventoryItemId;
     private ushort? selectedInventoryEntryId;
+    private byte? selectedEquipmentCharacterId;
 
     public MainWindow()
     {
@@ -115,7 +118,9 @@ public sealed partial class MainWindow : Window
                 selectedInventoryCategoryId = null;
                 selectedInventoryItemId = null;
                 selectedInventoryEntryId = null;
+                selectedEquipmentCharacterId = null;
                 inventorySelectionState.Reset();
+                autoSelectInventoryEntryAfterOpen = true;
                 InventoryQuantityTextBox.Text = string.Empty;
             }
 
@@ -307,6 +312,7 @@ public sealed partial class MainWindow : Window
         PartySlot1TextBox.Text = GetPartyMemberValue(1);
         PartySlot2TextBox.Text = GetPartyMemberValue(2);
         PersonaSummaryTextBox.Text = BuildPersonaSummary();
+        RefreshEquipmentState();
     }
 
     private void UpdateShellState()
@@ -324,6 +330,11 @@ public sealed partial class MainWindow : Window
         PartySlot0TextBox.IsEnabled = canEdit;
         PartySlot1TextBox.IsEnabled = canEdit;
         PartySlot2TextBox.IsEnabled = canEdit;
+        EquipmentCharacterComboBox.IsEnabled = canEdit;
+        EquipmentWeaponComboBox.IsEnabled = canEdit;
+        EquipmentArmorComboBox.IsEnabled = canEdit;
+        EquipmentAccessoryComboBox.IsEnabled = canEdit;
+        EquipmentCostumeComboBox.IsEnabled = canEdit;
         InventoryListView.IsEnabled = canEdit;
         InventoryCategoryComboBox.IsEnabled = canEdit;
         InventoryItemComboBox.IsEnabled = canEdit;
@@ -351,6 +362,7 @@ public sealed partial class MainWindow : Window
 
             if (!viewModel.HasSave || viewModel.InventoryCategories.Count == 0)
             {
+                autoSelectInventoryEntryAfterOpen = false;
                 selectedInventoryCategoryId = null;
                 selectedInventoryItemId = null;
                 selectedInventoryEntryId = null;
@@ -368,6 +380,8 @@ public sealed partial class MainWindow : Window
             }
 
             InventoryStackViewState? selectedEntry = null;
+            bool shouldAutoSelectInventoryEntryAfterOpen = autoSelectInventoryEntryAfterOpen;
+            autoSelectInventoryEntryAfterOpen = false;
             if (selectedInventoryEntryId.HasValue)
             {
                 selectedEntry = viewModel.InventoryEntries.FirstOrDefault(entry => entry.ItemId == selectedInventoryEntryId.Value);
@@ -376,6 +390,22 @@ public sealed partial class MainWindow : Window
                     selectedInventoryCategoryId = selectedEntry.CategoryId;
                     selectedInventoryItemId = selectedEntry.IsPlaceholder ? null : selectedEntry.ItemId;
                 }
+            }
+
+            if (selectedEntry is null &&
+                shouldAutoSelectInventoryEntryAfterOpen &&
+                inventorySelectionState.ShouldAutoSelectFirstEntry(
+                    viewModel.HasSave,
+                    viewModel.InventoryEntries,
+                    selectedInventoryCategoryId,
+                    selectedInventoryItemId,
+                    selectedInventoryEntryId))
+            {
+                int lastInventoryEntryIndex = viewModel.InventoryEntries.Count - 1;
+                selectedEntry = viewModel.InventoryEntries[lastInventoryEntryIndex];
+                selectedInventoryCategoryId = selectedEntry.CategoryId;
+                selectedInventoryItemId = selectedEntry.IsPlaceholder ? null : selectedEntry.ItemId;
+                selectedInventoryEntryId = selectedEntry.ItemId;
             }
 
             ItemCategoryViewState? selectedCategory = selectedInventoryCategoryId.HasValue
@@ -437,6 +467,64 @@ public sealed partial class MainWindow : Window
         {
             suppressInventoryEvents = false;
         }
+    }
+
+    private void RefreshEquipmentState()
+    {
+        suppressEquipmentEvents = true;
+        try
+        {
+            EquipmentCharacterComboBox.ItemsSource = viewModel.HasSave
+                ? viewModel.EquipmentCharacters
+                : Array.Empty<EquipmentCharacterViewState>();
+
+            if (!viewModel.HasSave || viewModel.EquipmentCharacters.Count == 0)
+            {
+                selectedEquipmentCharacterId = null;
+                EquipmentCharacterComboBox.SelectedItem = null;
+                EquipmentWeaponComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                EquipmentArmorComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                EquipmentAccessoryComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                EquipmentCostumeComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                EquipmentWeaponComboBox.SelectedItem = null;
+                EquipmentArmorComboBox.SelectedItem = null;
+                EquipmentAccessoryComboBox.SelectedItem = null;
+                EquipmentCostumeComboBox.SelectedItem = null;
+                return;
+            }
+
+            EquipmentCharacterViewState? selectedCharacter = null;
+            if (selectedEquipmentCharacterId.HasValue)
+            {
+                selectedCharacter = viewModel.EquipmentCharacters.FirstOrDefault(
+                    character => character.CharacterId == selectedEquipmentCharacterId.Value);
+            }
+
+            selectedCharacter ??= viewModel.EquipmentCharacters[0];
+            EquipmentCharacterComboBox.SelectedItem = selectedCharacter;
+            selectedEquipmentCharacterId = selectedCharacter.CharacterId;
+
+            SetEquipmentChoices(EquipmentWeaponComboBox, viewModel.GetWeaponChoices(selectedCharacter.CharacterId), selectedCharacter.WeaponItemId);
+            SetEquipmentChoices(EquipmentArmorComboBox, viewModel.GetArmorChoices(), selectedCharacter.ArmorItemId);
+            SetEquipmentChoices(EquipmentAccessoryComboBox, viewModel.GetAccessoryChoices(), selectedCharacter.AccessoryItemId);
+            SetEquipmentChoices(EquipmentCostumeComboBox, viewModel.GetCostumeChoices(), selectedCharacter.CostumeItemId);
+        }
+        finally
+        {
+            suppressEquipmentEvents = false;
+        }
+    }
+
+    private static void SetEquipmentChoices(
+        ComboBox comboBox,
+        IReadOnlyList<InventoryItemChoiceViewState> itemChoices,
+        ushort selectedItemId)
+    {
+        comboBox.ItemsSource = InventorySelectionProjection.ResolveEquipmentChoices(
+            itemChoices,
+            selectedItemId,
+            out InventoryItemChoiceViewState? selectedItem);
+        comboBox.SelectedItem = selectedItem;
     }
 
     private byte GetInventoryQuantityOrDefault(ushort itemId)
@@ -546,6 +634,11 @@ public sealed partial class MainWindow : Window
                 ref selectedInventoryCategoryId,
                 ref selectedInventoryItemId,
                 ref selectedInventoryEntryId);
+
+            if (quantity == 0)
+            {
+                inventorySelectionState.DisableAutoSelectAfterDelete();
+            }
         }
         RefreshInventoryState();
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
@@ -584,6 +677,7 @@ public sealed partial class MainWindow : Window
 
         if (result.Succeeded)
         {
+            inventorySelectionState.DisableAutoSelectAfterDelete();
             selectedInventoryCategoryId = null;
             selectedInventoryItemId = null;
             selectedInventoryEntryId = null;
@@ -594,6 +688,69 @@ public sealed partial class MainWindow : Window
         if (!result.Succeeded)
         {
             _ = ShowMessageAsync("Inventory delete failed", FormatDiagnostics(result.Diagnostics));
+        }
+    }
+
+    private void EquipmentCharacterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressEquipmentEvents)
+        {
+            return;
+        }
+
+        if (EquipmentCharacterComboBox.SelectedItem is not EquipmentCharacterViewState selectedCharacter)
+        {
+            selectedEquipmentCharacterId = null;
+            UpdateShellState();
+            return;
+        }
+
+        selectedEquipmentCharacterId = selectedCharacter.CharacterId;
+        RefreshEquipmentState();
+        UpdateShellState();
+    }
+
+    private void EquipmentWeaponComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyEquipmentSelection(EquipmentWeaponComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedWeapon(characterId, itemId), "Equipment.Weapon");
+
+    private void EquipmentArmorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyEquipmentSelection(EquipmentArmorComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedArmor(characterId, itemId), "Equipment.Armor");
+
+    private void EquipmentAccessoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyEquipmentSelection(EquipmentAccessoryComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedAccessory(characterId, itemId), "Equipment.Accessory");
+
+    private void EquipmentCostumeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyEquipmentSelection(EquipmentCostumeComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedCostume(characterId, itemId), "Equipment.Costume");
+
+    private void ApplyEquipmentSelection(
+        ComboBox comboBox,
+        Func<SaveEditorViewModel, int, ushort, SaveEditorOperationResult> apply,
+        string diagnosticTarget)
+    {
+        if (suppressEquipmentEvents)
+        {
+            return;
+        }
+
+        if (!selectedEquipmentCharacterId.HasValue)
+        {
+            return;
+        }
+
+        if (comboBox.SelectedItem is not InventoryItemChoiceViewState selectedItem)
+        {
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = apply(viewModel, selectedEquipmentCharacterId.Value, selectedItem.ItemId);
+        RefreshEquipmentState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+        if (!result.Succeeded)
+        {
+            SetUiDiagnostics(result.Diagnostics);
+            _ = ShowMessageAsync($"{diagnosticTarget} update failed", FormatDiagnostics(result.Diagnostics));
         }
     }
 

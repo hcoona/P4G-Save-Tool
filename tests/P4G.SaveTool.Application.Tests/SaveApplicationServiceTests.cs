@@ -19,6 +19,9 @@ public sealed class SaveApplicationServiceTests
     private const int LegacyGivenNamePStringOffset = 118;
     private const int LegacyInventoryOffset = 136;
     private const int LegacyInventoryLength = 2559;
+    private const int LegacyProtagonistEquipmentOffset = 3360;
+    private const int LegacyPartyEquipmentOffset = 3492;
+    private const int LegacyPartyEquipmentStride = 132;
     private const int LegacyProtagonistPersonaSlotCount = 12;
     private const int LegacyPartyPersonaSlotCount = 7;
     private const int LegacyCompendiumPersonaSlotCount = 249;
@@ -46,6 +49,10 @@ public sealed class SaveApplicationServiceTests
             static member => Assert.Equal((byte)0x01, member.Value),
             static member => Assert.Equal((byte)0xfe, member.Value),
             static member => Assert.Equal((byte)0x80, member.Value));
+        Assert.Equal(new ushort[] { 1, 39, 112, 150, 183, 217, 2305, 2434 }, save.State.EquippedWeapons);
+        Assert.Equal(new ushort[] { 256, 266, 287, 293, 307, 315, 328, 334 }, save.State.EquippedArmors);
+        Assert.Equal(new ushort[] { 512, 615, 685, 687, 754, 512, 615, 754 }, save.State.EquippedAccessories);
+        Assert.Equal(new ushort[] { 1792, 2040, 1792, 2040, 1792, 2040, 1792, 2040 }, save.State.EquippedCostumes);
         Assert.Collection(
             save.State.InventoryStacks,
             static stack =>
@@ -105,6 +112,9 @@ public sealed class SaveApplicationServiceTests
             new SetSaveNamesEdit(new SaveNames("Amagi", "Chie")),
             new SetYenEdit(7654321),
             new SetPartyMemberEdit(1, new PartyMemberId(0x07)),
+            new SetEquippedWeaponEdit(1, 2435),
+            new SetEquippedArmorEdit(0, 257),
+            new SetEquippedCostumeEdit(3, 1792),
             new SetInventoryItemQuantityEdit(257, 9),
         ];
 
@@ -122,6 +132,9 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)0x01, output[LegacyPartyMembersOffset]);
         Assert.Equal((byte)0x07, output[LegacyPartyMembersOffset + 2]);
         Assert.Equal((byte)0x80, output[LegacyPartyMembersOffset + 4]);
+        Assert.Equal((ushort)257, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyProtagonistEquipmentOffset + 2, sizeof(ushort))));
+        Assert.Equal((ushort)2435, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset, sizeof(ushort))));
+        Assert.Equal((ushort)1792, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride) + 6, sizeof(ushort))));
         Assert.Equal((byte)9, output[LegacyInventoryOffset + 257]);
         AssertOnlyRangesChanged(
             input,
@@ -130,6 +143,9 @@ public sealed class SaveApplicationServiceTests
             (LegacyGivenNameJStringOffset, LegacyNameByteLength),
             (LegacyYenOffset, LegacyYenLength),
             (LegacyPartyMembersOffset + 2, 1),
+            (LegacyProtagonistEquipmentOffset, 8),
+            (LegacyPartyEquipmentOffset, 8),
+            (LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride), 8),
             (LegacyFamilyNamePStringOffset, LegacyNameByteLength),
             (LegacyGivenNamePStringOffset, LegacyNameByteLength),
             (LegacyInventoryOffset + 257, 1));
@@ -139,6 +155,28 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(7654321u, reopenedSave.State.Yen);
         Assert.Equal(new PartyMemberId(0x07), reopenedSave.State.PartyMembers[1]);
         Assert.Equal(new InventoryStack(257, 9), reopenedSave.State.InventoryStacks.Single(stack => stack.ItemId == 257));
+    }
+
+    [Fact]
+    public void ApplyEditsAppendsNewInventoryItemsToVisibleOrder()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetInventoryItemQuantityEdit(2, 9)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(result.Save);
+        Assert.Equal(
+            new[]
+            {
+                new InventoryStack(1, 2),
+                new InventoryStack(257, 3),
+                new InventoryStack(1184, 4),
+                new InventoryStack(2056, 5),
+                new InventoryStack(2, 9),
+            },
+            editedSave.State.InventoryStacks);
     }
 
     [Fact]
@@ -345,12 +383,92 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
+    public void ApplyEditsRejectsUnsupportedEquipmentCharacterSlot()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetEquippedWeaponEdit(4, 1)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP005", diagnostic.Code);
+        Assert.Equal("Equipment", diagnostic.Target);
+    }
+
+    [Theory]
+    [InlineData(0, (ushort)0, true)]
+    [InlineData(0, (ushort)2434, true)]
+    [InlineData(0, (ushort)2435, false)]
+    [InlineData(1, (ushort)2435, true)]
+    [InlineData(1, (ushort)2434, false)]
+    [InlineData(5, (ushort)2438, true)]
+    [InlineData(5, (ushort)2434, false)]
+    public void ApplyEditsValidatesWeaponsPerCharacter(int characterId, ushort itemId, bool expectedSuccess)
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetEquippedWeaponEdit(characterId, itemId)]);
+
+        Assert.Equal(expectedSuccess, result.Succeeded);
+        if (expectedSuccess)
+        {
+            WorkingSave updatedSave = Assert.IsAssignableFrom<WorkingSave>(result.Save);
+            Assert.Equal(itemId, updatedSave.State.EquippedWeapons[characterId]);
+            Assert.Empty(result.Diagnostics);
+            return;
+        }
+
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP006", diagnostic.Code);
+        Assert.Equal("Equipment", diagnostic.Target);
+    }
+
+    [Fact]
+    public void ApplyEditsAcceptsArmorItem264()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetEquippedArmorEdit(0, 264)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        WorkingSave updatedSave = Assert.IsAssignableFrom<WorkingSave>(result.Save);
+        Assert.Equal((ushort)264, updatedSave.State.EquippedArmors[0]);
+    }
+
+    [Fact]
+    public void ApplyEditsRejectsUnsupportedEquipmentItemId()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetEquippedWeaponEdit(0, 2441)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP006", diagnostic.Code);
+        Assert.Equal("Equipment", diagnostic.Target);
+    }
+
+    [Fact]
     public void WorkingSaveStateCollectionsAreImmutable()
     {
         SaveApplicationService service = new();
         WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
 
         AssertReadOnlyListDoesNotExposeArray(save.State.PartyMembers, new PartyMemberId(0x42));
+        AssertReadOnlyListDoesNotExposeArray(save.State.EquippedWeapons, (ushort)0x42);
+        AssertReadOnlyListDoesNotExposeArray(save.State.EquippedArmors, (ushort)0x42);
+        AssertReadOnlyListDoesNotExposeArray(save.State.EquippedAccessories, (ushort)0x42);
+        AssertReadOnlyListDoesNotExposeArray(save.State.EquippedCostumes, (ushort)0x42);
         AssertReadOnlyListDoesNotExposeArray(save.State.ProtagonistPersonaSlots, save.State.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(save.State.PartyPersonaSlots, save.State.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(save.State.CompendiumPersonaSlots, save.State.ProtagonistPersonaSlots[0]);
@@ -386,6 +504,14 @@ public sealed class SaveApplicationServiceTests
         bytes[LegacyInventoryOffset + 257] = 3;
         bytes[LegacyInventoryOffset + 1184] = 4;
         bytes[LegacyInventoryOffset + 2056] = 5;
+        WriteEquipmentSlot(bytes, LegacyProtagonistEquipmentOffset, 1, 256, 512, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (0 * LegacyPartyEquipmentStride), 39, 266, 615, 2040);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (1 * LegacyPartyEquipmentStride), 112, 287, 685, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride), 150, 293, 687, 2040);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (3 * LegacyPartyEquipmentStride), 183, 307, 754, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (4 * LegacyPartyEquipmentStride), 217, 315, 512, 2040);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (5 * LegacyPartyEquipmentStride), 2305, 328, 615, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (6 * LegacyPartyEquipmentStride), 2434, 334, 754, 2040);
         WritePersonaSlotBytes(bytes, layout.ProtagonistPersonaSlots, 0, ProtagonistPersonaSlot0);
         WritePersonaSlotBytes(bytes, layout.ProtagonistPersonaSlots, 1, ProtagonistPersonaSlot1);
         WritePersonaSlotBytes(bytes, layout.PartyPersonaSlots, 0, PartyPersonaSlot0);
@@ -393,6 +519,14 @@ public sealed class SaveApplicationServiceTests
         WritePersonaSlotBytes(bytes, layout.CompendiumPersonaSlots, 0, CompendiumPersonaSlot0);
         WritePersonaSlotBytes(bytes, layout.CompendiumPersonaSlots, 1, CompendiumPersonaSlot1);
         return bytes;
+    }
+
+    private static void WriteEquipmentSlot(byte[] bytes, int offset, ushort weaponId, ushort armorId, ushort accessoryId, ushort costumeId)
+    {
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset, sizeof(ushort)), weaponId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 2, sizeof(ushort)), armorId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 4, sizeof(ushort)), accessoryId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 6, sizeof(ushort)), costumeId);
     }
 
     private static void WritePersonaSlotBytes(

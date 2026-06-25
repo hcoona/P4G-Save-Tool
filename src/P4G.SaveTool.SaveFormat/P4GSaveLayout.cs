@@ -13,6 +13,14 @@ public sealed class P4GSaveLayout
         new SaveFieldDescriptor("FamilyNamePString", 100, SaveStringCodec.EncodedNameByteLength),
         new SaveFieldDescriptor("GivenNamePString", 118, SaveStringCodec.EncodedNameByteLength),
         new SaveFieldDescriptor("Inventory", 136, 2559),
+        new SaveFieldDescriptor("ProtagonistEquipment", 3360, 8),
+        new SaveFieldDescriptor("PartyEquipmentSlot1", 3492, 8),
+        new SaveFieldDescriptor("PartyEquipmentSlot2", 3624, 8),
+        new SaveFieldDescriptor("PartyEquipmentSlot3", 3756, 8),
+        new SaveFieldDescriptor("PartyEquipmentSlot4", 3888, 8),
+        new SaveFieldDescriptor("PartyEquipmentSlot5", 4020, 8),
+        new SaveFieldDescriptor("PartyEquipmentSlot6", 4152, 8),
+        new SaveFieldDescriptor("PartyEquipmentSlot7", 4284, 8),
         new PersonaBlockDescriptor("ProtagonistPersonaSlots", 2700, 12, 48),
         new SaveFieldDescriptor("MainCharacterLevel", 3290, sizeof(byte)),
         new SaveFieldDescriptor("SocialStats", 3336, 10),
@@ -34,6 +42,14 @@ public sealed class P4GSaveLayout
         SaveFieldDescriptor familyNamePString,
         SaveFieldDescriptor givenNamePString,
         SaveFieldDescriptor inventory,
+        SaveFieldDescriptor protagonistEquipment,
+        SaveFieldDescriptor partyEquipmentSlot1,
+        SaveFieldDescriptor partyEquipmentSlot2,
+        SaveFieldDescriptor partyEquipmentSlot3,
+        SaveFieldDescriptor partyEquipmentSlot4,
+        SaveFieldDescriptor partyEquipmentSlot5,
+        SaveFieldDescriptor partyEquipmentSlot6,
+        SaveFieldDescriptor partyEquipmentSlot7,
         PersonaBlockDescriptor protagonistPersonaSlots,
         SaveFieldDescriptor mainCharacterLevel,
         SaveFieldDescriptor socialStats,
@@ -51,6 +67,17 @@ public sealed class P4GSaveLayout
         FamilyNamePString = familyNamePString;
         GivenNamePString = givenNamePString;
         Inventory = inventory;
+        ProtagonistEquipment = protagonistEquipment;
+        PartyEquipmentSlots = Array.AsReadOnly(new[]
+        {
+            partyEquipmentSlot1,
+            partyEquipmentSlot2,
+            partyEquipmentSlot3,
+            partyEquipmentSlot4,
+            partyEquipmentSlot5,
+            partyEquipmentSlot6,
+            partyEquipmentSlot7,
+        });
         ProtagonistPersonaSlots = protagonistPersonaSlots;
         MainCharacterLevel = mainCharacterLevel;
         SocialStats = socialStats;
@@ -69,6 +96,14 @@ public sealed class P4GSaveLayout
             FamilyNamePString,
             GivenNamePString,
             Inventory,
+            ProtagonistEquipment,
+            partyEquipmentSlot1,
+            partyEquipmentSlot2,
+            partyEquipmentSlot3,
+            partyEquipmentSlot4,
+            partyEquipmentSlot5,
+            partyEquipmentSlot6,
+            partyEquipmentSlot7,
             MainCharacterLevel,
             SocialStats,
             MainCharacterTotalExperience,
@@ -101,6 +136,10 @@ public sealed class P4GSaveLayout
     public SaveFieldDescriptor GivenNamePString { get; }
 
     public SaveFieldDescriptor Inventory { get; }
+
+    public SaveFieldDescriptor ProtagonistEquipment { get; }
+
+    public IReadOnlyList<SaveFieldDescriptor> PartyEquipmentSlots { get; }
 
     public PersonaBlockDescriptor ProtagonistPersonaSlots { get; }
 

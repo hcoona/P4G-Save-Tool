@@ -39,6 +39,67 @@
             <TextBox x:Name="PartySlot0TextBox" Header="Slot 1" InputScope="Number" IsEnabled="False" />
             <TextBox x:Name="PartySlot1TextBox" Header="Slot 2" InputScope="Number" IsEnabled="False" />
             <TextBox x:Name="PartySlot2TextBox" Header="Slot 3" InputScope="Number" IsEnabled="False" />
+            <TextBlock Text="Equipment" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+            <ComboBox
+              x:Name="EquipmentCharacterComboBox"
+              Header="Character"
+              IsEnabled="False"
+              IsTextSearchEnabled="True"
+              SelectionChanged="EquipmentCharacterComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox
+              x:Name="EquipmentWeaponComboBox"
+              Header="Weapon"
+              IsEnabled="False"
+              IsTextSearchEnabled="True"
+              SelectionChanged="EquipmentWeaponComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox
+              x:Name="EquipmentArmorComboBox"
+              Header="Armor"
+              IsEnabled="False"
+              IsTextSearchEnabled="True"
+              SelectionChanged="EquipmentArmorComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox
+              x:Name="EquipmentAccessoryComboBox"
+              Header="Accessory"
+              IsEnabled="False"
+              IsTextSearchEnabled="True"
+              SelectionChanged="EquipmentAccessoryComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox
+              x:Name="EquipmentCostumeComboBox"
+              Header="Costume"
+              IsEnabled="False"
+              IsTextSearchEnabled="True"
+              SelectionChanged="EquipmentCostumeComboBox_SelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
           </StackPanel>
 
           <StackPanel Grid.Column="1" Spacing="8">

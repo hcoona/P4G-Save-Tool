@@ -12,6 +12,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
     private const string NamesDiagnosticTarget = "Names";
     private const string PartyMembersDiagnosticTarget = "PartyMembers";
     private const string InventoryDiagnosticTarget = "Inventory";
+    private const string EquipmentDiagnosticTarget = "Equipment";
 
     private readonly IApplicationSaveCodec codec;
 
@@ -108,6 +109,42 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
                 return state.WithPartyMember(setPartyMember.SlotIndex, setPartyMember.MemberId);
 
+            case SetEquippedWeaponEdit setEquippedWeapon:
+                return ApplyEquipmentEdit(
+                    state,
+                    diagnostics,
+                    setEquippedWeapon.CharacterId,
+                    setEquippedWeapon.ItemId,
+                    EquipmentItemEditability.IsSupportedWeaponItemId,
+                    static (currentState, characterId, itemId) => currentState.WithEquippedWeapon(characterId, itemId));
+
+            case SetEquippedArmorEdit setEquippedArmor:
+                return ApplyEquipmentEdit(
+                    state,
+                    diagnostics,
+                    setEquippedArmor.CharacterId,
+                    setEquippedArmor.ItemId,
+                    EquipmentItemEditability.IsSupportedArmorItemId,
+                    static (currentState, characterId, itemId) => currentState.WithEquippedArmor(characterId, itemId));
+
+            case SetEquippedAccessoryEdit setEquippedAccessory:
+                return ApplyEquipmentEdit(
+                    state,
+                    diagnostics,
+                    setEquippedAccessory.CharacterId,
+                    setEquippedAccessory.ItemId,
+                    EquipmentItemEditability.IsSupportedAccessoryItemId,
+                    static (currentState, characterId, itemId) => currentState.WithEquippedAccessory(characterId, itemId));
+
+            case SetEquippedCostumeEdit setEquippedCostume:
+                return ApplyEquipmentEdit(
+                    state,
+                    diagnostics,
+                    setEquippedCostume.CharacterId,
+                    setEquippedCostume.ItemId,
+                    EquipmentItemEditability.IsSupportedCostumeItemId,
+                    static (currentState, characterId, itemId) => currentState.WithEquippedCostume(characterId, itemId));
+
             case SetInventoryItemQuantityEdit setInventoryItemQuantity:
                 if (!IsSupportedInventoryItem(layout, setInventoryItemQuantity.ItemId))
                 {
@@ -172,6 +209,10 @@ public sealed class SaveApplicationService : ISaveApplicationService
             snapshot.Names,
             snapshot.Yen,
             snapshot.PartyMembers,
+            snapshot.EquippedWeapons,
+            snapshot.EquippedArmors,
+            snapshot.EquippedAccessories,
+            snapshot.EquippedCostumes,
             snapshot.ProtagonistPersonaSlots,
             snapshot.PartyPersonaSlots,
             snapshot.CompendiumPersonaSlots,
@@ -209,6 +250,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
         {
             patches.Add(CreatePartyMembersPatch(snapshot, layout.PartyMembers, state.PartyMembers));
         }
+
+        AddEquipmentPatches(patches, layout, state, snapshot);
 
         if (!InventoryStacksEqual(state.InventoryStacks, snapshot.InventoryStacks))
         {
@@ -264,6 +307,59 @@ public sealed class SaveApplicationService : ISaveApplicationService
         return new SaveFieldPatch(field.Name, bytes);
     }
 
+    private static void AddEquipmentPatches(
+        List<SaveFieldPatch> patches,
+        P4GSaveLayout layout,
+        WorkingSaveState state,
+        SaveSnapshot snapshot)
+    {
+        if (!EquipmentSlotEqual(state, snapshot, 0))
+        {
+            patches.Add(CreateEquipmentPatch(
+                layout.ProtagonistEquipment,
+                state.EquippedWeapons[0],
+                state.EquippedArmors[0],
+                state.EquippedAccessories[0],
+                state.EquippedCostumes[0]));
+        }
+
+        for (int characterIndex = 1; characterIndex < 8; characterIndex++)
+        {
+            if (EquipmentSlotEqual(state, snapshot, characterIndex))
+            {
+                continue;
+            }
+
+            patches.Add(CreateEquipmentPatch(
+                layout.PartyEquipmentSlots[characterIndex - 1],
+                state.EquippedWeapons[characterIndex],
+                state.EquippedArmors[characterIndex],
+                state.EquippedAccessories[characterIndex],
+                state.EquippedCostumes[characterIndex]));
+        }
+    }
+
+    private static bool EquipmentSlotEqual(WorkingSaveState state, SaveSnapshot snapshot, int characterIndex) =>
+        state.EquippedWeapons[characterIndex] == snapshot.EquippedWeapons[characterIndex] &&
+        state.EquippedArmors[characterIndex] == snapshot.EquippedArmors[characterIndex] &&
+        state.EquippedAccessories[characterIndex] == snapshot.EquippedAccessories[characterIndex] &&
+        state.EquippedCostumes[characterIndex] == snapshot.EquippedCostumes[characterIndex];
+
+    private static SaveFieldPatch CreateEquipmentPatch(
+        SaveFieldDescriptor field,
+        ushort weaponId,
+        ushort armorId,
+        ushort accessoryId,
+        ushort costumeId)
+    {
+        byte[] bytes = new byte[field.Length];
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(0, sizeof(ushort)), weaponId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2, sizeof(ushort)), armorId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4, sizeof(ushort)), accessoryId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6, sizeof(ushort)), costumeId);
+        return new SaveFieldPatch(field.Name, bytes);
+    }
+
     private static bool PartyMembersEqual(
         IReadOnlyList<PartyMemberId> left,
         IReadOnlyList<PartyMemberId> right) =>
@@ -275,6 +371,37 @@ public sealed class SaveApplicationService : ISaveApplicationService
         IReadOnlyList<InventoryStack> right) =>
         left.Count == right.Count &&
         left.SequenceEqual(right);
+
+    private static WorkingSaveState ApplyEquipmentEdit(
+        WorkingSaveState state,
+        List<SaveDiagnostic> diagnostics,
+        int characterId,
+        ushort itemId,
+        Func<int, ushort, bool> itemValidator,
+        Func<WorkingSaveState, int, ushort, WorkingSaveState> apply)
+    {
+        if (!EquipmentItemEditability.IsSupportedEquipmentCharacterId(characterId))
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP005",
+                "Equipment edit targets an unsupported character slot.",
+                EquipmentDiagnosticTarget));
+            return state;
+        }
+
+        if (!itemValidator(characterId, itemId))
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP006",
+                "Equipment edit targets an unsupported item id.",
+                EquipmentDiagnosticTarget));
+            return state;
+        }
+
+        return apply(state, characterId, itemId);
+    }
 
     private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>
         itemId < (ushort)layout.Inventory.Length &&

@@ -23,6 +23,9 @@ public sealed class P4GSaveCodecTests
     private const int LegacyGivenNamePStringOffset = 118;
     private const int LegacyInventoryOffset = 136;
     private const int LegacyInventoryLength = 2559;
+    private const int LegacyProtagonistEquipmentOffset = 3360;
+    private const int LegacyPartyEquipmentOffset = 3492;
+    private const int LegacyPartyEquipmentStride = 132;
     private const int LegacyProtagonistPersonaSlotsOffset = 2700;
     private const int LegacyProtagonistPersonaSlotsCount = 12;
     private const int LegacyProtagonistPersonaSlotStride = 48;
@@ -170,6 +173,24 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
+    public void FieldPatchChangesOnlyProtagonistEquipmentRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        byte[] equipmentBytes = snapshot.OriginalBytes.Slice(layout.ProtagonistEquipment.Offset, layout.ProtagonistEquipment.Length).ToArray();
+        equipmentBytes[0] = 0x34;
+        equipmentBytes[1] = 0x12;
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch(layout.ProtagonistEquipment.Name, equipmentBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((ushort)0x1234, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(layout.ProtagonistEquipment.Offset, sizeof(ushort))));
+        AssertOnlyRangesChanged(input, output, (layout.ProtagonistEquipment.Offset, layout.ProtagonistEquipment.Length));
+    }
+
+    [Fact]
     public void FieldPatchesUpdateBothLegacyNameEncodings()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
@@ -275,6 +296,7 @@ public sealed class P4GSaveCodecTests
 
         AssertReadOnlyListDoesNotExposeArray(layout.FieldRegions, layout.Yen);
         AssertReadOnlyListDoesNotExposeArray(layout.PersonaBlocks, layout.CompendiumPersonaSlots);
+        AssertReadOnlyListDoesNotExposeArray(layout.PartyEquipmentSlots, layout.PartyEquipmentSlots[0]);
     }
 
     [Fact]
@@ -289,6 +311,16 @@ public sealed class P4GSaveCodecTests
         AssertField(layout.FamilyNamePString, "FamilyNamePString", LegacyFamilyNamePStringOffset, LegacyNameByteLength);
         AssertField(layout.GivenNamePString, "GivenNamePString", LegacyGivenNamePStringOffset, LegacyNameByteLength);
         AssertField(layout.Inventory, "Inventory", LegacyInventoryOffset, LegacyInventoryLength);
+        AssertField(layout.ProtagonistEquipment, "ProtagonistEquipment", LegacyProtagonistEquipmentOffset, 8);
+        Assert.Equal(7, layout.PartyEquipmentSlots.Count);
+        for (int index = 0; index < layout.PartyEquipmentSlots.Count; index++)
+        {
+            AssertField(
+                layout.PartyEquipmentSlots[index],
+                $"PartyEquipmentSlot{index + 1}",
+                LegacyPartyEquipmentOffset + (index * LegacyPartyEquipmentStride),
+                8);
+        }
         AssertPersonaBlock(
             layout.ProtagonistPersonaSlots,
             "ProtagonistPersonaSlots",
@@ -336,6 +368,10 @@ public sealed class P4GSaveCodecTests
         SaveSnapshot snapshot = OpenOrThrow(CreateSyntheticSave());
 
         AssertReadOnlyListDoesNotExposeArray(snapshot.PartyMembers, new PartyMemberId(0x42));
+        AssertReadOnlyListDoesNotExposeArray(snapshot.EquippedWeapons, (ushort)0x42);
+        AssertReadOnlyListDoesNotExposeArray(snapshot.EquippedArmors, (ushort)0x42);
+        AssertReadOnlyListDoesNotExposeArray(snapshot.EquippedAccessories, (ushort)0x42);
+        AssertReadOnlyListDoesNotExposeArray(snapshot.EquippedCostumes, (ushort)0x42);
         AssertReadOnlyListDoesNotExposeArray(snapshot.ProtagonistPersonaSlots, snapshot.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(snapshot.PartyPersonaSlots, snapshot.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(snapshot.CompendiumPersonaSlots, snapshot.ProtagonistPersonaSlots[0]);
@@ -530,6 +566,10 @@ public sealed class P4GSaveCodecTests
             static member => Assert.Equal((byte)0x01, member.Value),
             static member => Assert.Equal((byte)0xfe, member.Value),
             static member => Assert.Equal((byte)0x80, member.Value));
+        Assert.Equal(new ushort[] { 1, 39, 112, 150, 183, 217, 2305, 2434 }, snapshot.EquippedWeapons);
+        Assert.Equal(new ushort[] { 256, 266, 287, 293, 307, 315, 328, 334 }, snapshot.EquippedArmors);
+        Assert.Equal(new ushort[] { 512, 615, 685, 687, 754, 512, 615, 754 }, snapshot.EquippedAccessories);
+        Assert.Equal(new ushort[] { 1792, 2040, 1792, 2040, 1792, 2040, 1792, 2040 }, snapshot.EquippedCostumes);
         Assert.Collection(
             snapshot.InventoryStacks,
             static stack =>
@@ -628,6 +668,14 @@ public sealed class P4GSaveCodecTests
         bytes[LegacyInventoryOffset + 257] = 3;
         bytes[LegacyInventoryOffset + 1184] = 4;
         bytes[LegacyInventoryOffset + 2056] = 5;
+        WriteEquipmentSlot(bytes, LegacyProtagonistEquipmentOffset, 1, 256, 512, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (0 * LegacyPartyEquipmentStride), 39, 266, 615, 2040);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (1 * LegacyPartyEquipmentStride), 112, 287, 685, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride), 150, 293, 687, 2040);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (3 * LegacyPartyEquipmentStride), 183, 307, 754, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (4 * LegacyPartyEquipmentStride), 217, 315, 512, 2040);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (5 * LegacyPartyEquipmentStride), 2305, 328, 615, 1792);
+        WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (6 * LegacyPartyEquipmentStride), 2434, 334, 754, 2040);
         WritePersonaSlotBytes(
             bytes.AsSpan(LegacyProtagonistPersonaSlotsOffset, PersonaSlotBinaryCodec.BinaryLength),
             true,
@@ -674,6 +722,14 @@ public sealed class P4GSaveCodecTests
             5);
 
         return bytes;
+    }
+
+    private static void WriteEquipmentSlot(byte[] bytes, int offset, ushort weaponId, ushort armorId, ushort accessoryId, ushort costumeId)
+    {
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset, sizeof(ushort)), weaponId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 2, sizeof(ushort)), armorId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 4, sizeof(ushort)), accessoryId);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 6, sizeof(ushort)), costumeId);
     }
 
     private static PersonaSlot CreatePersonaSlot(IReadOnlyList<byte> reservedAfterLevel, IReadOnlyList<ushort> skillIds) =>

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using P4G.SaveTool.Catalog;
 using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Domain;
 
@@ -20,6 +21,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static readonly ReadOnlyCollection<InventoryStackViewState> EmptyInventoryStacks =
         Array.AsReadOnly(Array.Empty<InventoryStackViewState>());
 
+    private static readonly ReadOnlyCollection<EquipmentCharacterViewState> EmptyEquipmentCharacters =
+        Array.AsReadOnly(Array.Empty<EquipmentCharacterViewState>());
+
     private readonly ISaveApplicationService saveApplicationService;
     private WorkingSave? workingSave;
     private WorkingSaveState? lastPersistedState;
@@ -35,6 +39,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private IReadOnlyList<PersonaSlotViewState> partyPersonaSlots = EmptyPersonaSlots;
     private IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots = EmptyPersonaSlots;
     private IReadOnlyList<InventoryStackViewState> inventoryEntries = EmptyInventoryStacks;
+    private IReadOnlyList<EquipmentCharacterViewState> equipmentCharacters = EmptyEquipmentCharacters;
     private IReadOnlyList<SaveDiagnostic> diagnostics = EmptyDiagnostics;
     private bool isDirty;
 
@@ -103,6 +108,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
         private set => SetProperty(ref inventoryEntries, value);
     }
 
+    public IReadOnlyList<EquipmentCharacterViewState> EquipmentCharacters
+    {
+        get => equipmentCharacters;
+        private set => SetProperty(ref equipmentCharacters, value);
+    }
+
     public IReadOnlyList<ItemCategoryViewState> InventoryCategories => InventoryCatalogProjection.Categories;
 
     public IReadOnlyList<SaveDiagnostic> Diagnostics
@@ -124,6 +135,18 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public IReadOnlyList<InventoryItemChoiceViewState> GetInventoryItemsForCategory(byte categoryId) =>
         InventoryCatalogProjection.GetItems(categoryId);
+
+    public IReadOnlyList<InventoryItemChoiceViewState> GetWeaponChoices(byte characterId) =>
+        InventoryCatalogProjection.GetWeaponChoices(characterId);
+
+    public IReadOnlyList<InventoryItemChoiceViewState> GetArmorChoices() =>
+        InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Armor);
+
+    public IReadOnlyList<InventoryItemChoiceViewState> GetAccessoryChoices() =>
+        InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Accessories);
+
+    public IReadOnlyList<InventoryItemChoiceViewState> GetCostumeChoices() =>
+        InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Costumes);
 
     public SaveEditorOperationResult OpenSave(ReadOnlyMemory<byte> bytes)
     {
@@ -201,6 +224,18 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public SaveEditorOperationResult SetPartyMember(int slotIndex, PartyMemberId memberId) =>
         ApplyEdits([new SetPartyMemberEdit(slotIndex, memberId)]);
+
+    public SaveEditorOperationResult SetEquippedWeapon(int characterId, ushort itemId) =>
+        ApplyEdits([new SetEquippedWeaponEdit(characterId, itemId)]);
+
+    public SaveEditorOperationResult SetEquippedArmor(int characterId, ushort itemId) =>
+        ApplyEdits([new SetEquippedArmorEdit(characterId, itemId)]);
+
+    public SaveEditorOperationResult SetEquippedAccessory(int characterId, ushort itemId) =>
+        ApplyEdits([new SetEquippedAccessoryEdit(characterId, itemId)]);
+
+    public SaveEditorOperationResult SetEquippedCostume(int characterId, ushort itemId) =>
+        ApplyEdits([new SetEquippedCostumeEdit(characterId, itemId)]);
 
     public SaveEditorOperationResult SetInventoryItemQuantity(ushort itemId, byte quantity)
     {
@@ -398,6 +433,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     {
         ProjectionChange changes = ProjectionChange.None;
         IReadOnlyList<PartyMemberSlotViewState> nextPartyMembers = ProjectPartyMembers(state.PartyMembers);
+        IReadOnlyList<EquipmentCharacterViewState> nextEquipmentCharacters = ProjectEquipmentCharacters(state);
         IReadOnlyList<PersonaSlotViewState> nextProtagonistPersonaSlots = ProjectPersonaSlots(state.ProtagonistPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextPartyPersonaSlots = ProjectPersonaSlots(state.PartyPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextCompendiumPersonaSlots = ProjectPersonaSlots(state.CompendiumPersonaSlots);
@@ -421,6 +457,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
         if (SetBacking(ref partyMembers, nextPartyMembers))
         {
             changes |= ProjectionChange.PartyMembers;
+        }
+
+        if (SetBacking(ref equipmentCharacters, nextEquipmentCharacters, EquipmentCharactersEqual))
+        {
+            changes |= ProjectionChange.EquipmentCharacters;
         }
 
         if (SetBacking(ref protagonistPersonaSlots, nextProtagonistPersonaSlots))
@@ -512,6 +553,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
             OnPropertyChanged(nameof(PartyMembers));
         }
 
+        if ((changes & ProjectionChange.EquipmentCharacters) != 0)
+        {
+            OnPropertyChanged(nameof(EquipmentCharacters));
+        }
+
         if ((changes & ProjectionChange.ProtagonistPersonaSlots) != 0)
         {
             OnPropertyChanged(nameof(ProtagonistPersonaSlots));
@@ -575,6 +621,30 @@ public sealed class SaveEditorViewModel : ViewModelBase
             .Select(static (member, index) => new PartyMemberSlotViewState(index, member.Value))
             .ToArray());
 
+    private static ReadOnlyCollection<EquipmentCharacterViewState> ProjectEquipmentCharacters(WorkingSaveState state)
+    {
+        List<EquipmentCharacterViewState> characters = [];
+        foreach (PartyMemberCatalogEntry member in P4GCatalog.PartyMembers)
+        {
+            if (member.Id == 4)
+            {
+                continue;
+            }
+
+            characters.Add(new EquipmentCharacterViewState(
+                member.Id,
+                member.Id == 0
+                    ? $"{state.Names.GivenName} {state.Names.FamilyName}"
+                    : member.Name,
+                state.EquippedWeapons[member.Id],
+                state.EquippedArmors[member.Id],
+                state.EquippedAccessories[member.Id],
+                state.EquippedCostumes[member.Id]));
+        }
+
+        return Array.AsReadOnly(characters.ToArray());
+    }
+
     private static ReadOnlyCollection<PersonaSlotViewState> ProjectPersonaSlots(
         IReadOnlyList<PersonaSlot> slots) =>
         Array.AsReadOnly(slots
@@ -626,6 +696,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
         return true;
     }
 
+    private static bool EquipmentCharactersEqual(
+        IReadOnlyList<EquipmentCharacterViewState> left,
+        IReadOnlyList<EquipmentCharacterViewState> right) =>
+        left.Count == right.Count &&
+        left.SequenceEqual(right);
+
     private static bool StatesEqual(WorkingSaveState left, WorkingSaveState right) =>
         left.Names == right.Names &&
         left.Yen == right.Yen &&
@@ -633,7 +709,33 @@ public sealed class SaveEditorViewModel : ViewModelBase
         left.ProtagonistPersonaSlots.SequenceEqual(right.ProtagonistPersonaSlots) &&
         left.PartyPersonaSlots.SequenceEqual(right.PartyPersonaSlots) &&
         left.CompendiumPersonaSlots.SequenceEqual(right.CompendiumPersonaSlots) &&
-        left.InventoryStacks.SequenceEqual(right.InventoryStacks);
+        left.EquippedWeapons.SequenceEqual(right.EquippedWeapons) &&
+        left.EquippedArmors.SequenceEqual(right.EquippedArmors) &&
+        left.EquippedAccessories.SequenceEqual(right.EquippedAccessories) &&
+        left.EquippedCostumes.SequenceEqual(right.EquippedCostumes) &&
+        InventoryStacksEqual(left.InventoryStacks, right.InventoryStacks);
+
+    private static bool InventoryStacksEqual(
+        IReadOnlyList<InventoryStack> left,
+        IReadOnlyList<InventoryStack> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        InventoryStack[] sortedLeft = left
+            .OrderBy(static stack => stack.ItemId)
+            .ThenBy(static stack => stack.Quantity)
+            .ToArray();
+
+        InventoryStack[] sortedRight = right
+            .OrderBy(static stack => stack.ItemId)
+            .ThenBy(static stack => stack.Quantity)
+            .ToArray();
+
+        return sortedLeft.SequenceEqual(sortedRight);
+    }
 
     private enum DiagnosticScope
     {
@@ -649,10 +751,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
         GivenName = 2,
         Yen = 4,
         PartyMembers = 8,
-        ProtagonistPersonaSlots = 16,
-        PartyPersonaSlots = 32,
-        CompendiumPersonaSlots = 64,
-        InventoryEntries = 128,
+        EquipmentCharacters = 16,
+        ProtagonistPersonaSlots = 32,
+        PartyPersonaSlots = 64,
+        CompendiumPersonaSlots = 128,
+        InventoryEntries = 256,
     }
 
     private sealed record PendingSerializedSave(SaveEditorWriteToken OperationToken, WorkingSaveState State);

@@ -11,6 +11,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
     private const string EditDiagnosticTarget = "Edit";
     private const string NamesDiagnosticTarget = "Names";
     private const string PartyMembersDiagnosticTarget = "PartyMembers";
+    private const string SocialStatsDiagnosticTarget = "SocialStats";
+    private const string CalendarDiagnosticTarget = "Calendar";
     private const string InventoryDiagnosticTarget = "Inventory";
     private const string EquipmentDiagnosticTarget = "Equipment";
     private const string PersonaDiagnosticTarget = "Persona";
@@ -110,6 +112,83 @@ public sealed class SaveApplicationService : ISaveApplicationService
                 }
 
                 return state.WithPartyMember(setPartyMember.SlotIndex, new PartyMemberId(setPartyMember.MemberValue));
+
+            case SetSocialStatRankEdit setSocialStatRank:
+                if (!SocialStatRules.IsSupportedStatIndex(setSocialStatRank.StatIndex))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP010",
+                        "Social stat edit targets an unsupported stat slot.",
+                        SocialStatsDiagnosticTarget));
+                    return state;
+                }
+
+                if (!SocialStatRules.IsSupportedRank(setSocialStatRank.Rank))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP011",
+                        "Social stat edit targets an unsupported rank.",
+                        SocialStatsDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithSocialStat(
+                    setSocialStatRank.StatIndex,
+                    SocialStatRules.RankToPoints(setSocialStatRank.StatIndex, setSocialStatRank.Rank));
+
+            case SetDayEdit setDay:
+                if (!IsSupportedDayValue(setDay.Day))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP012",
+                        "Calendar day edit targets an unsupported day value.",
+                        CalendarDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithDay((byte)setDay.Day);
+
+            case SetDayPhaseEdit setDayPhase:
+                if (!CalendarPhaseRules.IsSupportedPhaseId(setDayPhase.PhaseId))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP013",
+                        "Calendar phase edit targets an unsupported phase id.",
+                        CalendarDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithDayPhase((byte)setDayPhase.PhaseId);
+
+            case SetNextDayEdit setNextDay:
+                if (!IsSupportedDayValue(setNextDay.Day))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP012",
+                        "Calendar day edit targets an unsupported day value.",
+                        CalendarDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithNextDay((byte)setNextDay.Day);
+
+            case SetNextDayPhaseEdit setNextDayPhase:
+                if (!CalendarPhaseRules.IsSupportedPhaseId(setNextDayPhase.PhaseId))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP013",
+                        "Calendar phase edit targets an unsupported phase id.",
+                        CalendarDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithNextDayPhase((byte)setNextDayPhase.PhaseId);
 
             case SetEquippedWeaponEdit setEquippedWeapon:
                 return ApplyEquipmentEdit(
@@ -238,7 +317,12 @@ public sealed class SaveApplicationService : ISaveApplicationService
             snapshot.ProtagonistPersonaSlots,
             snapshot.PartyPersonaSlots,
             snapshot.CompendiumPersonaSlots,
-            snapshot.InventoryStacks);
+            snapshot.InventoryStacks,
+            snapshot.SocialStats,
+            snapshot.Day,
+            snapshot.DayPhase,
+            snapshot.NextDay,
+            snapshot.NextDayPhase);
 
     private static ApplicationWorkingSave GetApplicationSave(WorkingSave save)
     {
@@ -278,6 +362,16 @@ public sealed class SaveApplicationService : ISaveApplicationService
         if (!InventoryStacksEqual(state.InventoryStacks, snapshot.InventoryStacks))
         {
             patches.Add(CreateInventoryPatch(layout.Inventory, state.InventoryStacks));
+        }
+
+        if (!SocialStatsEqual(state.SocialStats, snapshot.SocialStats))
+        {
+            patches.Add(CreateSocialStatsPatch(layout.SocialStats, state.SocialStats, snapshot));
+        }
+
+        if (!CalendarEqual(state, snapshot))
+        {
+            patches.Add(CreateCalendarPatch(layout.Calendar, state, snapshot));
         }
 
         AddPersonaSlotPatches(
@@ -337,6 +431,33 @@ public sealed class SaveApplicationService : ISaveApplicationService
             bytes[stack.ItemId] = stack.Quantity;
         }
 
+        return new SaveFieldPatch(field.Name, bytes);
+    }
+
+    private static SaveFieldPatch CreateSocialStatsPatch(
+        SaveFieldDescriptor field,
+        IReadOnlyList<ushort> socialStats,
+        SaveSnapshot snapshot)
+    {
+        byte[] bytes = snapshot.OriginalBytes.Slice(field.Offset, field.Length).ToArray();
+        for (int index = 0; index < socialStats.Count; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * sizeof(ushort), sizeof(ushort)), socialStats[index]);
+        }
+
+        return new SaveFieldPatch(field.Name, bytes);
+    }
+
+    private static SaveFieldPatch CreateCalendarPatch(
+        SaveFieldDescriptor field,
+        WorkingSaveState state,
+        SaveSnapshot snapshot)
+    {
+        byte[] bytes = snapshot.OriginalBytes.Slice(field.Offset, field.Length).ToArray();
+        bytes[0] = state.Day;
+        bytes[2] = state.DayPhase;
+        bytes[8] = state.NextDay;
+        bytes[10] = state.NextDayPhase;
         return new SaveFieldPatch(field.Name, bytes);
     }
 
@@ -433,6 +554,18 @@ public sealed class SaveApplicationService : ISaveApplicationService
         IReadOnlyList<InventoryStack> right) =>
         left.Count == right.Count &&
         left.SequenceEqual(right);
+
+    private static bool SocialStatsEqual(
+        IReadOnlyList<ushort> left,
+        IReadOnlyList<ushort> right) =>
+        left.Count == right.Count &&
+        left.SequenceEqual(right);
+
+    private static bool CalendarEqual(WorkingSaveState state, SaveSnapshot snapshot) =>
+        state.Day == snapshot.Day &&
+        state.DayPhase == snapshot.DayPhase &&
+        state.NextDay == snapshot.NextDay &&
+        state.NextDayPhase == snapshot.NextDayPhase;
 
     private static WorkingSaveState ApplyEquipmentEdit(
         WorkingSaveState state,
@@ -531,4 +664,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
     private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>
         itemId < (ushort)layout.Inventory.Length &&
         InventoryItemEditability.IsWritableItemId(itemId);
+
+    private static bool IsSupportedDayValue(int day) =>
+        day is >= byte.MinValue and <= byte.MaxValue;
 }

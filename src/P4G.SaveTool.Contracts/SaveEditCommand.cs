@@ -8,6 +8,16 @@ public sealed record SetYenEdit(uint Yen) : SaveEditCommand;
 
 public sealed record SetPartyMemberEdit(int SlotIndex, byte MemberValue) : SaveEditCommand;
 
+public sealed record SetSocialStatRankEdit(int StatIndex, int Rank) : SaveEditCommand;
+
+public sealed record SetDayEdit(int Day) : SaveEditCommand;
+
+public sealed record SetDayPhaseEdit(int PhaseId) : SaveEditCommand;
+
+public sealed record SetNextDayEdit(int Day) : SaveEditCommand;
+
+public sealed record SetNextDayPhaseEdit(int PhaseId) : SaveEditCommand;
+
 public sealed record SetEquippedWeaponEdit(int CharacterId, ushort ItemId) : SaveEditCommand;
 
 public sealed record SetEquippedArmorEdit(int CharacterId, ushort ItemId) : SaveEditCommand;

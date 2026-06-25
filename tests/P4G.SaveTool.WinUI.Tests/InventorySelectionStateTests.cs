@@ -37,8 +37,6 @@ public sealed class InventorySelectionStateTests
         bool expectedResult,
         ushort expectedSelectedEntryId)
     {
-        InventorySelectionState selectionState = new();
-
         bool result = InventorySelectionState.TrySelectEditedEntry(quantity, selectedItemId, out ushort selectedEntryId);
 
         Assert.Equal(expectedResult, result);
@@ -92,6 +90,100 @@ public sealed class InventorySelectionStateTests
     }
 
     [Fact]
+    public void InventoryQuantityDraftRestoresThroughSuccessfulApplySaveAcknowledgeAndReportRefreshes()
+    {
+        const string quantityDraft = "37";
+        byte? selectedCategoryIdBeforeRefresh = (byte)ItemCategoryId.Other;
+        ushort? selectedItemIdBeforeRefresh = 1025;
+        ushort? selectedEntryIdBeforeRefresh = 1025;
+        string inventoryQuantityText = string.Empty;
+
+        inventoryQuantityText = SimulateInventoryQuantityRefresh(
+            quantityDraft,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            "1");
+        Assert.Equal(quantityDraft, inventoryQuantityText);
+
+        inventoryQuantityText = SimulateInventoryQuantityRefresh(
+            quantityDraft,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            "2");
+        Assert.Equal(quantityDraft, inventoryQuantityText);
+
+        inventoryQuantityText = SimulateInventoryQuantityRefresh(
+            quantityDraft,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            "3");
+        Assert.Equal(quantityDraft, inventoryQuantityText);
+
+        inventoryQuantityText = SimulateInventoryQuantityRefresh(
+            quantityDraft,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            selectedCategoryIdBeforeRefresh,
+            selectedItemIdBeforeRefresh,
+            selectedEntryIdBeforeRefresh,
+            "4");
+        Assert.Equal(quantityDraft, inventoryQuantityText);
+    }
+
+    [Fact]
+    public void InventoryQuantityDraftIsNotRestoredAfterSelectionContextChanges()
+    {
+        const string quantityDraft = "37";
+        string inventoryQuantityText = "1";
+
+        inventoryQuantityText = SimulateInventoryQuantityRefresh(
+            quantityDraft,
+            (byte)ItemCategoryId.Other,
+            1025,
+            1025,
+            (byte)ItemCategoryId.Weapons,
+            1025,
+            1025,
+            inventoryQuantityText);
+        Assert.Equal("1", inventoryQuantityText);
+
+        inventoryQuantityText = SimulateInventoryQuantityRefresh(
+            quantityDraft,
+            (byte)ItemCategoryId.Other,
+            1025,
+            1025,
+            (byte)ItemCategoryId.Other,
+            1026,
+            1026,
+            inventoryQuantityText);
+        Assert.Equal("1", inventoryQuantityText);
+
+        inventoryQuantityText = SimulateInventoryQuantityRefresh(
+            quantityDraft,
+            (byte)ItemCategoryId.Other,
+            1025,
+            1025,
+            (byte)ItemCategoryId.Other,
+            1025,
+            null,
+            inventoryQuantityText);
+        Assert.Equal("1", inventoryQuantityText);
+    }
+
+    [Fact]
     public void ResetClearsAutoSelectSuppressionAndQuantityTextContext()
     {
         InventorySelectionState selectionState = new();
@@ -110,5 +202,31 @@ public sealed class InventorySelectionStateTests
 
         Assert.True(selectionState.ShouldAutoSelectFirstEntry(true, inventoryEntries, null, null, null));
         Assert.True(selectionState.ShouldHydrateQuantityText((byte)ItemCategoryId.Other, 1025, 1025, "3"));
+    }
+
+    private static string SimulateInventoryQuantityRefresh(
+        string quantityDraft,
+        byte? selectedCategoryIdBeforeRefresh,
+        ushort? selectedItemIdBeforeRefresh,
+        ushort? selectedEntryIdBeforeRefresh,
+        byte? selectedCategoryIdAfterRefresh,
+        ushort? selectedItemIdAfterRefresh,
+        ushort? selectedEntryIdAfterRefresh,
+        string hydratedQuantityText)
+    {
+        string refreshedQuantityText = hydratedQuantityText;
+
+        if (InventorySelectionState.ShouldRestoreQuantityDraft(
+                selectedCategoryIdBeforeRefresh,
+                selectedItemIdBeforeRefresh,
+                selectedEntryIdBeforeRefresh,
+                selectedCategoryIdAfterRefresh,
+                selectedItemIdAfterRefresh,
+                selectedEntryIdAfterRefresh))
+        {
+            refreshedQuantityText = quantityDraft;
+        }
+
+        return refreshedQuantityText;
     }
 }

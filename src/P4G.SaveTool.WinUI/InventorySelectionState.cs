@@ -81,6 +81,17 @@ internal sealed class InventorySelectionState
         return true;
     }
 
+    internal static bool ShouldRestoreQuantityDraft(
+        byte? selectedCategoryIdBeforeRefresh,
+        ushort? selectedItemIdBeforeRefresh,
+        ushort? selectedEntryIdBeforeRefresh,
+        byte? selectedCategoryIdAfterRefresh,
+        ushort? selectedItemIdAfterRefresh,
+        ushort? selectedEntryIdAfterRefresh) =>
+        selectedCategoryIdBeforeRefresh == selectedCategoryIdAfterRefresh &&
+        selectedItemIdBeforeRefresh == selectedItemIdAfterRefresh &&
+        selectedEntryIdBeforeRefresh == selectedEntryIdAfterRefresh;
+
     private readonly record struct InventoryQuantityTextContext(
         byte? SelectedCategoryId,
         ushort? SelectedItemId,

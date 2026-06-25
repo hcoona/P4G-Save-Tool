@@ -6,12 +6,14 @@ namespace P4G.SaveTool.Contracts;
 public sealed class WorkingSaveState
 {
     private const int EquipmentSlotCount = 8;
+    private const int SocialStatCount = SocialStatRules.StatCount;
 
     private readonly ReadOnlyCollection<PartyMemberId> partyMembers;
     private readonly ReadOnlyCollection<ushort> equippedWeapons;
     private readonly ReadOnlyCollection<ushort> equippedArmors;
     private readonly ReadOnlyCollection<ushort> equippedAccessories;
     private readonly ReadOnlyCollection<ushort> equippedCostumes;
+    private readonly ReadOnlyCollection<ushort> socialStats;
     private readonly ReadOnlyCollection<PersonaSlot> protagonistPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> partyPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> compendiumPersonaSlots;
@@ -28,7 +30,12 @@ public sealed class WorkingSaveState
         IReadOnlyList<PersonaSlot> protagonistPersonaSlots,
         IReadOnlyList<PersonaSlot> partyPersonaSlots,
         IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
-        IReadOnlyList<InventoryStack>? inventoryStacks = null)
+        IReadOnlyList<InventoryStack>? inventoryStacks = null,
+        IReadOnlyList<ushort>? socialStats = null,
+        byte day = 0,
+        byte dayPhase = 0,
+        byte nextDay = 0,
+        byte nextDayPhase = 0)
     {
         ArgumentNullException.ThrowIfNull(names);
 
@@ -39,10 +46,15 @@ public sealed class WorkingSaveState
         this.equippedArmors = CopyFixedLength(equippedArmors, EquipmentSlotCount, nameof(equippedArmors));
         this.equippedAccessories = CopyFixedLength(equippedAccessories, EquipmentSlotCount, nameof(equippedAccessories));
         this.equippedCostumes = CopyFixedLength(equippedCostumes, EquipmentSlotCount, nameof(equippedCostumes));
+        this.socialStats = CopyFixedLength(socialStats ?? new ushort[SocialStatCount], SocialStatCount, nameof(socialStats));
         this.protagonistPersonaSlots = CopyReadOnly(protagonistPersonaSlots, nameof(protagonistPersonaSlots));
         this.partyPersonaSlots = CopyReadOnly(partyPersonaSlots, nameof(partyPersonaSlots));
         this.compendiumPersonaSlots = CopyReadOnly(compendiumPersonaSlots, nameof(compendiumPersonaSlots));
         this.inventoryStacks = CopyReadOnly(inventoryStacks ?? Array.Empty<InventoryStack>(), nameof(inventoryStacks));
+        Day = day;
+        DayPhase = dayPhase;
+        NextDay = nextDay;
+        NextDayPhase = nextDayPhase;
     }
 
     public SaveNames Names { get; }
@@ -59,6 +71,8 @@ public sealed class WorkingSaveState
 
     public IReadOnlyList<ushort> EquippedCostumes => equippedCostumes;
 
+    public IReadOnlyList<ushort> SocialStats => socialStats;
+
     public IReadOnlyList<PersonaSlot> ProtagonistPersonaSlots => protagonistPersonaSlots;
 
     public IReadOnlyList<PersonaSlot> PartyPersonaSlots => partyPersonaSlots;
@@ -67,11 +81,19 @@ public sealed class WorkingSaveState
 
     public IReadOnlyList<InventoryStack> InventoryStacks => inventoryStacks;
 
+    public byte Day { get; }
+
+    public byte DayPhase { get; }
+
+    public byte NextDay { get; }
+
+    public byte NextDayPhase { get; }
+
     public WorkingSaveState WithNames(SaveNames names)
     {
         ArgumentNullException.ThrowIfNull(names);
 
-        return new(
+        return CreateState(
             names,
             Yen,
             partyMembers,
@@ -79,14 +101,19 @@ public sealed class WorkingSaveState
             equippedArmors,
             equippedAccessories,
             equippedCostumes,
+            socialStats,
             protagonistPersonaSlots,
             partyPersonaSlots,
             compendiumPersonaSlots,
-            inventoryStacks);
+            inventoryStacks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
     }
 
     public WorkingSaveState WithYen(uint yen) =>
-        new(
+        CreateState(
             Names,
             yen,
             partyMembers,
@@ -94,10 +121,15 @@ public sealed class WorkingSaveState
             equippedArmors,
             equippedAccessories,
             equippedCostumes,
+            socialStats,
             protagonistPersonaSlots,
             partyPersonaSlots,
             compendiumPersonaSlots,
-            inventoryStacks);
+            inventoryStacks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
 
     public WorkingSaveState WithPartyMember(int slotIndex, PartyMemberId memberId)
     {
@@ -108,7 +140,7 @@ public sealed class WorkingSaveState
 
         PartyMemberId[] updatedPartyMembers = partyMembers.ToArray();
         updatedPartyMembers[slotIndex] = memberId;
-        return new(
+        return CreateState(
             Names,
             Yen,
             updatedPartyMembers,
@@ -116,14 +148,128 @@ public sealed class WorkingSaveState
             equippedArmors,
             equippedAccessories,
             equippedCostumes,
+            socialStats,
             protagonistPersonaSlots,
             partyPersonaSlots,
             compendiumPersonaSlots,
-            inventoryStacks);
+            inventoryStacks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
     }
 
+    public WorkingSaveState WithSocialStat(int statIndex, ushort points)
+    {
+        if ((uint)statIndex >= (uint)socialStats.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(statIndex), statIndex, "Social stat slot is out of range.");
+        }
+
+        if (socialStats[statIndex] == points)
+        {
+            return this;
+        }
+
+        ushort[] updatedSocialStats = socialStats.ToArray();
+        updatedSocialStats[statIndex] = points;
+        return CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            updatedSocialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
+    }
+
+    public WorkingSaveState WithDay(byte day) =>
+        CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
+
+    public WorkingSaveState WithDayPhase(byte dayPhase) =>
+        CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            Day,
+            dayPhase,
+            NextDay,
+            NextDayPhase);
+
+    public WorkingSaveState WithNextDay(byte nextDay) =>
+        CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            Day,
+            DayPhase,
+            nextDay,
+            NextDayPhase);
+
+    public WorkingSaveState WithNextDayPhase(byte nextDayPhase) =>
+        CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            Day,
+            DayPhase,
+            NextDay,
+            nextDayPhase);
+
     public WorkingSaveState WithProtagonistPersonaSlot(int slotIndex, PersonaSlot personaSlot) =>
-        WithPersonaSlot(protagonistPersonaSlots, slotIndex, personaSlot, nameof(slotIndex), static (state, slots) => new(
+        WithPersonaSlot(protagonistPersonaSlots, slotIndex, personaSlot, nameof(slotIndex), static (state, slots) => CreateState(
             state.Names,
             state.Yen,
             state.partyMembers,
@@ -131,13 +277,18 @@ public sealed class WorkingSaveState
             state.equippedArmors,
             state.equippedAccessories,
             state.equippedCostumes,
+            state.socialStats,
             slots,
             state.partyPersonaSlots,
             state.compendiumPersonaSlots,
-            state.inventoryStacks));
+            state.inventoryStacks,
+            state.Day,
+            state.DayPhase,
+            state.NextDay,
+            state.NextDayPhase));
 
     public WorkingSaveState WithPartyPersonaSlot(int slotIndex, PersonaSlot personaSlot) =>
-        WithPersonaSlot(partyPersonaSlots, slotIndex, personaSlot, nameof(slotIndex), static (state, slots) => new(
+        WithPersonaSlot(partyPersonaSlots, slotIndex, personaSlot, nameof(slotIndex), static (state, slots) => CreateState(
             state.Names,
             state.Yen,
             state.partyMembers,
@@ -145,10 +296,15 @@ public sealed class WorkingSaveState
             state.equippedArmors,
             state.equippedAccessories,
             state.equippedCostumes,
+            state.socialStats,
             state.protagonistPersonaSlots,
             slots,
             state.compendiumPersonaSlots,
-            state.inventoryStacks));
+            state.inventoryStacks,
+            state.Day,
+            state.DayPhase,
+            state.NextDay,
+            state.NextDayPhase));
 
     public WorkingSaveState WithEquippedWeapon(int characterId, ushort itemId) =>
         WithEquipment(characterId, itemId, EquipmentKind.Weapon);
@@ -180,7 +336,7 @@ public sealed class WorkingSaveState
 
             List<InventoryStack> updatedInventory = inventoryStacks.ToList();
             updatedInventory[itemIndex] = updatedStack;
-            return new(
+            return CreateState(
                 Names,
                 Yen,
                 partyMembers,
@@ -188,15 +344,20 @@ public sealed class WorkingSaveState
                 equippedArmors,
                 equippedAccessories,
                 equippedCostumes,
+                socialStats,
                 protagonistPersonaSlots,
                 partyPersonaSlots,
                 compendiumPersonaSlots,
-                updatedInventory);
+                updatedInventory,
+                Day,
+                DayPhase,
+                NextDay,
+                NextDayPhase);
         }
 
         List<InventoryStack> insertedInventory = inventoryStacks.ToList();
         insertedInventory.Add(updatedStack);
-        return new(
+        return CreateState(
             Names,
             Yen,
             partyMembers,
@@ -204,10 +365,15 @@ public sealed class WorkingSaveState
             equippedArmors,
             equippedAccessories,
             equippedCostumes,
+            socialStats,
             protagonistPersonaSlots,
             partyPersonaSlots,
             compendiumPersonaSlots,
-            insertedInventory);
+            insertedInventory,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
     }
 
     public WorkingSaveState WithInventoryItemRemoved(ushort itemId)
@@ -229,7 +395,7 @@ public sealed class WorkingSaveState
         if (values.Count != expectedLength)
         {
             throw new ArgumentException(
-                $"Equipment field must contain exactly {expectedLength} values.",
+                $"Field must contain exactly {expectedLength} values.",
                 parameterName);
         }
 
@@ -240,7 +406,7 @@ public sealed class WorkingSaveState
     {
         List<InventoryStack> updatedInventory = inventoryStacks.ToList();
         updatedInventory.RemoveAt(itemIndex);
-        return new(
+        return CreateState(
             Names,
             Yen,
             partyMembers,
@@ -248,10 +414,15 @@ public sealed class WorkingSaveState
             equippedArmors,
             equippedAccessories,
             equippedCostumes,
+            socialStats,
             protagonistPersonaSlots,
             partyPersonaSlots,
             compendiumPersonaSlots,
-            updatedInventory);
+            updatedInventory,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
     }
 
     private WorkingSaveState WithPersonaSlot(
@@ -321,7 +492,7 @@ public sealed class WorkingSaveState
                 throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported equipment kind.");
         }
 
-        return new(
+        return CreateState(
             Names,
             Yen,
             partyMembers,
@@ -329,11 +500,51 @@ public sealed class WorkingSaveState
             updatedArmors,
             updatedAccessories,
             updatedCostumes,
+            socialStats,
             protagonistPersonaSlots,
             partyPersonaSlots,
             compendiumPersonaSlots,
-            inventoryStacks);
+            inventoryStacks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
     }
+
+    private static WorkingSaveState CreateState(
+        SaveNames names,
+        uint yen,
+        IReadOnlyList<PartyMemberId> partyMembers,
+        IReadOnlyList<ushort> equippedWeapons,
+        IReadOnlyList<ushort> equippedArmors,
+        IReadOnlyList<ushort> equippedAccessories,
+        IReadOnlyList<ushort> equippedCostumes,
+        IReadOnlyList<ushort> socialStats,
+        IReadOnlyList<PersonaSlot> protagonistPersonaSlots,
+        IReadOnlyList<PersonaSlot> partyPersonaSlots,
+        IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
+        IReadOnlyList<InventoryStack> inventoryStacks,
+        byte day,
+        byte dayPhase,
+        byte nextDay,
+        byte nextDayPhase) =>
+        new(
+            names,
+            yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            socialStats,
+            day,
+            dayPhase,
+            nextDay,
+            nextDayPhase);
 
     private enum EquipmentKind
     {

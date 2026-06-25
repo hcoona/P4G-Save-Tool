@@ -34,6 +34,9 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal("Sato", viewModel.FamilyName);
         Assert.Equal("Yu", viewModel.GivenName);
         Assert.Equal(123456u, viewModel.Yen);
+        Assert.Equal(5, viewModel.SocialStats.Count);
+        Assert.Equal("Average", viewModel.SocialStats[0].RankName);
+        Assert.Equal(18, viewModel.Calendar.Day);
         Assert.Equal(input, service.OpenInputs.Single());
         Assert.Equal(new[] { warning }, viewModel.Diagnostics);
         Assert.False(viewModel.HasErrors);
@@ -396,6 +399,74 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void OpenSaveProjectsSocialStatsAndCalendarSelectors()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult result = viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Equal(5, viewModel.SocialStats.Count);
+        Assert.Equal(0, viewModel.SocialStats[0].StatIndex);
+        Assert.Equal("Courage", viewModel.SocialStats[0].Name);
+        Assert.Equal(15, viewModel.SocialStats[0].Points);
+        Assert.Equal(1, viewModel.SocialStats[0].Rank);
+        Assert.Equal("Average", viewModel.SocialStats[0].RankName);
+        Assert.Equal(1, viewModel.SocialStats[1].StatIndex);
+        Assert.Equal("Knowledge", viewModel.SocialStats[1].Name);
+        Assert.Equal(30, viewModel.SocialStats[1].Points);
+        Assert.Equal(2, viewModel.SocialStats[1].Rank);
+        Assert.Equal("Informed", viewModel.SocialStats[1].RankName);
+        Assert.Equal(2, viewModel.SocialStats[2].StatIndex);
+        Assert.Equal("Diligence", viewModel.SocialStats[2].Name);
+        Assert.Equal(80, viewModel.SocialStats[2].Points);
+        Assert.Equal(4, viewModel.SocialStats[2].Rank);
+        Assert.Equal("Thorough", viewModel.SocialStats[2].RankName);
+        Assert.Equal(3, viewModel.SocialStats[3].StatIndex);
+        Assert.Equal("Understanding", viewModel.SocialStats[3].Name);
+        Assert.Equal(140, viewModel.SocialStats[3].Points);
+        Assert.Equal(5, viewModel.SocialStats[3].Rank);
+        Assert.Equal("Saintly", viewModel.SocialStats[3].RankName);
+        Assert.Equal(18, viewModel.Calendar.Day);
+        Assert.Equal(4, viewModel.Calendar.DayPhaseId);
+        Assert.Equal(19, viewModel.Calendar.NextDay);
+        Assert.Equal(5, viewModel.Calendar.NextDayPhaseId);
+
+        IReadOnlyList<SocialStatRankChoiceViewState> courageChoices = viewModel.GetSocialStatChoices(
+            0,
+            viewModel.SocialStats[0].Points,
+            out SocialStatRankChoiceViewState selectedCourageRank);
+        Assert.Equal(1, selectedCourageRank.Rank);
+        Assert.Same(courageChoices[0], selectedCourageRank);
+
+        IReadOnlyList<SocialStatRankChoiceViewState> diligenceChoices = viewModel.GetSocialStatChoices(
+            2,
+            viewModel.SocialStats[2].Points,
+            out SocialStatRankChoiceViewState selectedDiligenceRank);
+        Assert.Equal(4, selectedDiligenceRank.Rank);
+        Assert.Equal("Thorough", selectedDiligenceRank.Name);
+        Assert.Same(diligenceChoices[3], selectedDiligenceRank);
+
+        IReadOnlyList<SocialStatRankChoiceViewState> understandingChoices = viewModel.GetSocialStatChoices(
+            3,
+            viewModel.SocialStats[3].Points,
+            out SocialStatRankChoiceViewState selectedUnderstandingRank);
+        Assert.Equal(5, selectedUnderstandingRank.Rank);
+        Assert.Equal("Saintly", selectedUnderstandingRank.Name);
+        Assert.Same(understandingChoices[4], selectedUnderstandingRank);
+
+        IReadOnlyList<CalendarPhaseChoiceViewState> calendarChoices = viewModel.GetCalendarPhaseChoices(
+            viewModel.Calendar.DayPhaseId,
+            out CalendarPhaseChoiceViewState selectedPhase);
+        Assert.Equal(4, selectedPhase.PhaseId);
+        Assert.Same(calendarChoices[4], selectedPhase);
+    }
+
+    [Fact]
     public void NameEditsRefreshEquipmentCharactersProjectionAndTrackDirtyState()
     {
         FakeSaveApplicationService service = new()
@@ -416,6 +487,158 @@ public sealed class SaveEditorViewModelTests
         Assert.Collection(
             service.AppliedEdits,
             static edits => Assert.IsType<SetSaveNamesEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void SocialStatAndCalendarEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult courageResult = viewModel.SetSocialStatRank(0, 5);
+        SaveEditorOperationResult dayPhaseResult = viewModel.SetDayPhase(5);
+        SaveEditorOperationResult nextDayResult = viewModel.SetNextDay(21);
+        SaveEditorOperationResult nextPhaseResult = viewModel.SetNextDayPhase(1);
+
+        Assert.True(courageResult.Succeeded, FormatDiagnostics(courageResult.Diagnostics));
+        Assert.True(dayPhaseResult.Succeeded, FormatDiagnostics(dayPhaseResult.Diagnostics));
+        Assert.True(nextDayResult.Succeeded, FormatDiagnostics(nextDayResult.Diagnostics));
+        Assert.True(nextPhaseResult.Succeeded, FormatDiagnostics(nextPhaseResult.Diagnostics));
+        Assert.Equal(5, viewModel.SocialStats[0].Rank);
+        Assert.Equal(140, viewModel.SocialStats[0].Points);
+        Assert.Equal(5, viewModel.Calendar.DayPhaseId);
+        Assert.Equal(21, viewModel.Calendar.NextDay);
+        Assert.Equal(1, viewModel.Calendar.NextDayPhaseId);
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits => Assert.IsType<SetSocialStatRankEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetDayPhaseEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetNextDayEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetNextDayPhaseEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void SocialStatEditMethodsApplyRankToPointsForIndicesOneTwoAndThree()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult knowledgeResult = viewModel.SetSocialStatRank(1, 5);
+        SaveEditorOperationResult diligenceResult = viewModel.SetSocialStatRank(2, 1);
+        SaveEditorOperationResult understandingResult = viewModel.SetSocialStatRank(3, 4);
+
+        Assert.True(knowledgeResult.Succeeded, FormatDiagnostics(knowledgeResult.Diagnostics));
+        Assert.True(diligenceResult.Succeeded, FormatDiagnostics(diligenceResult.Diagnostics));
+        Assert.True(understandingResult.Succeeded, FormatDiagnostics(understandingResult.Diagnostics));
+        Assert.Equal(240, viewModel.SocialStats.Single(stat => stat.StatIndex == 1).Points);
+        Assert.Equal(5, viewModel.SocialStats.Single(stat => stat.StatIndex == 1).Rank);
+        Assert.Equal(15, viewModel.SocialStats.Single(stat => stat.StatIndex == 2).Points);
+        Assert.Equal(1, viewModel.SocialStats.Single(stat => stat.StatIndex == 2).Rank);
+        Assert.Equal(80, viewModel.SocialStats.Single(stat => stat.StatIndex == 3).Points);
+        Assert.Equal(4, viewModel.SocialStats.Single(stat => stat.StatIndex == 3).Rank);
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits =>
+            {
+                SetSocialStatRankEdit edit = Assert.IsType<SetSocialStatRankEdit>(Assert.Single(edits));
+                Assert.Equal(1, edit.StatIndex);
+                Assert.Equal(5, edit.Rank);
+            },
+            static edits =>
+            {
+                SetSocialStatRankEdit edit = Assert.IsType<SetSocialStatRankEdit>(Assert.Single(edits));
+                Assert.Equal(2, edit.StatIndex);
+                Assert.Equal(1, edit.Rank);
+            },
+            static edits =>
+            {
+                SetSocialStatRankEdit edit = Assert.IsType<SetSocialStatRankEdit>(Assert.Single(edits));
+                Assert.Equal(3, edit.StatIndex);
+                Assert.Equal(4, edit.Rank);
+            });
+    }
+
+    [Fact]
+    public void UnchangedSocialStatRankSelectionPreservesMidRankPointsAndSkipsEdits()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(socialStats: [18, 30, 80, 140, 85])),
+                []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.SetSocialStatRank(0, 2);
+        SaveEditorOperationResult dayPhaseResult = viewModel.SetDayPhase(4);
+        SaveEditorOperationResult nextDayPhaseResult = viewModel.SetNextDayPhase(5);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.True(dayPhaseResult.Succeeded, FormatDiagnostics(dayPhaseResult.Diagnostics));
+        Assert.True(nextDayPhaseResult.Succeeded, FormatDiagnostics(nextDayPhaseResult.Diagnostics));
+        Assert.Equal(18, viewModel.SocialStats[0].Points);
+        Assert.Equal(2, viewModel.SocialStats[0].Rank);
+        Assert.Equal(4, viewModel.Calendar.DayPhaseId);
+        Assert.Equal(5, viewModel.Calendar.NextDayPhaseId);
+        Assert.False(viewModel.IsDirty);
+        Assert.Empty(service.AppliedEdits);
+    }
+
+    [Fact]
+    public void UnchangedUnknownCalendarPhasesViaDirectSettersPreserveDiagnosticsAndSkipEdits()
+    {
+        SaveDiagnostic warning = new(DiagnosticSeverity.Warning, "WARN", "Opened with a warning.", "Open");
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(dayPhase: 200, nextDayPhase: 201)),
+                [warning]),
+            ApplyEditsHandler = static (_, _) => throw new InvalidOperationException("Unchanged unknown calendar phases should not apply edits."),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        IReadOnlyList<CalendarPhaseChoiceViewState> dayPhaseChoices = viewModel.GetCalendarPhaseChoices(
+            viewModel.Calendar.DayPhaseId,
+            out CalendarPhaseChoiceViewState selectedDayPhase);
+        IReadOnlyList<CalendarPhaseChoiceViewState> nextDayPhaseChoices = viewModel.GetCalendarPhaseChoices(
+            viewModel.Calendar.NextDayPhaseId,
+            out CalendarPhaseChoiceViewState selectedNextDayPhase);
+
+        Assert.True(selectedDayPhase.IsUnknown);
+        Assert.Equal(200, selectedDayPhase.PhaseId);
+        Assert.Contains(dayPhaseChoices, static choice => choice.PhaseId == 200 && choice.IsUnknown);
+        Assert.True(selectedNextDayPhase.IsUnknown);
+        Assert.Equal(201, selectedNextDayPhase.PhaseId);
+        Assert.Contains(nextDayPhaseChoices, static choice => choice.PhaseId == 201 && choice.IsUnknown);
+
+        SaveEditorOperationResult dayPhaseResult = viewModel.SetDayPhase(200);
+        SaveEditorOperationResult nextDayPhaseResult = viewModel.SetNextDayPhase(201);
+
+        Assert.True(dayPhaseResult.Succeeded, FormatDiagnostics(dayPhaseResult.Diagnostics));
+        Assert.True(nextDayPhaseResult.Succeeded, FormatDiagnostics(nextDayPhaseResult.Diagnostics));
+        Assert.Empty(dayPhaseResult.Diagnostics);
+        Assert.Empty(nextDayPhaseResult.Diagnostics);
+        Assert.Equal(200, viewModel.Calendar.DayPhaseId);
+        Assert.Equal(201, viewModel.Calendar.NextDayPhaseId);
+        Assert.Equal(new[] { warning }, viewModel.Diagnostics);
+        Assert.False(viewModel.HasErrors);
+        Assert.False(viewModel.IsDirty);
+        Assert.Empty(service.AppliedEdits);
     }
 
     [Fact]
@@ -783,6 +1006,11 @@ public sealed class SaveEditorViewModelTests
             ("SetNames value", static viewModel => viewModel.SetNames(new SaveNames("Dojima", "Nanako"))),
             ("SetYen", static viewModel => viewModel.SetYen(500_000u)),
             ("ApplyEditorValues", static viewModel => viewModel.ApplyEditorValues("Dojima", "Nanako", 500_000u, [0x01, 0x02, 0x03])),
+            ("SetSocialStatRank", static viewModel => viewModel.SetSocialStatRank(0, 5)),
+            ("SetDay", static viewModel => viewModel.SetDay(18)),
+            ("SetDayPhase", static viewModel => viewModel.SetDayPhase(4)),
+            ("SetNextDay", static viewModel => viewModel.SetNextDay(19)),
+            ("SetNextDayPhase", static viewModel => viewModel.SetNextDayPhase(5)),
             ("SetPartyMember", static viewModel => viewModel.SetPartyMember(1, new PartyMemberId(0x07))),
             ("SetInventoryItemQuantity", static viewModel => viewModel.SetInventoryItemQuantity(257, 9)),
             ("RemoveInventoryItem", static viewModel => viewModel.RemoveInventoryItem(257)),
@@ -1454,6 +1682,88 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void AcknowledgeSavedWithOpenSaveButNoPendingSerializedSaveReturnsDiagnosticAndKeepsState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+        int openInputsBeforeAcknowledge = service.OpenInputs.Count;
+        int appliedEditsBeforeAcknowledge = service.AppliedEdits.Count;
+        int writtenSavesBeforeAcknowledge = service.WrittenSaves.Count;
+
+        SaveEditorOperationResult result = viewModel.AcknowledgeSaved(default);
+
+        Assert.False(result.Succeeded);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GPRES003", diagnostic.Code);
+        Assert.Equal(new[] { diagnostic }, viewModel.Diagnostics);
+        Assert.True(viewModel.HasSave);
+        Assert.True(viewModel.CanWrite);
+        Assert.False(viewModel.IsDirty);
+        Assert.True(viewModel.HasErrors);
+        Assert.Equal(openInputsBeforeAcknowledge, service.OpenInputs.Count);
+        Assert.Equal(appliedEditsBeforeAcknowledge, service.AppliedEdits.Count);
+        Assert.Equal(writtenSavesBeforeAcknowledge, service.WrittenSaves.Count);
+    }
+
+    [Fact]
+    public void ReportSaveFailedFallsBackToGenericDiagnosticWhenDiagnosticsMissing()
+    {
+        byte[] output = [0x10, 0x20, 0x30];
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+            WriteHandler = _ => SaveWriteResult.Success(output),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+        viewModel.SetNames("Amagi", "Chie");
+        SaveEditorWriteToken firstToken = AssertOperationToken(viewModel.WriteSave());
+        Assert.False(viewModel.CanWrite);
+        int writesBeforeFirstFailure = service.WrittenSaves.Count;
+        int appliedEditsBeforeFirstFailure = service.AppliedEdits.Count;
+
+        SaveEditorOperationResult nullDiagnosticsResult = viewModel.ReportSaveFailed(firstToken, null);
+
+        Assert.False(nullDiagnosticsResult.Succeeded);
+        SaveDiagnostic nullDiagnostic = Assert.Single(nullDiagnosticsResult.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, nullDiagnostic.Severity);
+        Assert.Equal("P4GPRES006", nullDiagnostic.Code);
+        Assert.Equal(new[] { nullDiagnostic }, viewModel.Diagnostics);
+        Assert.True(viewModel.HasSave);
+        Assert.True(viewModel.CanWrite);
+        Assert.True(viewModel.IsDirty);
+        Assert.True(viewModel.HasErrors);
+        Assert.Equal(writesBeforeFirstFailure, service.WrittenSaves.Count);
+        Assert.Equal(appliedEditsBeforeFirstFailure, service.AppliedEdits.Count);
+
+        viewModel.SetYen(42);
+        SaveEditorWriteToken secondToken = AssertOperationToken(viewModel.WriteSave());
+        Assert.False(viewModel.CanWrite);
+        int writesBeforeSecondFailure = service.WrittenSaves.Count;
+        int appliedEditsBeforeSecondFailure = service.AppliedEdits.Count;
+
+        SaveEditorOperationResult emptyDiagnosticsResult = viewModel.ReportSaveFailed(secondToken, []);
+
+        Assert.False(emptyDiagnosticsResult.Succeeded);
+        SaveDiagnostic emptyDiagnostic = Assert.Single(emptyDiagnosticsResult.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, emptyDiagnostic.Severity);
+        Assert.Equal("P4GPRES006", emptyDiagnostic.Code);
+        Assert.Equal(new[] { emptyDiagnostic }, viewModel.Diagnostics);
+        Assert.True(viewModel.HasSave);
+        Assert.True(viewModel.CanWrite);
+        Assert.True(viewModel.IsDirty);
+        Assert.True(viewModel.HasErrors);
+        Assert.Equal(writesBeforeSecondFailure, service.WrittenSaves.Count);
+        Assert.Equal(appliedEditsBeforeSecondFailure, service.AppliedEdits.Count);
+    }
+
+    [Fact]
     public void ReportSaveFailedWithoutOpenSaveReturnsDiagnosticAndKeepsClear()
     {
         FakeSaveApplicationService service = new();
@@ -1602,6 +1912,13 @@ public sealed class SaveEditorViewModelTests
                 SetSaveNamesEdit setNames => state.WithNames(new SaveNames(setNames.FamilyName, setNames.GivenName)),
                 SetYenEdit setYen => state.WithYen(setYen.Yen),
                 SetPartyMemberEdit setPartyMember => state.WithPartyMember(setPartyMember.SlotIndex, new PartyMemberId(setPartyMember.MemberValue)),
+                SetSocialStatRankEdit setSocialStatRank => state.WithSocialStat(
+                    setSocialStatRank.StatIndex,
+                    SocialStatRules.RankToPoints(setSocialStatRank.StatIndex, setSocialStatRank.Rank)),
+                SetDayEdit setDay => state.WithDay((byte)setDay.Day),
+                SetDayPhaseEdit setDayPhase => state.WithDayPhase((byte)setDayPhase.PhaseId),
+                SetNextDayEdit setNextDay => state.WithNextDay((byte)setNextDay.Day),
+                SetNextDayPhaseEdit setNextDayPhase => state.WithNextDayPhase((byte)setNextDayPhase.PhaseId),
                 SetEquippedWeaponEdit setEquippedWeapon => state.WithEquippedWeapon(setEquippedWeapon.CharacterId, setEquippedWeapon.ItemId),
                 SetEquippedArmorEdit setEquippedArmor => state.WithEquippedArmor(setEquippedArmor.CharacterId, setEquippedArmor.ItemId),
                 SetEquippedAccessoryEdit setEquippedAccessory => state.WithEquippedAccessory(setEquippedAccessory.CharacterId, setEquippedAccessory.ItemId),
@@ -1625,7 +1942,12 @@ public sealed class SaveEditorViewModelTests
         IReadOnlyList<ushort>? equippedArmors = null,
         IReadOnlyList<ushort>? equippedAccessories = null,
         IReadOnlyList<ushort>? equippedCostumes = null,
-        IReadOnlyList<InventoryStack>? inventoryStacks = null) =>
+        IReadOnlyList<InventoryStack>? inventoryStacks = null,
+        IReadOnlyList<ushort>? socialStats = null,
+        byte day = 18,
+        byte dayPhase = 4,
+        byte nextDay = 19,
+        byte nextDayPhase = 5) =>
         new(
             new SaveNames(familyName, givenName),
             yen,
@@ -1637,7 +1959,12 @@ public sealed class SaveEditorViewModelTests
             [CreatePersonaSlot(0x0101, 77, 0x01010101, 0x1101)],
             [CreatePersonaSlot(0x0202, 44, 0x02020202, 0x2201)],
             [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)],
-            inventoryStacks ?? []);
+            inventoryStacks ?? [],
+            socialStats ?? [15, 30, 80, 140, 85],
+            day,
+            dayPhase,
+            nextDay,
+            nextDayPhase);
 
     private static PersonaSlot CreatePersonaSlot(
         ushort personaId,

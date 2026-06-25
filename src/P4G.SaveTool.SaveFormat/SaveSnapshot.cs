@@ -7,6 +7,7 @@ namespace P4G.SaveTool.SaveFormat;
 public sealed class SaveSnapshot
 {
     private const int EquipmentSlotCount = 8;
+    private const int SocialStatCount = P4G.SaveTool.Contracts.SocialStatRules.StatCount;
 
     private readonly byte[] originalBytes;
     private readonly ReadOnlyCollection<PartyMemberId> partyMembers;
@@ -14,6 +15,7 @@ public sealed class SaveSnapshot
     private readonly ReadOnlyCollection<ushort> equippedArmors;
     private readonly ReadOnlyCollection<ushort> equippedAccessories;
     private readonly ReadOnlyCollection<ushort> equippedCostumes;
+    private readonly ReadOnlyCollection<ushort> socialStats;
     private readonly ReadOnlyCollection<PersonaSlot> protagonistPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> partyPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> compendiumPersonaSlots;
@@ -32,7 +34,12 @@ public sealed class SaveSnapshot
         IReadOnlyList<PersonaSlot> protagonistPersonaSlots,
         IReadOnlyList<PersonaSlot> partyPersonaSlots,
         IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
-        IReadOnlyList<InventoryStack>? inventoryStacks = null)
+        IReadOnlyList<InventoryStack>? inventoryStacks = null,
+        IReadOnlyList<ushort>? socialStats = null,
+        byte day = 0,
+        byte dayPhase = 0,
+        byte nextDay = 0,
+        byte nextDayPhase = 0)
     {
         LayoutKind = layoutKind;
         this.originalBytes = (byte[])originalBytes.Clone();
@@ -43,10 +50,15 @@ public sealed class SaveSnapshot
         this.equippedArmors = CopyFixedLength(equippedArmors, EquipmentSlotCount, nameof(equippedArmors));
         this.equippedAccessories = CopyFixedLength(equippedAccessories, EquipmentSlotCount, nameof(equippedAccessories));
         this.equippedCostumes = CopyFixedLength(equippedCostumes, EquipmentSlotCount, nameof(equippedCostumes));
+        this.socialStats = CopyFixedLength(socialStats ?? new ushort[SocialStatCount], SocialStatCount, nameof(socialStats));
         this.protagonistPersonaSlots = Array.AsReadOnly(protagonistPersonaSlots.ToArray());
         this.partyPersonaSlots = Array.AsReadOnly(partyPersonaSlots.ToArray());
         this.compendiumPersonaSlots = Array.AsReadOnly(compendiumPersonaSlots.ToArray());
         this.inventoryStacks = Array.AsReadOnly((inventoryStacks ?? Array.Empty<InventoryStack>()).ToArray());
+        Day = day;
+        DayPhase = dayPhase;
+        NextDay = nextDay;
+        NextDayPhase = nextDayPhase;
     }
 
     public P4GSaveLayoutKind LayoutKind { get; }
@@ -67,6 +79,8 @@ public sealed class SaveSnapshot
 
     public IReadOnlyList<ushort> EquippedCostumes => equippedCostumes;
 
+    public IReadOnlyList<ushort> SocialStats => socialStats;
+
     public IReadOnlyList<PersonaSlot> ProtagonistPersonaSlots => protagonistPersonaSlots;
 
     public IReadOnlyList<PersonaSlot> PartyPersonaSlots => partyPersonaSlots;
@@ -74,6 +88,14 @@ public sealed class SaveSnapshot
     public IReadOnlyList<PersonaSlot> CompendiumPersonaSlots => compendiumPersonaSlots;
 
     public IReadOnlyList<InventoryStack> InventoryStacks => inventoryStacks;
+
+    public byte Day { get; }
+
+    public byte DayPhase { get; }
+
+    public byte NextDay { get; }
+
+    public byte NextDayPhase { get; }
 
     internal byte[] CopyOriginalBytes() => (byte[])originalBytes.Clone();
 
@@ -83,7 +105,7 @@ public sealed class SaveSnapshot
         if (values.Count != expectedLength)
         {
             throw new ArgumentException(
-                $"Equipment field must contain exactly {expectedLength} values.",
+                $"Field must contain exactly {expectedLength} values.",
                 parameterName);
         }
 

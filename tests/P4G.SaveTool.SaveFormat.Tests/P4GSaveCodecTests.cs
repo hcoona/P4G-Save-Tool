@@ -173,6 +173,53 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
+    public void FieldPatchChangesOnlySocialStatsRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        byte[] socialStatBytes = new byte[layout.SocialStats.Length];
+        ushort[] socialStats = [15, 30, 80, 140, 85];
+        for (int index = 0; index < socialStats.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(
+                socialStatBytes.AsSpan(index * sizeof(ushort), sizeof(ushort)),
+                socialStats[index]);
+        }
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch(layout.SocialStats.Name, socialStatBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((ushort)15, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(layout.SocialStats.Offset, sizeof(ushort))));
+        Assert.Equal((ushort)85, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(layout.SocialStats.Offset + 8, sizeof(ushort))));
+        AssertOnlyRangesChanged(input, output, (layout.SocialStats.Offset, layout.SocialStats.Length));
+    }
+
+    [Fact]
+    public void FieldPatchChangesOnlyCalendarRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        byte[] calendarBytes = snapshot.OriginalBytes.Slice(layout.Calendar.Offset, layout.Calendar.Length).ToArray();
+        calendarBytes[0] = 18;
+        calendarBytes[2] = 4;
+        calendarBytes[8] = 19;
+        calendarBytes[10] = 5;
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch(layout.Calendar.Name, calendarBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((byte)18, output[layout.Calendar.Offset]);
+        Assert.Equal((byte)4, output[layout.Calendar.Offset + 2]);
+        Assert.Equal((byte)19, output[layout.Calendar.Offset + 8]);
+        Assert.Equal((byte)5, output[layout.Calendar.Offset + 10]);
+        AssertOnlyRangesChanged(input, output, (layout.Calendar.Offset, layout.Calendar.Length));
+    }
+
+    [Fact]
     public void FieldPatchChangesOnlyProtagonistEquipmentRegion()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
@@ -614,6 +661,11 @@ public sealed class P4GSaveCodecTests
         Assert.Equal(new ushort[] { 256, 266, 287, 293, 307, 315, 328, 334 }, snapshot.EquippedArmors);
         Assert.Equal(new ushort[] { 512, 615, 685, 687, 754, 512, 615, 754 }, snapshot.EquippedAccessories);
         Assert.Equal(new ushort[] { 1792, 2040, 1792, 2040, 1792, 2040, 1792, 2040 }, snapshot.EquippedCostumes);
+        Assert.Equal(new ushort[] { 15, 30, 80, 140, 85 }, snapshot.SocialStats);
+        Assert.Equal((byte)18, snapshot.Day);
+        Assert.Equal((byte)4, snapshot.DayPhase);
+        Assert.Equal((byte)19, snapshot.NextDay);
+        Assert.Equal((byte)5, snapshot.NextDayPhase);
         Assert.Collection(
             snapshot.InventoryStacks,
             static stack =>
@@ -707,6 +759,8 @@ public sealed class P4GSaveCodecTests
         bytes[LegacyPartyMembersOffset] = 0x01;
         bytes[LegacyPartyMembersOffset + 2] = 0xfe;
         bytes[LegacyPartyMembersOffset + 4] = 0x80;
+        WriteSocialStats(bytes, 15, 30, 80, 140, 85);
+        WriteCalendar(bytes, 18, 4, 19, 5);
         bytes.AsSpan(LegacyInventoryOffset, LegacyInventoryLength).Clear();
         bytes[LegacyInventoryOffset + 1] = 2;
         bytes[LegacyInventoryOffset + 257] = 3;
@@ -766,6 +820,24 @@ public sealed class P4GSaveCodecTests
             5);
 
         return bytes;
+    }
+
+    private static void WriteSocialStats(byte[] bytes, params ushort[] socialStats)
+    {
+        for (int index = 0; index < socialStats.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(
+                bytes.AsSpan(LegacySocialStatsOffset + (index * sizeof(ushort)), sizeof(ushort)),
+                socialStats[index]);
+        }
+    }
+
+    private static void WriteCalendar(byte[] bytes, byte day, byte dayPhase, byte nextDay, byte nextDayPhase)
+    {
+        bytes[LegacyCalendarOffset] = day;
+        bytes[LegacyCalendarOffset + 2] = dayPhase;
+        bytes[LegacyCalendarOffset + 8] = nextDay;
+        bytes[LegacyCalendarOffset + 10] = nextDayPhase;
     }
 
     private static void WriteEquipmentSlot(byte[] bytes, int offset, ushort weaponId, ushort armorId, ushort accessoryId, ushort costumeId)

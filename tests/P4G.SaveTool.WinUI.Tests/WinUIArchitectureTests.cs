@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using P4G.SaveTool.Presentation;
 using P4G.SaveTool.WinUI;
@@ -191,17 +192,43 @@ public sealed class WinUIArchitectureTests
             content,
             "private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)",
             "private async Task<string?> PickSavePathAsync()");
+        string inventoryRefreshBody = GetSection(
+            content,
+            "private void RefreshFromViewModelPreservingInventoryQuantityDraft()",
+            "private void RefreshEditableFields()");
 
         Assert.Contains("BusyOperationCompletion completion = BusyOperationCompletion.RefreshViewModel;", runBusyBody, StringComparison.Ordinal);
         Assert.Contains("if (completion == BusyOperationCompletion.RefreshViewModel)", runBusyBody, StringComparison.Ordinal);
         Assert.Contains("UpdateShellState();", runBusyBody, StringComparison.Ordinal);
-        Assert.Contains("preserveSaveEditorStateDuringRefresh", propertyChangedBody, StringComparison.Ordinal);
+        Assert.Contains("saveEditorRefreshCoordinator.IsFullRefreshSuppressed", propertyChangedBody, StringComparison.Ordinal);
         Assert.Contains("DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);", propertyChangedBody, StringComparison.Ordinal);
-        Assert.Contains("preserveSaveEditorStateDuringRefresh = true;", applyEditorFieldsBody, StringComparison.Ordinal);
-        Assert.Contains("preserveSaveEditorStateDuringRefresh = false;", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
-        Assert.Contains("return BusyOperationCompletion.PreserveEditorState;", saveBody, StringComparison.Ordinal);
-        Assert.Contains("RefreshFromViewModel();", saveBody, StringComparison.Ordinal);
+        Assert.Equal(5, Regex.Count(saveBody, Regex.Escape("return BusyOperationCompletion.PreserveEditorState;")));
+        Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", saveBody, StringComparison.Ordinal);
+        Assert.Equal(3, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
+        Assert.Contains("string inventoryQuantityDraft = InventoryQuantityTextBox.Text;", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("InventorySelectionState.ShouldRestoreQuantityDraft(", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("InventoryQuantityTextBox.Text = inventoryQuantityDraft;", inventoryRefreshBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowUnrelatedGroup4ApplyAndSavePreserveInventoryQuantityDrafts()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string applyEditorFieldsBody = GetSection(
+            content,
+            "private bool ApplyEditorFields()",
+            "private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)");
+        string saveBody = GetSection(
+            content,
+            "private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)",
+            "private async Task<string?> PickSavePathAsync()");
+
+        Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Equal(3, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
     }
 
     [Fact]
@@ -268,6 +295,101 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"PersonaLuckSlider\"", xaml);
         Assert.Contains("x:Name=\"PersonaSkillBox1\"", xaml);
         Assert.Contains("x:Name=\"PersonaSkillBox8\"", xaml);
+    }
+
+    [Fact]
+    public void MainWindowXamlExposesSocialStatsAndCalendarEditorSurface()
+    {
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+
+        Assert.Contains("x:Name=\"CourageComboBox\"", xaml);
+        Assert.Contains("x:Name=\"KnowledgeComboBox\"", xaml);
+        Assert.Contains("x:Name=\"ExpressionComboBox\"", xaml);
+        Assert.Contains("x:Name=\"UnderstandingComboBox\"", xaml);
+        Assert.Contains("x:Name=\"DiligenceComboBox\"", xaml);
+        Assert.Contains("x:Name=\"DayTextBox\"", xaml);
+        Assert.Contains("x:Name=\"PhaseComboBox\"", xaml);
+        Assert.Contains("x:Name=\"NextDayTextBox\"", xaml);
+        Assert.Contains("x:Name=\"NextPhaseComboBox\"", xaml);
+    }
+
+    [Fact]
+    public void MainWindowXamlWiresApplyButtonForSocialStatsAndCalendarEdits()
+    {
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+
+        Assert.Contains("x:Name=\"ApplyButton\"", xaml);
+        Assert.Contains("Click=\"ApplyButton_Click\"", xaml);
+        Assert.Contains("x:Name=\"CourageComboBox\"", xaml);
+        Assert.Contains("x:Name=\"DayTextBox\"", xaml);
+        Assert.Contains("x:Name=\"NextPhaseComboBox\"", xaml);
+    }
+
+    [Fact]
+    public void MainWindowSourceBindsSocialStatsAndCalendarEditsThroughPresentationState()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string tryBuildEditBatchBody = GetSection(
+            content,
+            "private bool TryBuildEditBatch(",
+            "private static void AddPartyMemberValue(");
+
+        Assert.Contains("Group4EditBatchBuilder.TryBuild(", content, StringComparison.Ordinal);
+        Assert.Contains("CreateGroup4EditInputs(", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.Contains("AppendGroup4Edits(", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.Contains("TryFinalizeEditBatch(", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("new Group4EditInputs(", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.Contains("CourageComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("KnowledgeComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("ExpressionComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("UnderstandingComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("DiligenceComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("DayTextBox.Text ?? string.Empty", content, StringComparison.Ordinal);
+        Assert.Contains("PhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("NextDayTextBox.Text ?? string.Empty", content, StringComparison.Ordinal);
+        Assert.Contains("NextPhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("RefreshSocialStatsState();", content, StringComparison.Ordinal);
+        Assert.Contains("RefreshCalendarState();", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowRefreshEditableFieldsBindsGroup4SocialStatsAndCalendarSlots()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string refreshEditableFieldsBody = GetSection(
+            content,
+            "private void RefreshEditableFields()",
+            "private void UpdateShellState()");
+        string refreshSocialStatsBody = GetSection(
+            content,
+            "private void RefreshSocialStatsState()",
+            "private void SetSocialStatSelection(");
+        string refreshCalendarBody = GetSection(
+            content,
+            "private void RefreshCalendarState()",
+            "private void RefreshInventoryState()");
+
+        Assert.Contains("RefreshSocialStatsState();", refreshEditableFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshCalendarState();", refreshEditableFieldsBody, StringComparison.Ordinal);
+
+        Assert.Contains("SetSocialStatSelection(CourageComboBox, 0);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(KnowledgeComboBox, 1);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(ExpressionComboBox, 4);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(UnderstandingComboBox, 3);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(DiligenceComboBox, 2);", refreshSocialStatsBody, StringComparison.Ordinal);
+
+        Assert.Contains("DayTextBox.Text = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);", refreshCalendarBody, StringComparison.Ordinal);
+        Assert.Contains("NextDayTextBox.Text = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);", refreshCalendarBody, StringComparison.Ordinal);
+        Assert.Contains(
+            "PhaseComboBox.ItemsSource = viewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase);",
+            refreshCalendarBody,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "NextPhaseComboBox.ItemsSource = viewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);",
+            refreshCalendarBody,
+            StringComparison.Ordinal);
     }
 
     [Fact]

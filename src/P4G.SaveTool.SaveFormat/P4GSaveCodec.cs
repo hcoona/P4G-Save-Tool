@@ -30,6 +30,7 @@ public static class P4GSaveCodec
         }
 
         EquipmentArrays equipmentArrays = ReadEquipmentArrays(span, layout);
+        CalendarValues calendar = ReadCalendar(span, layout.Calendar);
         SaveSnapshot snapshot = new(
             layout.Kind,
             bytes.ToArray(),
@@ -43,7 +44,12 @@ public static class P4GSaveCodec
             ReadPersonaBlock(span, layout.ProtagonistPersonaSlots),
             ReadPersonaBlock(span, layout.PartyPersonaSlots),
             ReadPersonaBlock(span, layout.CompendiumPersonaSlots),
-            ReadInventory(span, layout.Inventory));
+            ReadInventory(span, layout.Inventory),
+            ReadSocialStats(span, layout.SocialStats),
+            calendar.Day,
+            calendar.DayPhase,
+            calendar.NextDay,
+            calendar.NextDayPhase);
 
         return new SaveOpenResult<SaveSnapshot>(snapshot, diagnostics);
     }
@@ -201,6 +207,25 @@ public static class P4GSaveCodec
         ];
     }
 
+    private static IReadOnlyList<ushort> ReadSocialStats(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
+    {
+        ushort[] socialStats = new ushort[SocialStatRules.StatCount];
+        for (int index = 0; index < socialStats.Length; index++)
+        {
+            socialStats[index] = BinaryPrimitives.ReadUInt16LittleEndian(
+                source.Slice(field.Offset + (index * sizeof(ushort)), sizeof(ushort)));
+        }
+
+        return socialStats;
+    }
+
+    private static CalendarValues ReadCalendar(ReadOnlySpan<byte> source, SaveFieldDescriptor field) =>
+        new(
+            source[field.Offset],
+            source[field.Offset + 2],
+            source[field.Offset + 8],
+            source[field.Offset + 10]);
+
     private static EquipmentArrays ReadEquipmentArrays(ReadOnlySpan<byte> source, P4GSaveLayout layout)
     {
         ushort[] weapons = new ushort[8];
@@ -258,4 +283,6 @@ public static class P4GSaveCodec
 
         return slots;
     }
+
+    private readonly record struct CalendarValues(byte Day, byte DayPhase, byte NextDay, byte NextDayPhase);
 }

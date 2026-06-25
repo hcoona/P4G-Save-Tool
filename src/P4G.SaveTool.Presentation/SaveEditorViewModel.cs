@@ -24,6 +24,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static readonly ReadOnlyCollection<EquipmentCharacterViewState> EmptyEquipmentCharacters =
         Array.AsReadOnly(Array.Empty<EquipmentCharacterViewState>());
 
+    private static readonly ReadOnlyCollection<SocialStatViewState> EmptySocialStats =
+        Array.AsReadOnly(Array.Empty<SocialStatViewState>());
+
     private static readonly ReadOnlyCollection<PartyMemberChoiceViewState> EmptyPartyMemberChoices =
         Array.AsReadOnly(Array.Empty<PartyMemberChoiceViewState>());
 
@@ -44,6 +47,8 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots = EmptyPersonaSlots;
     private IReadOnlyList<InventoryStackViewState> inventoryEntries = EmptyInventoryStacks;
     private IReadOnlyList<EquipmentCharacterViewState> equipmentCharacters = EmptyEquipmentCharacters;
+    private IReadOnlyList<SocialStatViewState> socialStats = EmptySocialStats;
+    private CalendarViewState calendar = new(0, 0, 0, 0);
     private IReadOnlyList<SaveDiagnostic> diagnostics = EmptyDiagnostics;
     private bool isDirty;
 
@@ -124,6 +129,20 @@ public sealed class SaveEditorViewModel : ViewModelBase
         private set => SetProperty(ref equipmentCharacters, value);
     }
 
+    public IReadOnlyList<SocialStatViewState> SocialStats
+    {
+        get => socialStats;
+        private set => SetProperty(ref socialStats, value);
+    }
+
+    public CalendarViewState Calendar
+    {
+        get => calendar;
+        private set => SetProperty(ref calendar, value);
+    }
+
+    public IReadOnlyList<CalendarPhaseChoiceViewState> CalendarPhaseChoices => CalendarProjection.PhaseChoices;
+
     public IReadOnlyList<ItemCategoryViewState> InventoryCategories => InventoryCatalogProjection.Categories;
 
     public IReadOnlyList<SaveDiagnostic> Diagnostics
@@ -157,6 +176,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public IReadOnlyList<InventoryItemChoiceViewState> GetCostumeChoices() =>
         InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Costumes);
+
+    public IReadOnlyList<SocialStatRankChoiceViewState> GetSocialStatChoices(int statIndex, ushort currentPoints, out SocialStatRankChoiceViewState selectedChoice) =>
+        SocialStatProjection.GetRankChoices(statIndex, currentPoints, out selectedChoice);
+
+    public IReadOnlyList<CalendarPhaseChoiceViewState> GetCalendarPhaseChoices(int currentPhaseId, out CalendarPhaseChoiceViewState selectedChoice) =>
+        CalendarProjection.GetPhaseChoices(currentPhaseId, out selectedChoice);
 
     public IReadOnlyList<PersonaChoiceViewState> GetPersonaChoices(ushort currentPersonaId, out PersonaChoiceViewState selectedChoice) =>
         PersonaSelectionProjection.GetPersonaChoices(currentPersonaId, out selectedChoice);
@@ -252,6 +277,45 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public SaveEditorOperationResult SetEquippedCostume(int characterId, ushort itemId) =>
         ApplyEdits([new SetEquippedCostumeEdit(characterId, itemId)]);
+
+    public SaveEditorOperationResult SetSocialStatRank(int statIndex, int rank)
+    {
+        if (workingSave is not null &&
+            SocialStatRules.IsSupportedStatIndex(statIndex) &&
+            SocialStatRules.IsSupportedRank(rank) &&
+            socialStats[statIndex].Rank == rank)
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new SetSocialStatRankEdit(statIndex, rank)]);
+    }
+
+    public SaveEditorOperationResult SetDay(int day) =>
+        ApplyEdits([new SetDayEdit(day)]);
+
+    public SaveEditorOperationResult SetDayPhase(int phaseId)
+    {
+        if (workingSave is not null && calendar.DayPhaseId == phaseId)
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new SetDayPhaseEdit(phaseId)]);
+    }
+
+    public SaveEditorOperationResult SetNextDay(int day) =>
+        ApplyEdits([new SetNextDayEdit(day)]);
+
+    public SaveEditorOperationResult SetNextDayPhase(int phaseId)
+    {
+        if (workingSave is not null && calendar.NextDayPhaseId == phaseId)
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new SetNextDayPhaseEdit(phaseId)]);
+    }
 
     public SaveEditorOperationResult SetProtagonistPersonaSlot(int slotIndex, PersonaSlotEdit personaSlot) =>
         ApplyEdits([new SetProtagonistPersonaSlotEdit(slotIndex, personaSlot)]);
@@ -457,6 +521,8 @@ public sealed class SaveEditorViewModel : ViewModelBase
         IReadOnlyList<PartyMemberSlotViewState> nextPartyMembers = ProjectPartyMembers(state.PartyMembers);
         IReadOnlyList<PartyMemberChoiceViewState> nextPartyMemberChoices = ProjectPartyMemberChoices(state);
         IReadOnlyList<EquipmentCharacterViewState> nextEquipmentCharacters = ProjectEquipmentCharacters(state);
+        IReadOnlyList<SocialStatViewState> nextSocialStats = ProjectSocialStats(state.SocialStats);
+        CalendarViewState nextCalendar = ProjectCalendar(state);
         IReadOnlyList<PersonaSlotViewState> nextProtagonistPersonaSlots = ProjectPersonaSlots(state.ProtagonistPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextPartyPersonaSlots = ProjectPersonaSlots(state.PartyPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextCompendiumPersonaSlots = ProjectPersonaSlots(state.CompendiumPersonaSlots);
@@ -490,6 +556,16 @@ public sealed class SaveEditorViewModel : ViewModelBase
         if (SetBacking(ref equipmentCharacters, nextEquipmentCharacters, EquipmentCharactersEqual))
         {
             changes |= ProjectionChange.EquipmentCharacters;
+        }
+
+        if (SetBacking(ref socialStats, nextSocialStats, SocialStatsEqual))
+        {
+            changes |= ProjectionChange.SocialStats;
+        }
+
+        if (SetBacking(ref calendar, nextCalendar))
+        {
+            changes |= ProjectionChange.Calendar;
         }
 
         if (SetBacking(ref protagonistPersonaSlots, nextProtagonistPersonaSlots))
@@ -591,6 +667,16 @@ public sealed class SaveEditorViewModel : ViewModelBase
             OnPropertyChanged(nameof(EquipmentCharacters));
         }
 
+        if ((changes & ProjectionChange.SocialStats) != 0)
+        {
+            OnPropertyChanged(nameof(SocialStats));
+        }
+
+        if ((changes & ProjectionChange.Calendar) != 0)
+        {
+            OnPropertyChanged(nameof(Calendar));
+        }
+
         if ((changes & ProjectionChange.ProtagonistPersonaSlots) != 0)
         {
             OnPropertyChanged(nameof(ProtagonistPersonaSlots));
@@ -681,6 +767,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
         return Array.AsReadOnly(characters.ToArray());
     }
 
+    private static ReadOnlyCollection<SocialStatViewState> ProjectSocialStats(IReadOnlyList<ushort> socialStats) =>
+        SocialStatProjection.ProjectSocialStats(socialStats);
+
+    private static CalendarViewState ProjectCalendar(WorkingSaveState state) =>
+        CalendarProjection.ProjectCalendar(state);
+
     private static ReadOnlyCollection<PersonaSlotViewState> ProjectPersonaSlots(
         IReadOnlyList<PersonaSlot> slots) =>
         Array.AsReadOnly(slots
@@ -738,10 +830,21 @@ public sealed class SaveEditorViewModel : ViewModelBase
         left.Count == right.Count &&
         left.SequenceEqual(right);
 
+    private static bool SocialStatsEqual(
+        IReadOnlyList<SocialStatViewState> left,
+        IReadOnlyList<SocialStatViewState> right) =>
+        left.Count == right.Count &&
+        left.SequenceEqual(right);
+
     private static bool StatesEqual(WorkingSaveState left, WorkingSaveState right) =>
         left.Names == right.Names &&
         left.Yen == right.Yen &&
         left.PartyMembers.SequenceEqual(right.PartyMembers) &&
+        left.SocialStats.SequenceEqual(right.SocialStats) &&
+        left.Day == right.Day &&
+        left.DayPhase == right.DayPhase &&
+        left.NextDay == right.NextDay &&
+        left.NextDayPhase == right.NextDayPhase &&
         left.ProtagonistPersonaSlots.SequenceEqual(right.ProtagonistPersonaSlots) &&
         left.PartyPersonaSlots.SequenceEqual(right.PartyPersonaSlots) &&
         left.CompendiumPersonaSlots.SequenceEqual(right.CompendiumPersonaSlots) &&
@@ -789,10 +892,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
         PartyMembers = 8,
         PartyMemberChoices = 16,
         EquipmentCharacters = 32,
-        ProtagonistPersonaSlots = 64,
-        PartyPersonaSlots = 128,
-        CompendiumPersonaSlots = 256,
-        InventoryEntries = 512,
+        SocialStats = 64,
+        Calendar = 128,
+        ProtagonistPersonaSlots = 256,
+        PartyPersonaSlots = 512,
+        CompendiumPersonaSlots = 1024,
+        InventoryEntries = 2048,
     }
 
     private sealed record PendingSerializedSave(SaveEditorWriteToken OperationToken, WorkingSaveState State);

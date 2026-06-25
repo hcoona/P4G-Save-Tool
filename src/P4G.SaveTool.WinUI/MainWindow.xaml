@@ -35,6 +35,43 @@
             <TextBox x:Name="FamilyNameTextBox" Header="Family name" IsEnabled="False" />
             <TextBox x:Name="GivenNameTextBox" Header="Given name" IsEnabled="False" />
             <TextBox x:Name="YenTextBox" Header="Yen" InputScope="Number" IsEnabled="False" />
+            <TextBlock Text="Social stats" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+            <ComboBox x:Name="CourageComboBox" Header="Courage" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox x:Name="KnowledgeComboBox" Header="Knowledge" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox x:Name="ExpressionComboBox" Header="Expression" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox x:Name="UnderstandingComboBox" Header="Understanding" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox x:Name="DiligenceComboBox" Header="Diligence" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Text="Calendar" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+            <Grid ColumnSpacing="8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBox x:Name="DayTextBox" Header="Day" InputScope="Number" IsEnabled="False" Width="120" />
+              <ComboBox x:Name="PhaseComboBox" Grid.Column="1" Header="Phase" IsEnabled="False" IsTextSearchEnabled="True">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+            <Grid ColumnSpacing="8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBox x:Name="NextDayTextBox" Header="Next day" InputScope="Number" IsEnabled="False" Width="120" />
+              <ComboBox x:Name="NextPhaseComboBox" Grid.Column="1" Header="Next phase" IsEnabled="False" IsTextSearchEnabled="True">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
             <TextBlock Text="Party member raw IDs" Style="{ThemeResource BodyStrongTextBlockStyle}" />
             <TextBox x:Name="PartySlot0TextBox" Header="Slot 1" InputScope="Number" IsEnabled="False" />
             <TextBox x:Name="PartySlot1TextBox" Header="Slot 2" InputScope="Number" IsEnabled="False" />

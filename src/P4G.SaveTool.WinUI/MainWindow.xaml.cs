@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
 
     private readonly SaveEditorViewModel viewModel;
     private readonly InventorySelectionState inventorySelectionState = new();
+    private readonly SaveEditorRefreshCoordinator saveEditorRefreshCoordinator = new();
     private IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride;
     private string? currentFilePath;
     private bool isBusy;
@@ -29,7 +30,6 @@ public sealed partial class MainWindow : Window
     private bool suppressPersonaEvents;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool preservePersonaEditorStateDuringEquipmentRefresh;
-    private bool preserveSaveEditorStateDuringRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private byte? selectedInventoryCategoryId;
     private ushort? selectedInventoryItemId;
@@ -79,7 +79,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (preserveSaveEditorStateDuringRefresh)
+        if (saveEditorRefreshCoordinator.IsFullRefreshSuppressed)
         {
             DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
             UpdateShellState();
@@ -196,16 +196,8 @@ public sealed partial class MainWindow : Window
         }
 
         uiDiagnosticsOverride = null;
-        preserveSaveEditorStateDuringRefresh = true;
-        SaveEditorOperationResult result;
-        try
-        {
-            result = viewModel.ApplyEdits(edits);
-        }
-        finally
-        {
-            preserveSaveEditorStateDuringRefresh = false;
-        }
+        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.ApplyEdits(edits));
 
         if (!result.Succeeded)
         {
@@ -214,7 +206,7 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        RefreshFromViewModel();
+        RefreshFromViewModelPreservingInventoryQuantityDraft();
         return true;
     }
 
@@ -230,16 +222,17 @@ public sealed partial class MainWindow : Window
             : currentFilePath;
         if (string.IsNullOrWhiteSpace(targetPath))
         {
-            return BusyOperationCompletion.RefreshViewModel;
+            return BusyOperationCompletion.PreserveEditorState;
         }
 
         uiDiagnosticsOverride = null;
-        SaveEditorWriteResult writeResult = viewModel.WriteSave();
-        RefreshFromViewModel();
+        SaveEditorWriteResult writeResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.WriteSave());
+        RefreshFromViewModelPreservingInventoryQuantityDraft();
         if (!writeResult.Succeeded || writeResult.Bytes is null || writeResult.OperationToken is null)
         {
             await ShowMessageAsync("Save failed", FormatDiagnostics(writeResult.Diagnostics));
-            return BusyOperationCompletion.RefreshViewModel;
+            return BusyOperationCompletion.PreserveEditorState;
         }
 
         SaveEditorWriteToken operationToken = writeResult.OperationToken.Value;
@@ -253,21 +246,23 @@ public sealed partial class MainWindow : Window
             [
                 CreateUiDiagnostic("P4GWINUI004", $"Could not write the save file: {ex.Message}", "Persistence"),
             ];
-            SaveEditorOperationResult reportResult = viewModel.ReportSaveFailed(operationToken, diagnostics);
-            RefreshFromViewModel();
+            SaveEditorOperationResult reportResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+                () => viewModel.ReportSaveFailed(operationToken, diagnostics));
+            RefreshFromViewModelPreservingInventoryQuantityDraft();
             await ShowMessageAsync("Save failed", FormatDiagnostics(reportResult.Diagnostics));
-            return BusyOperationCompletion.RefreshViewModel;
+            return BusyOperationCompletion.PreserveEditorState;
         }
 
         currentFilePath = targetPath;
-        SaveEditorOperationResult acknowledgeResult = viewModel.AcknowledgeSaved(operationToken);
-        RefreshFromViewModel();
+        SaveEditorOperationResult acknowledgeResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.AcknowledgeSaved(operationToken));
+        RefreshFromViewModelPreservingInventoryQuantityDraft();
         if (!acknowledgeResult.Succeeded)
         {
             await ShowMessageAsync("Save acknowledgement failed", FormatDiagnostics(acknowledgeResult.Diagnostics));
         }
 
-        return BusyOperationCompletion.RefreshViewModel;
+        return BusyOperationCompletion.PreserveEditorState;
     }
 
     private async Task<string?> PickSavePathAsync()
@@ -322,11 +317,24 @@ public sealed partial class MainWindow : Window
         AddPartyMemberValue(PartySlot0TextBox, 0, batch, validationDiagnostics);
         AddPartyMemberValue(PartySlot1TextBox, 1, batch, validationDiagnostics);
         AddPartyMemberValue(PartySlot2TextBox, 2, batch, validationDiagnostics);
+        AppendGroup4Edits(
+            viewModel.SocialStats,
+            viewModel.Calendar,
+            CreateGroup4EditInputs(
+                CourageComboBox.SelectedItem as SocialStatRankChoiceViewState,
+                KnowledgeComboBox.SelectedItem as SocialStatRankChoiceViewState,
+                ExpressionComboBox.SelectedItem as SocialStatRankChoiceViewState,
+                UnderstandingComboBox.SelectedItem as SocialStatRankChoiceViewState,
+                DiligenceComboBox.SelectedItem as SocialStatRankChoiceViewState,
+                DayTextBox.Text ?? string.Empty,
+                PhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState,
+                NextDayTextBox.Text ?? string.Empty,
+                NextPhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState),
+            batch,
+            validationDiagnostics);
         AddPersonaEdit(batch, validationDiagnostics);
 
-        edits = validationDiagnostics.Count == 0 ? batch : [];
-        diagnostics = validationDiagnostics;
-        return validationDiagnostics.Count == 0;
+        return TryFinalizeEditBatch(batch, validationDiagnostics, out edits, out diagnostics);
     }
 
     private static void AddPartyMemberValue(
@@ -410,6 +418,42 @@ public sealed partial class MainWindow : Window
             currentSlot.Luck == personaSlotEdit.Luck;
     }
 
+    internal static bool ShouldSkipSocialStatEdit(SocialStatViewState currentStat, SocialStatRankChoiceViewState selectedRank)
+    {
+        ArgumentNullException.ThrowIfNull(currentStat);
+        ArgumentNullException.ThrowIfNull(selectedRank);
+
+        return currentStat.Rank == selectedRank.Rank;
+    }
+
+    internal static bool ShouldSkipCalendarPhaseEdit(int currentPhaseId, CalendarPhaseChoiceViewState selectedPhase)
+    {
+        ArgumentNullException.ThrowIfNull(selectedPhase);
+
+        return selectedPhase.PhaseId == currentPhaseId;
+    }
+
+    internal static Group4EditInputs CreateGroup4EditInputs(
+        SocialStatRankChoiceViewState? courageRank,
+        SocialStatRankChoiceViewState? knowledgeRank,
+        SocialStatRankChoiceViewState? expressionRank,
+        SocialStatRankChoiceViewState? understandingRank,
+        SocialStatRankChoiceViewState? diligenceRank,
+        string dayText,
+        CalendarPhaseChoiceViewState? dayPhase,
+        string nextDayText,
+        CalendarPhaseChoiceViewState? nextPhase) =>
+        new(
+            courageRank,
+            knowledgeRank,
+            expressionRank,
+            understandingRank,
+            diligenceRank,
+            dayText,
+            dayPhase,
+            nextDayText,
+            nextPhase);
+
     private bool TryBuildPersonaSlotEdit(
         out PersonaSlotEdit personaSlotEdit,
         out SaveDiagnostic diagnostic)
@@ -442,6 +486,57 @@ public sealed partial class MainWindow : Window
             (byte)Math.Round(PersonaLuckSlider.Value, MidpointRounding.AwayFromZero));
         diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
         return true;
+    }
+
+    internal static void MergeGroup4BatchResults(
+        List<SaveEditCommand> batch,
+        List<SaveDiagnostic> validationDiagnostics,
+        IReadOnlyList<SaveEditCommand> group4Edits,
+        IReadOnlyList<SaveDiagnostic> group4Diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(validationDiagnostics);
+        ArgumentNullException.ThrowIfNull(group4Edits);
+        ArgumentNullException.ThrowIfNull(group4Diagnostics);
+
+        batch.AddRange(group4Edits);
+        validationDiagnostics.AddRange(group4Diagnostics);
+    }
+
+    internal static void AppendGroup4Edits(
+        IReadOnlyList<SocialStatViewState> currentSocialStats,
+        CalendarViewState currentCalendar,
+        Group4EditInputs group4Inputs,
+        List<SaveEditCommand> batch,
+        List<SaveDiagnostic> validationDiagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(currentSocialStats);
+        ArgumentNullException.ThrowIfNull(currentCalendar);
+        ArgumentNullException.ThrowIfNull(group4Inputs);
+        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(validationDiagnostics);
+
+        Group4EditBatchBuilder.TryBuild(
+            currentSocialStats,
+            currentCalendar,
+            group4Inputs,
+            out IReadOnlyList<SaveEditCommand> group4Edits,
+            out IReadOnlyList<SaveDiagnostic> group4Diagnostics);
+        MergeGroup4BatchResults(batch, validationDiagnostics, group4Edits, group4Diagnostics);
+    }
+
+    internal static bool TryFinalizeEditBatch(
+        List<SaveEditCommand> batch,
+        List<SaveDiagnostic> validationDiagnostics,
+        out IReadOnlyList<SaveEditCommand> edits,
+        out IReadOnlyList<SaveDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(validationDiagnostics);
+
+        edits = validationDiagnostics.Count == 0 ? batch : [];
+        diagnostics = validationDiagnostics;
+        return validationDiagnostics.Count == 0;
     }
 
     private bool TryReadSelectedPersonaId(out ushort personaId, out SaveDiagnostic diagnostic)
@@ -495,11 +590,34 @@ public sealed partial class MainWindow : Window
         UpdateShellState();
     }
 
+    private void RefreshFromViewModelPreservingInventoryQuantityDraft()
+    {
+        byte? selectedInventoryCategoryIdBeforeRefresh = selectedInventoryCategoryId;
+        ushort? selectedInventoryItemIdBeforeRefresh = selectedInventoryItemId;
+        ushort? selectedInventoryEntryIdBeforeRefresh = selectedInventoryEntryId;
+        string inventoryQuantityDraft = InventoryQuantityTextBox.Text;
+
+        RefreshFromViewModel();
+
+        if (InventorySelectionState.ShouldRestoreQuantityDraft(
+                selectedInventoryCategoryIdBeforeRefresh,
+                selectedInventoryItemIdBeforeRefresh,
+                selectedInventoryEntryIdBeforeRefresh,
+                selectedInventoryCategoryId,
+                selectedInventoryItemId,
+                selectedInventoryEntryId))
+        {
+            InventoryQuantityTextBox.Text = inventoryQuantityDraft;
+        }
+    }
+
     private void RefreshEditableFields()
     {
         FamilyNameTextBox.Text = viewModel.FamilyName;
         GivenNameTextBox.Text = viewModel.GivenName;
         YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        RefreshSocialStatsState();
+        RefreshCalendarState();
         PartySlot0TextBox.Text = GetPartyMemberValue(0);
         PartySlot1TextBox.Text = GetPartyMemberValue(1);
         PartySlot2TextBox.Text = GetPartyMemberValue(2);
@@ -519,6 +637,15 @@ public sealed partial class MainWindow : Window
         FamilyNameTextBox.IsEnabled = canEdit;
         GivenNameTextBox.IsEnabled = canEdit;
         YenTextBox.IsEnabled = canEdit;
+        CourageComboBox.IsEnabled = canEdit;
+        KnowledgeComboBox.IsEnabled = canEdit;
+        ExpressionComboBox.IsEnabled = canEdit;
+        UnderstandingComboBox.IsEnabled = canEdit;
+        DiligenceComboBox.IsEnabled = canEdit;
+        DayTextBox.IsEnabled = canEdit;
+        PhaseComboBox.IsEnabled = canEdit;
+        NextDayTextBox.IsEnabled = canEdit;
+        NextPhaseComboBox.IsEnabled = canEdit;
         PartySlot0TextBox.IsEnabled = canEdit;
         PartySlot1TextBox.IsEnabled = canEdit;
         PartySlot2TextBox.IsEnabled = canEdit;
@@ -558,6 +685,58 @@ public sealed partial class MainWindow : Window
         StateTextBlock.Text = string.Create(
             CultureInfo.InvariantCulture,
             $"Has save: {FormatBoolean(viewModel.HasSave)} | Dirty: {FormatBoolean(viewModel.IsDirty)} | Can write: {FormatBoolean(viewModel.CanWrite)}");
+    }
+
+    private void RefreshSocialStatsState()
+    {
+        if (!viewModel.HasSave || viewModel.SocialStats.Count == 0)
+        {
+            CourageComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
+            KnowledgeComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
+            ExpressionComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
+            UnderstandingComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
+            DiligenceComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
+            CourageComboBox.SelectedItem = null;
+            KnowledgeComboBox.SelectedItem = null;
+            ExpressionComboBox.SelectedItem = null;
+            UnderstandingComboBox.SelectedItem = null;
+            DiligenceComboBox.SelectedItem = null;
+            return;
+        }
+
+        SetSocialStatSelection(CourageComboBox, 0);
+        SetSocialStatSelection(KnowledgeComboBox, 1);
+        SetSocialStatSelection(ExpressionComboBox, 4);
+        SetSocialStatSelection(UnderstandingComboBox, 3);
+        SetSocialStatSelection(DiligenceComboBox, 2);
+    }
+
+    private void SetSocialStatSelection(ComboBox comboBox, int statIndex)
+    {
+        SocialStatViewState stat = viewModel.SocialStats[statIndex];
+        comboBox.ItemsSource = viewModel.GetSocialStatChoices(statIndex, stat.Points, out SocialStatRankChoiceViewState selectedChoice);
+        comboBox.SelectedItem = selectedChoice;
+    }
+
+    private void RefreshCalendarState()
+    {
+        if (!viewModel.HasSave)
+        {
+            PhaseComboBox.ItemsSource = Array.Empty<CalendarPhaseChoiceViewState>();
+            NextPhaseComboBox.ItemsSource = Array.Empty<CalendarPhaseChoiceViewState>();
+            PhaseComboBox.SelectedItem = null;
+            NextPhaseComboBox.SelectedItem = null;
+            DayTextBox.Text = string.Empty;
+            NextDayTextBox.Text = string.Empty;
+            return;
+        }
+
+        DayTextBox.Text = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);
+        NextDayTextBox.Text = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);
+        PhaseComboBox.ItemsSource = viewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase);
+        PhaseComboBox.SelectedItem = selectedPhase;
+        NextPhaseComboBox.ItemsSource = viewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);
+        NextPhaseComboBox.SelectedItem = selectedNextPhase;
     }
 
     private void RefreshInventoryState()

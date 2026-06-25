@@ -22,6 +22,10 @@ public sealed class SaveApplicationServiceTests
     private const int LegacyProtagonistEquipmentOffset = 3360;
     private const int LegacyPartyEquipmentOffset = 3492;
     private const int LegacyPartyEquipmentStride = 132;
+    private const int LegacySocialStatsOffset = 3336;
+    private const int LegacySocialStatsLength = 10;
+    private const int LegacyCalendarOffset = 6484;
+    private const int LegacyCalendarLength = 11;
     private const int LegacyProtagonistPersonaSlotCount = 12;
     private const int LegacyPartyPersonaSlotCount = 7;
     private const int LegacyCompendiumPersonaSlotCount = 249;
@@ -53,6 +57,11 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(new ushort[] { 256, 266, 287, 293, 307, 315, 328, 334 }, save.State.EquippedArmors);
         Assert.Equal(new ushort[] { 512, 615, 685, 687, 754, 512, 615, 754 }, save.State.EquippedAccessories);
         Assert.Equal(new ushort[] { 1792, 2040, 1792, 2040, 1792, 2040, 1792, 2040 }, save.State.EquippedCostumes);
+        Assert.Equal(new ushort[] { 15, 30, 80, 140, 85 }, save.State.SocialStats);
+        Assert.Equal((byte)18, save.State.Day);
+        Assert.Equal((byte)4, save.State.DayPhase);
+        Assert.Equal((byte)19, save.State.NextDay);
+        Assert.Equal((byte)5, save.State.NextDayPhase);
         Assert.Collection(
             save.State.InventoryStacks,
             static stack =>
@@ -115,6 +124,12 @@ public sealed class SaveApplicationServiceTests
             new SetEquippedWeaponEdit(1, 2435),
             new SetEquippedArmorEdit(0, 257),
             new SetEquippedCostumeEdit(3, 1792),
+            new SetSocialStatRankEdit(0, 5),
+            new SetSocialStatRankEdit(4, 2),
+            new SetDayEdit(20),
+            new SetDayPhaseEdit(5),
+            new SetNextDayEdit(21),
+            new SetNextDayPhaseEdit(1),
             new SetInventoryItemQuantityEdit(257, 9),
         ];
 
@@ -135,6 +150,12 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((ushort)257, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyProtagonistEquipmentOffset + 2, sizeof(ushort))));
         Assert.Equal((ushort)2435, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset, sizeof(ushort))));
         Assert.Equal((ushort)1792, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride) + 6, sizeof(ushort))));
+        Assert.Equal((ushort)140, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(3336, sizeof(ushort))));
+        Assert.Equal((ushort)13, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(3336 + 8, sizeof(ushort))));
+        Assert.Equal((byte)20, output[6484]);
+        Assert.Equal((byte)5, output[6486]);
+        Assert.Equal((byte)21, output[6492]);
+        Assert.Equal((byte)1, output[6494]);
         Assert.Equal((byte)9, output[LegacyInventoryOffset + 257]);
         AssertOnlyRangesChanged(
             input,
@@ -146,6 +167,8 @@ public sealed class SaveApplicationServiceTests
             (LegacyProtagonistEquipmentOffset, 8),
             (LegacyPartyEquipmentOffset, 8),
             (LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride), 8),
+            (3336, 10),
+            (6484, 11),
             (LegacyFamilyNamePStringOffset, LegacyNameByteLength),
             (LegacyGivenNamePStringOffset, LegacyNameByteLength),
             (LegacyInventoryOffset + 257, 1));
@@ -155,6 +178,43 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(7654321u, reopenedSave.State.Yen);
         Assert.Equal(new PartyMemberId(0x07), reopenedSave.State.PartyMembers[1]);
         Assert.Equal(new InventoryStack(257, 9), reopenedSave.State.InventoryStacks.Single(stack => stack.ItemId == 257));
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteSupportsCalendarBoundaryValues()
+    {
+        byte[] input = CreateSyntheticSave();
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+        SaveEditCommand[] edits =
+        [
+            new SetDayEdit(0),
+            new SetDayPhaseEdit(0),
+            new SetNextDayEdit(255),
+            new SetNextDayPhaseEdit(0),
+        ];
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, edits);
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+        Assert.Equal((byte)0, editedSave.State.Day);
+        Assert.Equal((byte)0, editedSave.State.DayPhase);
+        Assert.Equal((byte)255, editedSave.State.NextDay);
+        Assert.Equal((byte)0, editedSave.State.NextDayPhase);
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)0, output[LegacyCalendarOffset]);
+        Assert.Equal((byte)0, output[LegacyCalendarOffset + 2]);
+        Assert.Equal((byte)255, output[LegacyCalendarOffset + 8]);
+        Assert.Equal((byte)0, output[LegacyCalendarOffset + 10]);
+        AssertOnlyRangesChanged(input, output, (LegacyCalendarOffset, LegacyCalendarLength));
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.Equal((byte)0, reopenedSave.State.Day);
+        Assert.Equal((byte)0, reopenedSave.State.DayPhase);
+        Assert.Equal((byte)255, reopenedSave.State.NextDay);
+        Assert.Equal((byte)0, reopenedSave.State.NextDayPhase);
     }
 
     [Fact]
@@ -342,6 +402,47 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal("P4GAPP004", diagnostic.Code);
         Assert.Equal("Inventory", diagnostic.Target);
         Assert.Equal(new InventoryStack(1, 2), save.State.InventoryStacks[0]);
+    }
+
+    [Fact]
+    public void ApplyEditsRejectsInvalidSocialStatAndCalendarValues()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+        SaveEditCommand[] edits =
+        [
+            new SetSocialStatRankEdit(5, 1),
+            new SetSocialStatRankEdit(0, 6),
+            new SetDayEdit(-1),
+            new SetDayPhaseEdit(6),
+        ];
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, edits);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        Assert.Collection(
+            result.Diagnostics,
+            static diagnostic =>
+            {
+                Assert.Equal("P4GAPP010", diagnostic.Code);
+                Assert.Equal("SocialStats", diagnostic.Target);
+            },
+            static diagnostic =>
+            {
+                Assert.Equal("P4GAPP011", diagnostic.Code);
+                Assert.Equal("SocialStats", diagnostic.Target);
+            },
+            static diagnostic =>
+            {
+                Assert.Equal("P4GAPP012", diagnostic.Code);
+                Assert.Equal("Calendar", diagnostic.Target);
+            },
+            static diagnostic =>
+            {
+                Assert.Equal("P4GAPP013", diagnostic.Code);
+                Assert.Equal("Calendar", diagnostic.Target);
+            });
     }
 
     [Theory]
@@ -652,6 +753,8 @@ public sealed class SaveApplicationServiceTests
         bytes[LegacyPartyMembersOffset] = 0x01;
         bytes[LegacyPartyMembersOffset + 2] = 0xfe;
         bytes[LegacyPartyMembersOffset + 4] = 0x80;
+        WriteSocialStats(bytes, 15, 30, 80, 140, 85);
+        WriteCalendar(bytes, 18, 4, 19, 5);
         bytes.AsSpan(LegacyInventoryOffset, LegacyInventoryLength).Clear();
         bytes[LegacyInventoryOffset + 1] = 2;
         bytes[LegacyInventoryOffset + 257] = 3;
@@ -672,6 +775,24 @@ public sealed class SaveApplicationServiceTests
         WritePersonaSlotBytes(bytes, layout.CompendiumPersonaSlots, 0, CompendiumPersonaSlot0);
         WritePersonaSlotBytes(bytes, layout.CompendiumPersonaSlots, 1, CompendiumPersonaSlot1);
         return bytes;
+    }
+
+    private static void WriteSocialStats(byte[] bytes, params ushort[] socialStats)
+    {
+        for (int index = 0; index < socialStats.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(
+                bytes.AsSpan(LegacySocialStatsOffset + (index * sizeof(ushort)), sizeof(ushort)),
+                socialStats[index]);
+        }
+    }
+
+    private static void WriteCalendar(byte[] bytes, byte day, byte dayPhase, byte nextDay, byte nextDayPhase)
+    {
+        bytes[LegacyCalendarOffset] = day;
+        bytes[LegacyCalendarOffset + 2] = dayPhase;
+        bytes[LegacyCalendarOffset + 8] = nextDay;
+        bytes[LegacyCalendarOffset + 10] = nextDayPhase;
     }
 
     private static void WriteEquipmentSlot(byte[] bytes, int offset, ushort weaponId, ushort armorId, ushort accessoryId, ushort costumeId)

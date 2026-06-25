@@ -9,7 +9,7 @@ namespace P4G.SaveTool.Presentation.Tests;
 
 public sealed class SaveEditorViewModelTests
 {
-    private static readonly string[] ForbiddenPresentationDependencyIds = ["Application", "SaveFormat", "Catalog"];
+    private static readonly string[] ForbiddenPresentationDependencyIds = ["Application", "Catalog", "SaveFormat"];
 
     [Fact]
     public void OpenSaveProjectsWorkingStateAndWarnings()
@@ -891,7 +891,7 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
-    public void PresentationAssemblyDoesNotReferenceApplicationSaveFormatOrCatalog()
+    public void PresentationAssemblyDoesNotReferenceApplicationCatalogOrSaveFormat()
     {
         HashSet<string?> referencedAssemblies = typeof(SaveEditorViewModel)
             .Assembly
@@ -901,12 +901,12 @@ public sealed class SaveEditorViewModelTests
 
         Assert.Contains("P4G.SaveTool.Contracts", referencedAssemblies);
         Assert.DoesNotContain("P4G.SaveTool.Application", referencedAssemblies);
-        Assert.DoesNotContain("P4G.SaveTool.SaveFormat", referencedAssemblies);
         Assert.DoesNotContain("P4G.SaveTool.Catalog", referencedAssemblies);
+        Assert.DoesNotContain("P4G.SaveTool.SaveFormat", referencedAssemblies);
     }
 
     [Fact]
-    public void PresentationProjectDoesNotReferenceApplicationSaveFormatOrCatalog()
+    public void PresentationProjectDoesNotReferenceApplicationCatalogOrSaveFormat()
     {
         string projectPath = FindRepositoryFile("src", "P4G.SaveTool.Presentation", "P4G.SaveTool.Presentation.csproj");
         XDocument project = XDocument.Load(projectPath);
@@ -923,8 +923,8 @@ public sealed class SaveEditorViewModelTests
         foreach (string forbiddenReference in new[]
         {
             "P4G.SaveTool.Application",
-            "P4G.SaveTool.SaveFormat",
             "P4G.SaveTool.Catalog",
+            "P4G.SaveTool.SaveFormat",
         })
         {
             Assert.DoesNotContain(
@@ -934,7 +934,7 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
-    public void PresentationResolvedLockFileGraphDoesNotContainApplicationSaveFormatOrCatalog()
+    public void PresentationResolvedLockFileGraphDoesNotContainApplicationCatalogOrSaveFormat()
     {
         string lockFilePath = FindRepositoryFile("src", "P4G.SaveTool.Presentation", "packages.lock.json");
         using FileStream stream = File.OpenRead(lockFilePath);

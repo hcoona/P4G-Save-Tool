@@ -810,6 +810,157 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void CompendiumEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
+    {
+        WorkingSaveState compendiumState = CreateState(compendiumPersonaSlots:
+        [
+            CreateBlankPersonaSlot(),
+            CreatePersonaSlot(0x0404, 12, 0x04040404, 0x4401),
+        ]);
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(compendiumState), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult setResult = viewModel.SetCompendiumPersonaSlot(0, CreatePersonaSlotEdit(0x0505, 90, 0x05050505, 0x5501));
+        SaveEditorOperationResult clearResult = viewModel.ClearCompendiumPersonaSlot(1);
+
+        Assert.True(setResult.Succeeded, FormatDiagnostics(setResult.Diagnostics));
+        Assert.True(clearResult.Succeeded, FormatDiagnostics(clearResult.Diagnostics));
+        Assert.Equal((ushort)0x0505, viewModel.CompendiumPersonaSlots[0].PersonaId);
+        Assert.Equal((byte)90, viewModel.CompendiumPersonaSlots[0].Level);
+        Assert.False(viewModel.CompendiumPersonaSlots[1].Exists);
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits =>
+            {
+                SetCompendiumPersonaSlotEdit edit = Assert.IsType<SetCompendiumPersonaSlotEdit>(Assert.Single(edits));
+                Assert.Equal(0, edit.SlotIndex);
+                Assert.Equal((ushort)0x0505, edit.PersonaSlot.PersonaId);
+            },
+            static edits =>
+            {
+                ClearCompendiumPersonaSlotEdit edit = Assert.IsType<ClearCompendiumPersonaSlotEdit>(Assert.Single(edits));
+                Assert.Equal(1, edit.SlotIndex);
+            });
+    }
+
+    [Fact]
+    public void CompendiumEditMethodsSkipNoOpEditsAndPreserveDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState(compendiumPersonaSlots:
+            [
+                CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301),
+                CreateBlankPersonaSlot(),
+                CreateBlankPersonaSlot(),
+            ])), []),
+            ApplyEditsHandler = static (_, _) => throw new InvalidOperationException("Unchanged compendium edits should not apply."),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.SetCompendiumPersonaSlot(0, CreatePersonaSlotEdit(0x0303, 22, 0x03030303, 0x3301));
+        SaveEditorOperationResult clearResult = viewModel.ClearCompendiumPersonaSlot(2);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.True(clearResult.Succeeded, FormatDiagnostics(clearResult.Diagnostics));
+        Assert.False(viewModel.IsDirty);
+        Assert.Empty(service.AppliedEdits);
+    }
+
+    [Fact]
+    public void ClearCompendiumPersonaSlotsSkipsAllBlankSlotsWithoutChangingDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState(compendiumPersonaSlots:
+            [
+                CreateBlankPersonaSlot(),
+                CreateBlankPersonaSlot(),
+                CreateBlankPersonaSlot(),
+            ])), []),
+            ApplyEditsHandler = static (_, _) => throw new InvalidOperationException("Blank compendium slots should not apply."),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.ClearCompendiumPersonaSlots();
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Empty(result.Diagnostics);
+        Assert.Empty(viewModel.Diagnostics);
+        Assert.False(viewModel.IsDirty);
+        Assert.Empty(service.AppliedEdits);
+    }
+
+    [Fact]
+    public void ClearCompendiumPersonaSlotsAppliesEditAndRefreshesProjectionForNonBlankSlots()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState(compendiumPersonaSlots:
+            [
+                CreatePersonaSlot(0x0404, 12, 0x04040404, 0x4401),
+                CreateBlankPersonaSlot(),
+                CreatePersonaSlot(0x0505, 34, 0x05050505, 0x5501),
+            ])), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.ClearCompendiumPersonaSlots();
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.Empty(result.Diagnostics);
+        Assert.True(viewModel.IsDirty);
+        Assert.All(viewModel.CompendiumPersonaSlots, static slot => Assert.False(slot.Exists));
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits =>
+            {
+                ClearCompendiumPersonaSlotsEdit edit = Assert.IsType<ClearCompendiumPersonaSlotsEdit>(Assert.Single(edits));
+                Assert.NotNull(edit);
+            });
+    }
+
+    [Fact]
+    public void CompendiumEditMethodsRejectBlankPersonaIdAndSurfaceDiagnostics()
+    {
+        SaveDiagnostic error = new(DiagnosticSeverity.Error, "P4GAPP009", "Persona slot edit must specify a persona id.", "Persona");
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = (_, edits) =>
+            {
+                SetCompendiumPersonaSlotEdit edit = Assert.IsType<SetCompendiumPersonaSlotEdit>(Assert.Single(edits));
+                return edit.PersonaSlot.PersonaId == 0
+                    ? new SaveEditResult<WorkingSave>(null, [error])
+                    : throw new InvalidOperationException("Unexpected compendium edit.");
+            },
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.SetCompendiumPersonaSlot(
+            0,
+            new PersonaSlotEdit(0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(new[] { error }, result.Diagnostics);
+        Assert.Equal(new[] { error }, viewModel.Diagnostics);
+        Assert.False(viewModel.IsDirty);
+        Assert.Equal("P4GAPP009", result.Diagnostics.Single().Code);
+        Assert.Equal("Persona", result.Diagnostics.Single().Target);
+    }
+
+    [Fact]
     public void SocialLinkEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
     {
         FakeSaveApplicationService service = new()
@@ -2098,6 +2249,9 @@ public sealed class SaveEditorViewModelTests
                     state.SocialLinks[setSocialLinkFlag.SlotIndex] with { Flag = setSocialLinkFlag.Flag }),
                 SetProtagonistPersonaSlotEdit setProtagonistPersonaSlot => state.WithProtagonistPersonaSlot(setProtagonistPersonaSlot.SlotIndex, BuildPersonaSlot(setProtagonistPersonaSlot.PersonaSlot, state.ProtagonistPersonaSlots[setProtagonistPersonaSlot.SlotIndex])),
                 SetPartyPersonaSlotEdit setPartyPersonaSlot => state.WithPartyPersonaSlot(setPartyPersonaSlot.SlotIndex, BuildPersonaSlot(setPartyPersonaSlot.PersonaSlot, state.PartyPersonaSlots[setPartyPersonaSlot.SlotIndex])),
+                SetCompendiumPersonaSlotEdit setCompendiumPersonaSlot => state.WithCompendiumPersonaSlot(setCompendiumPersonaSlot.SlotIndex, BuildPersonaSlot(setCompendiumPersonaSlot.PersonaSlot, state.CompendiumPersonaSlots[setCompendiumPersonaSlot.SlotIndex])),
+                ClearCompendiumPersonaSlotEdit clearCompendiumPersonaSlot => state.WithCompendiumPersonaSlot(clearCompendiumPersonaSlot.SlotIndex, CreateBlankPersonaSlot()),
+                ClearCompendiumPersonaSlotsEdit => ClearCompendiumPersonaSlots(state),
                 SetInventoryItemQuantityEdit setInventoryItemQuantity => state.WithInventoryItemQuantity(setInventoryItemQuantity.ItemId, setInventoryItemQuantity.Quantity),
                 RemoveInventoryItemEdit removeInventoryItem => state.WithInventoryItemRemoved(removeInventoryItem.ItemId),
                 _ => state,
@@ -2115,6 +2269,7 @@ public sealed class SaveEditorViewModelTests
         IReadOnlyList<ushort>? equippedArmors = null,
         IReadOnlyList<ushort>? equippedAccessories = null,
         IReadOnlyList<ushort>? equippedCostumes = null,
+        IReadOnlyList<PersonaSlot>? compendiumPersonaSlots = null,
         IReadOnlyList<InventoryStack>? inventoryStacks = null,
         IReadOnlyList<ushort>? socialStats = null,
         IReadOnlyList<SocialLinkState>? socialLinks = null,
@@ -2132,7 +2287,7 @@ public sealed class SaveEditorViewModelTests
             equippedCostumes ?? [1792, 2040, 1792, 2040, 1792, 2040, 1792, 2040],
             [CreatePersonaSlot(0x0101, 77, 0x01010101, 0x1101)],
             [CreatePersonaSlot(0x0202, 44, 0x02020202, 0x2201)],
-            [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)],
+            compendiumPersonaSlots ?? [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)],
             inventoryStacks ?? [],
             socialStats ?? [15, 30, 80, 140, 85],
             socialLinks ?? [new SocialLinkState(1, 5, 3, 2), new SocialLinkState(8, 2, 1, 0), new SocialLinkState(10, 1, 0, 1)],
@@ -2190,6 +2345,31 @@ public sealed class SaveEditorViewModelTests
             edit.Endurance,
             edit.Agility,
             edit.Luck);
+
+    private static WorkingSaveState ClearCompendiumPersonaSlots(WorkingSaveState state)
+    {
+        for (int slotIndex = 0; slotIndex < state.CompendiumPersonaSlots.Count; slotIndex++)
+        {
+            state = state.WithCompendiumPersonaSlot(slotIndex, CreateBlankPersonaSlot());
+        }
+
+        return state;
+    }
+
+    private static PersonaSlot CreateBlankPersonaSlot() =>
+        new(
+            false,
+            0,
+            0,
+            0,
+            [0, 0, 0],
+            0,
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            0,
+            0,
+            0,
+            0,
+            0);
 
     private static string FormatDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics) =>
         string.Join(

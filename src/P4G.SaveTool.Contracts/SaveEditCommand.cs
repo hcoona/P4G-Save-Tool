@@ -34,6 +34,12 @@ public sealed record SetProtagonistPersonaSlotEdit(int SlotIndex, PersonaSlotEdi
 
 public sealed record SetPartyPersonaSlotEdit(int SlotIndex, PersonaSlotEdit PersonaSlot) : SaveEditCommand;
 
+public sealed record SetCompendiumPersonaSlotEdit(int SlotIndex, PersonaSlotEdit PersonaSlot) : SaveEditCommand;
+
+public sealed record ClearCompendiumPersonaSlotEdit(int SlotIndex) : SaveEditCommand;
+
+public sealed record ClearCompendiumPersonaSlotsEdit() : SaveEditCommand;
+
 public sealed record AddSocialLinkEdit(byte LinkId) : SaveEditCommand;
 
 public sealed record RemoveSocialLinkEdit(int SlotIndex) : SaveEditCommand;

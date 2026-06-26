@@ -323,6 +323,26 @@ public sealed class WorkingSaveState
             state.NextDay,
             state.NextDayPhase));
 
+    public WorkingSaveState WithCompendiumPersonaSlot(int slotIndex, PersonaSlot personaSlot) =>
+        WithPersonaSlot(compendiumPersonaSlots, slotIndex, personaSlot, nameof(slotIndex), static (state, slots) => CreateState(
+            state.Names,
+            state.Yen,
+            state.partyMembers,
+            state.equippedWeapons,
+            state.equippedArmors,
+            state.equippedAccessories,
+            state.equippedCostumes,
+            state.socialStats,
+            state.protagonistPersonaSlots,
+            state.partyPersonaSlots,
+            slots,
+            state.inventoryStacks,
+            state.socialLinks,
+            state.Day,
+            state.DayPhase,
+            state.NextDay,
+            state.NextDayPhase));
+
     public WorkingSaveState WithEquippedWeapon(int characterId, ushort itemId) =>
         WithEquipment(characterId, itemId, EquipmentKind.Weapon);
 

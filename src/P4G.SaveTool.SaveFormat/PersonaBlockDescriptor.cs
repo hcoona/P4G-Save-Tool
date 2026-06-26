@@ -7,5 +7,5 @@ public sealed record PersonaBlockDescriptor(
     int Stride,
     int PersonaOffsetWithinStride = 0)
 {
-    public int EndOffset => Offset + ((Count - 1) * Stride) + PersonaOffsetWithinStride + PersonaSlotBinaryCodec.BinaryLength;
+    public int EndOffset => Offset + (Count * Stride);
 }

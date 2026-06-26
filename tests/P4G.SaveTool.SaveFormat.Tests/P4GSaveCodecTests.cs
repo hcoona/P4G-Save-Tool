@@ -47,6 +47,8 @@ public sealed class P4GSaveCodecTests
     private const int LegacyCompendiumPersonaSlotsOffset = 9688;
     private const int LegacyCompendiumPersonaSlotsCount = 249;
     private const int LegacyCompendiumPersonaSlotStride = 48;
+    private const int LegacyCompendiumPersonaLastSlotIndex = LegacyCompendiumPersonaSlotsCount - 1;
+    private static readonly PersonaSlotSentinel CompendiumPersonaSlot248 = new(0x3388, 0x38, 0x38383838, 0x3381);
 
     private readonly ITestOutputHelper output;
 
@@ -68,6 +70,24 @@ public sealed class P4GSaveCodecTests
             "Save",
             "Save data is incomplete or uses an unsupported format.");
         AssertDiagnosticDoesNotExposeDetails(diagnostic, "FamilyNameJString", "bytes", "16", "33");
+    }
+
+    [Fact]
+    public void OpenReportsDiagnosticWhenSaveIsMissingFinalCompendiumByte()
+    {
+        byte[] input = CreateSyntheticSave();
+        Array.Resize(ref input, P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed).MinimumLength - 1);
+
+        SaveOpenResult<SaveSnapshot> result = P4GSaveCodec.Open(input);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Snapshot);
+        SaveDiagnostic diagnostic = AssertSingleErrorDiagnostic(
+            result.Diagnostics,
+            "P4G002",
+            "Save",
+            "Save data is incomplete or uses an unsupported format.");
+        AssertDiagnosticDoesNotExposeDetails(diagnostic, "bytes");
     }
 
     [Fact]
@@ -318,6 +338,29 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
+    public void PersonaFieldPatchChangesOnlyCompendiumPersonaSlotRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        const int slotIndex = LegacyCompendiumPersonaLastSlotIndex;
+        int offset = layout.CompendiumPersonaSlots.Offset + (slotIndex * layout.CompendiumPersonaSlots.Stride) + layout.CompendiumPersonaSlots.PersonaOffsetWithinStride;
+        byte[] personaBytes = snapshot.OriginalBytes.Slice(offset, PersonaSlotBinaryCodec.BinaryLength).ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(personaBytes.AsSpan(2, sizeof(ushort)), 0x5678);
+        personaBytes[4] = 66;
+        BinaryPrimitives.WriteUInt32LittleEndian(personaBytes.AsSpan(8, sizeof(uint)), 0x11223344);
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch($"{layout.CompendiumPersonaSlots.Name}[{slotIndex}]", personaBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((ushort)0x5678, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(offset + 2, sizeof(ushort))));
+        Assert.Equal((byte)66, output[offset + 4]);
+        Assert.Equal(0x11223344u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(offset + 8, sizeof(uint))));
+        AssertOnlyRangesChanged(input, output, (offset, PersonaSlotBinaryCodec.BinaryLength));
+    }
+
+    [Fact]
     public void FieldPatchesUpdateBothLegacyNameEncodings()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
@@ -484,8 +527,7 @@ public sealed class P4GSaveCodecTests
             0);
         Assert.Equal(
             LegacyCompendiumPersonaSlotsOffset
-                + ((LegacyCompendiumPersonaSlotsCount - 1) * LegacyCompendiumPersonaSlotStride)
-                + PersonaSlotBinaryCodec.BinaryLength,
+                + (LegacyCompendiumPersonaSlotsCount * LegacyCompendiumPersonaSlotStride),
             layout.MinimumLength);
     }
 
@@ -671,6 +713,7 @@ public sealed class P4GSaveCodecTests
         Assert.Equal(count, block.Count);
         Assert.Equal(stride, block.Stride);
         Assert.Equal(personaOffsetWithinStride, block.PersonaOffsetWithinStride);
+        Assert.Equal(offset + (count * stride), block.EndOffset);
     }
 
     private static void AssertReadOnlyListDoesNotExposeArray<T>(IReadOnlyList<T> collection, T replacement)
@@ -775,6 +818,20 @@ public sealed class P4GSaveCodecTests
             3,
             4,
             5);
+        AssertPersonaSlot(
+            snapshot.CompendiumPersonaSlots[LegacyCompendiumPersonaLastSlotIndex],
+            true,
+            0x77,
+            CompendiumPersonaSlot248.PersonaId,
+            CompendiumPersonaSlot248.Level,
+            [0x81, 0x82, 0x83],
+            CompendiumPersonaSlot248.TotalExperience,
+            [0x3801, 0x3802, 0x3803, 0x3804, 0x3805, 0x3806, 0x3807, 0x3808],
+            61,
+            62,
+            63,
+            64,
+            65);
         AssertReadOnlyListDoesNotExposeArray(snapshot.InventoryStacks, new InventoryStack(1, 0));
         Assert.Equal(
             new[]
@@ -867,6 +924,22 @@ public sealed class P4GSaveCodecTests
             3,
             4,
             5);
+        WritePersonaSlotBytes(
+            bytes.AsSpan(
+                LegacyCompendiumPersonaSlotsOffset + (LegacyCompendiumPersonaLastSlotIndex * LegacyCompendiumPersonaSlotStride),
+                PersonaSlotBinaryCodec.BinaryLength),
+            true,
+            0x77,
+            CompendiumPersonaSlot248.PersonaId,
+            CompendiumPersonaSlot248.Level,
+            [0x81, 0x82, 0x83],
+            CompendiumPersonaSlot248.TotalExperience,
+            [0x3801, 0x3802, 0x3803, 0x3804, 0x3805, 0x3806, 0x3807, 0x3808],
+            61,
+            62,
+            63,
+            64,
+            65);
 
         return bytes;
     }
@@ -1070,6 +1143,13 @@ public sealed class P4GSaveCodecTests
             Assert.Equal(expectedOriginal[index], actual[index]);
         }
     }
+
+    private sealed record PersonaSlotSentinel(
+        ushort PersonaId,
+        byte Level,
+        uint TotalExperience,
+        ushort FirstSkillId,
+        byte ExistsRawByte = 1);
 
     private static string FormatDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics) =>
         string.Join(Environment.NewLine, diagnostics.Select(static diagnostic => diagnostic.Message));

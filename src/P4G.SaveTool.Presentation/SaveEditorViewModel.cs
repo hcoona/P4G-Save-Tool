@@ -33,6 +33,20 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static readonly ReadOnlyCollection<PartyMemberChoiceViewState> EmptyPartyMemberChoices =
         Array.AsReadOnly(Array.Empty<PartyMemberChoiceViewState>());
 
+    private static readonly PersonaSlot BlankPersonaSlot = new(
+        false,
+        0,
+        0,
+        0,
+        [0, 0, 0],
+        0,
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        0,
+        0,
+        0,
+        0,
+        0);
+
     private readonly ISaveApplicationService saveApplicationService;
     private WorkingSave? workingSave;
     private WorkingSaveState? lastPersistedState;
@@ -379,6 +393,41 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public SaveEditorOperationResult SetPartyPersonaSlot(int slotIndex, PersonaSlotEdit personaSlot) =>
         ApplyEdits([new SetPartyPersonaSlotEdit(slotIndex, personaSlot)]);
+
+    public SaveEditorOperationResult SetCompendiumPersonaSlot(int slotIndex, PersonaSlotEdit personaSlot)
+    {
+        if (workingSave is not null &&
+            (uint)slotIndex < (uint)workingSave.State.CompendiumPersonaSlots.Count &&
+            PersonaSlotMatchesVisibleValues(workingSave.State.CompendiumPersonaSlots[slotIndex], personaSlot))
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new SetCompendiumPersonaSlotEdit(slotIndex, personaSlot)]);
+    }
+
+    public SaveEditorOperationResult ClearCompendiumPersonaSlot(int slotIndex)
+    {
+        if (workingSave is not null &&
+            (uint)slotIndex < (uint)workingSave.State.CompendiumPersonaSlots.Count &&
+            workingSave.State.CompendiumPersonaSlots[slotIndex].Equals(BlankPersonaSlot))
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new ClearCompendiumPersonaSlotEdit(slotIndex)]);
+    }
+
+    public SaveEditorOperationResult ClearCompendiumPersonaSlots()
+    {
+        if (workingSave is not null &&
+            workingSave.State.CompendiumPersonaSlots.All(static slot => slot.Equals(BlankPersonaSlot)))
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new ClearCompendiumPersonaSlotsEdit()]);
+    }
 
     public SaveEditorOperationResult SetInventoryItemQuantity(ushort itemId, byte quantity)
     {
@@ -912,6 +961,17 @@ public sealed class SaveEditorViewModel : ViewModelBase
         IReadOnlyList<SocialLinkViewState> right) =>
         left.Count == right.Count &&
         left.SequenceEqual(right);
+
+    private static bool PersonaSlotMatchesVisibleValues(PersonaSlot currentSlot, PersonaSlotEdit personaSlotEdit) =>
+        currentSlot.PersonaId == personaSlotEdit.PersonaId &&
+        currentSlot.Level == personaSlotEdit.Level &&
+        currentSlot.TotalExperience == personaSlotEdit.TotalExperience &&
+        currentSlot.SkillIds.SequenceEqual(personaSlotEdit.SkillIds) &&
+        currentSlot.Strength == personaSlotEdit.Strength &&
+        currentSlot.Magic == personaSlotEdit.Magic &&
+        currentSlot.Endurance == personaSlotEdit.Endurance &&
+        currentSlot.Agility == personaSlotEdit.Agility &&
+        currentSlot.Luck == personaSlotEdit.Luck;
 
     private static bool StatesEqual(WorkingSaveState left, WorkingSaveState right) =>
         left.Names == right.Names &&

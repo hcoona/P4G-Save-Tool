@@ -290,6 +290,22 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     state.PartyPersonaSlots,
                     "PartyPersonaSlots");
 
+            case SetCompendiumPersonaSlotEdit setCompendiumPersonaSlot:
+                return ApplyPersonaSlotEdit(
+                    state,
+                    diagnostics,
+                    setCompendiumPersonaSlot.SlotIndex,
+                    setCompendiumPersonaSlot.PersonaSlot,
+                    static (currentState, slotIndex, personaSlot) => currentState.WithCompendiumPersonaSlot(slotIndex, personaSlot),
+                    state.CompendiumPersonaSlots,
+                    "CompendiumPersonaSlots");
+
+            case ClearCompendiumPersonaSlotEdit clearCompendiumPersonaSlot:
+                return ApplyCompendiumClearEdit(state, diagnostics, clearCompendiumPersonaSlot.SlotIndex);
+
+            case ClearCompendiumPersonaSlotsEdit:
+                return ApplyCompendiumClearAllEdit(state);
+
             case AddSocialLinkEdit addSocialLink:
                 if (addSocialLink.LinkId == 0)
                 {
@@ -514,6 +530,11 @@ public sealed class SaveApplicationService : ISaveApplicationService
             snapshot.PartyPersonaSlots,
             state.PartyPersonaSlots,
             layout.PartyPersonaSlots);
+        AddPersonaSlotPatches(
+            patches,
+            snapshot.CompendiumPersonaSlots,
+            state.CompendiumPersonaSlots,
+            layout.CompendiumPersonaSlots);
 
         return patches;
     }
@@ -819,6 +840,50 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
         return apply(state, slotIndex, updatedSlot);
     }
+
+    private static WorkingSaveState ApplyCompendiumClearEdit(
+        WorkingSaveState state,
+        List<SaveDiagnostic> diagnostics,
+        int slotIndex)
+    {
+        if ((uint)slotIndex >= (uint)state.CompendiumPersonaSlots.Count)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP007",
+                "Persona slot edit targets an unsupported slot.",
+                PersonaDiagnosticTarget));
+            return state;
+        }
+
+        return state.WithCompendiumPersonaSlot(slotIndex, CreateBlankPersonaSlot());
+    }
+
+    private static WorkingSaveState ApplyCompendiumClearAllEdit(WorkingSaveState state)
+    {
+        WorkingSaveState updatedState = state;
+        for (int slotIndex = 0; slotIndex < state.CompendiumPersonaSlots.Count; slotIndex++)
+        {
+            updatedState = updatedState.WithCompendiumPersonaSlot(slotIndex, CreateBlankPersonaSlot());
+        }
+
+        return updatedState;
+    }
+
+    private static PersonaSlot CreateBlankPersonaSlot() =>
+        new(
+            exists: false,
+            unknown0: 0,
+            personaId: 0,
+            level: 0,
+            reservedAfterLevel: [0, 0, 0],
+            totalExperience: 0,
+            skillIds: [0, 0, 0, 0, 0, 0, 0, 0],
+            strength: 0,
+            magic: 0,
+            endurance: 0,
+            agility: 0,
+            luck: 0);
 
     private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>
         itemId < (ushort)layout.Inventory.Length &&

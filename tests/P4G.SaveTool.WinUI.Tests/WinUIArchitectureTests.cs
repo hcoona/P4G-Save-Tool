@@ -90,6 +90,10 @@ public sealed class WinUIArchitectureTests
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string memberHandlerBody = GetSection(
+            content,
+            "private void PersonaMemberComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void PersonaSlotComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
 
         Assert.Contains("PersonaMemberComboBox_SelectionChanged", content, StringComparison.Ordinal);
         Assert.Contains("PersonaSlotComboBox_SelectionChanged", content, StringComparison.Ordinal);
@@ -99,8 +103,13 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("TryBuildEditBatch(", content, StringComparison.Ordinal);
         Assert.Contains("SetProtagonistPersonaSlotEdit", content, StringComparison.Ordinal);
         Assert.Contains("SetPartyPersonaSlotEdit", content, StringComparison.Ordinal);
+        Assert.Contains("SetCompendiumPersonaSlotEdit", content, StringComparison.Ordinal);
+        Assert.Contains("selectedCompendiumSlotIndex.HasValue", content, StringComparison.Ordinal);
+        Assert.Contains("return TryBuildPersonaSlotEditCore(", content, StringComparison.Ordinal);
         Assert.Contains("int partyPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1, 0, personaSlots.Count - 1);", content, StringComparison.Ordinal);
         Assert.DoesNotContain("selectedPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1", content, StringComparison.Ordinal);
+        Assert.Contains("ClearSelectedCompendiumContext(ref selectedCompendiumSlotIndex);", memberHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumListView.SelectedItem = null;", memberHandlerBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -142,6 +151,126 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowCompendiumHandlersRefreshShellStateAfterSelectionChanges()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string selectionBody = GetSection(
+            content,
+            "private void CompendiumListView_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void CompendiumAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+        string addBody = GetSection(
+            content,
+            "private void CompendiumAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void CompendiumRemoveButton_Click(object sender, RoutedEventArgs e)");
+        string removeBody = GetSection(
+            content,
+            "private void CompendiumRemoveButton_Click(object sender, RoutedEventArgs e)",
+            "private void CompendiumClearButton_Click(object sender, RoutedEventArgs e)");
+        string clearBody = GetSection(
+            content,
+            "private void CompendiumClearButton_Click(object sender, RoutedEventArgs e)",
+            "private void RefreshEquipmentState()");
+        string helperBody = GetSection(
+            content,
+            "internal static SaveEditorOperationResult RefreshCompendiumDraftPreservingSelection(",
+            "private void RefreshEditableFields()");
+
+        Assert.Contains("if (CompendiumListView.SelectedItem is not CompendiumPersonaViewState selectedEntry)", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("selectedCompendiumSlotIndex = null;", selectionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("selectedPersonaSlotIndex = 0;", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshPersonaState();", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellState();", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("selectedCompendiumSlotIndex = selectedEntry.SlotIndex;", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumListView_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("CompendiumAddComboBox_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("CompendiumRemoveButton_Click", content, StringComparison.Ordinal);
+        Assert.Contains("CompendiumClearButton_Click", content, StringComparison.Ordinal);
+        Assert.Contains("RefreshCompendiumState();", content, StringComparison.Ordinal);
+        Assert.Contains("selectedChoice.PersonaId == 0", addBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumListView.SelectedItem = null;", addBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshPersonaState();", addBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellState();", addBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshCompendiumDraftPreservingSelection(", removeBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshCompendiumDraftPreservingSelection(", clearBody, StringComparison.Ordinal);
+        Assert.Contains("if (result.Succeeded)", helperBody, StringComparison.Ordinal);
+        Assert.Contains("clearSelectedCompendiumSlotIndex();", helperBody, StringComparison.Ordinal);
+        Assert.Contains("refreshFromViewModelPreservingInventoryQuantityDraft(!result.Succeeded);", helperBody, StringComparison.Ordinal);
+        Assert.Contains("SelectOrAddCompendiumPersona(", content, StringComparison.Ordinal);
+        Assert.Contains("TryResolveCompendiumPersonaAddTarget(", content, StringComparison.Ordinal);
+        Assert.Contains("SelectOrAddCompendiumPersonaCore(", content, StringComparison.Ordinal);
+        Assert.Contains("ResolveSelectedPersonaSlotIndexForProtagonistView(", content, StringComparison.Ordinal);
+        Assert.Contains("int? selectedCompendiumSlotIndexBeforeMutation = selectedCompendiumSlotIndex;", addBody, StringComparison.Ordinal);
+        Assert.Contains("ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft(preserveSelectedCompendiumDraft: true);", addBody, StringComparison.Ordinal);
+        Assert.Contains("ClearCompendiumPersonaSlot(", content, StringComparison.Ordinal);
+        Assert.Contains("ClearCompendiumPersonaSlots(", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("PersonaId - 1", addBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowCompendiumNoSaveHandlersReturnP4GWINUI025BeforeMutatingState()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string removeBody = GetSection(
+            content,
+            "private void CompendiumRemoveButton_Click(object sender, RoutedEventArgs e)",
+            "private void CompendiumClearButton_Click(object sender, RoutedEventArgs e)");
+        string clearBody = GetSection(
+            content,
+            "private void CompendiumClearButton_Click(object sender, RoutedEventArgs e)",
+            "private void RefreshEquipmentState()");
+
+        string noSaveDiagnostic = "SetUiDiagnostics([CreateUiDiagnostic(\"P4GWINUI025\", \"Open a save before editing the compendium.\", \"Compendium\")]);";
+        Assert.Contains("if (!viewModel.HasSave)", removeBody, StringComparison.Ordinal);
+        Assert.Contains("if (!viewModel.HasSave)", clearBody, StringComparison.Ordinal);
+        Assert.Contains(noSaveDiagnostic, removeBody, StringComparison.Ordinal);
+        Assert.Contains(noSaveDiagnostic, clearBody, StringComparison.Ordinal);
+        Assert.True(removeBody.IndexOf(noSaveDiagnostic, StringComparison.Ordinal) < removeBody.IndexOf("uiDiagnosticsOverride = null;", StringComparison.Ordinal));
+        Assert.True(clearBody.IndexOf(noSaveDiagnostic, StringComparison.Ordinal) < clearBody.IndexOf("uiDiagnosticsOverride = null;", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MainWindowCompendiumRemoveNoSelectionReturnsP4GWINUI026BeforeMutationOrRefresh()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string removeBody = GetSection(
+            content,
+            "private void CompendiumRemoveButton_Click(object sender, RoutedEventArgs e)",
+            "private void CompendiumClearButton_Click(object sender, RoutedEventArgs e)");
+
+        string noSelectionDiagnostic = "SetUiDiagnostics([CreateUiDiagnostic(\"P4GWINUI026\", \"Select a compendium entry before removing it.\", \"Compendium.Item\")]);";
+        Assert.Contains("if (!selectedCompendiumSlotIndex.HasValue)", removeBody, StringComparison.Ordinal);
+        Assert.Contains(noSelectionDiagnostic, removeBody, StringComparison.Ordinal);
+        Assert.True(removeBody.IndexOf(noSelectionDiagnostic, StringComparison.Ordinal) < removeBody.IndexOf("uiDiagnosticsOverride = null;", StringComparison.Ordinal));
+        Assert.True(removeBody.IndexOf(noSelectionDiagnostic, StringComparison.Ordinal) < removeBody.IndexOf("RefreshCompendiumDraftPreservingSelection(", StringComparison.Ordinal));
+        Assert.True(removeBody.IndexOf(noSelectionDiagnostic, StringComparison.Ordinal) < removeBody.IndexOf("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MainWindowAutoSelectsFirstCompendiumEntryOnOpen()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string openBody = GetSection(
+            content,
+            "private async Task<BusyOperationCompletion> OpenSaveFileAsync()",
+            "private bool ApplyEditorFields()");
+        string refreshCompendiumBody = GetSection(
+            content,
+            "private void RefreshCompendiumState()",
+            "private void RefreshInventoryState()");
+
+        Assert.Contains("autoSelectCompendiumEntryAfterOpen = true;", openBody, StringComparison.Ordinal);
+        Assert.Contains("ResolveSelectedCompendiumViewState(", refreshCompendiumBody, StringComparison.Ordinal);
+        Assert.Contains("autoSelectCompendiumEntryAfterOpen", refreshCompendiumBody, StringComparison.Ordinal);
+        Assert.Contains("selectedCompendiumSlotIndex = selectedEntry.SlotIndex;", refreshCompendiumBody, StringComparison.Ordinal);
+        Assert.Contains("autoSelectCompendiumEntryAfterOpen = false;", refreshCompendiumBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowXamlDeclaresSocialLinkEditingControls()
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
@@ -161,6 +290,35 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowXamlDeclaresCompendiumEditingControls()
+    {
+        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("x:Name=\"CompendiumListView\"", content, StringComparison.Ordinal);
+        Assert.Contains("SelectionChanged=\"CompendiumListView_SelectionChanged\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CompendiumAddComboBox\"", content, StringComparison.Ordinal);
+        Assert.Contains("SelectionChanged=\"CompendiumAddComboBox_SelectionChanged\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CompendiumRemoveButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Click=\"CompendiumRemoveButton_Click\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CompendiumClearButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Click=\"CompendiumClearButton_Click\"", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowXamlBindsCompendiumListItemDisplayNameInCompendiumSection()
+    {
+        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string compendiumSection = GetSection(
+            content,
+            "            <TextBlock Text=\"Compendium\" Style=\"{ThemeResource BodyStrongTextBlockStyle}\" Margin=\"0,8,0,0\" />",
+            "            <TextBlock Text=\"Persona projections (read-only raw values)\" Style=\"{ThemeResource BodyStrongTextBlockStyle}\" />");
+
+        Assert.Contains("Text=\"{Binding DisplayName}\"", compendiumSection, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowUpdateShellStateEnablesAndDisablesSocialLinkEditorControls()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
@@ -177,6 +335,10 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("SocialLinkFlagTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkApplyButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumSlotIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumClearButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -192,10 +354,16 @@ public sealed class WinUIArchitectureTests
             content,
             "private void PersonaMemberComboBox_SelectionChanged(",
             "private void PersonaSlotComboBox_SelectionChanged(");
+        string compendiumBranchBody = GetSection(
+            refreshPersonaStateBody,
+            "if (selectedCompendiumSlotIndex.HasValue)",
+            "PartyMemberChoiceViewState? selectedMember = null;");
 
         Assert.Contains("RefreshPersonaSummary();", refreshPersonaStateBody, StringComparison.Ordinal);
         Assert.Contains("selectedPersonaMemberId = null;", memberHandlerBody, StringComparison.Ordinal);
         Assert.Contains("RefreshPersonaSummary();", memberHandlerBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("selectedPersonaMemberId = null;", compendiumBranchBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("selectedPersonaSlotIndex = 0;", compendiumBranchBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -270,7 +438,7 @@ public sealed class WinUIArchitectureTests
             "private async Task<string?> PickSavePathAsync()");
         string inventoryRefreshBody = GetSection(
             content,
-            "private void RefreshFromViewModelPreservingInventoryQuantityDraft(bool preserveSelectedSocialLinkDraft = true)",
+            "private void RefreshFromViewModelPreservingInventoryQuantityDraft(",
             "private void RefreshEditableFields()");
 
         Assert.Contains("BusyOperationCompletion completion = BusyOperationCompletion.RefreshViewModel;", runBusyBody, StringComparison.Ordinal);
@@ -280,6 +448,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);", propertyChangedBody, StringComparison.Ordinal);
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("ShouldPreserveSelectedSocialLinkDraftAfterApply(edits)", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("ShouldPreserveSelectedCompendiumDraftAfterApply(edits)", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
@@ -288,10 +457,13 @@ public sealed class WinUIArchitectureTests
         Assert.Equal(3, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
         Assert.Contains("string inventoryQuantityDraft = InventoryQuantityTextBox.Text;", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDraftState? socialLinkDraft = CaptureSelectedSocialLinkDraft();", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumDraftState? compendiumDraft = preserveSelectedCompendiumDraft ? CaptureSelectedCompendiumDraft() : null;", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("InventorySelectionState.ShouldRestoreQuantityDraft(", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("InventoryQuantityTextBox.Text = inventoryQuantityDraft;", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("if (preserveSelectedSocialLinkDraft && socialLinkDraft is not null)", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("RestoreSelectedSocialLinkDraft(socialLinkDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("if (compendiumDraft is not null)", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("RestoreSelectedCompendiumDraft(compendiumDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
     }
 
     [Fact]

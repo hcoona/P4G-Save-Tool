@@ -112,6 +112,17 @@ public sealed class SocialLinkDraftTests
     }
 
     [Fact]
+    public void SocialLinkSelectionResolverReturnsNullWhenNoEntriesExist()
+    {
+        SocialLinkViewState? selectedLink = MainWindow.ResolveSelectedSocialLinkViewState(
+            Array.Empty<SocialLinkViewState>(),
+            selectedSocialLinkIndex: null,
+            selectedSocialLinkLinkId: null);
+
+        Assert.Null(selectedLink);
+    }
+
+    [Fact]
     public void SocialLinkSelectionResetHelperClearsBothSelectionFields()
     {
         int? selectedSocialLinkIndex = 3;

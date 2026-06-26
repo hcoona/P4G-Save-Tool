@@ -987,6 +987,20 @@ public sealed partial class MainWindow : Window
             }
         }
 
+        if (personaId > 0)
+        {
+            int legacySlotIndex = personaId - 1;
+            if (legacySlotIndex < compendiumPersonaSlots.Count)
+            {
+                PersonaSlotViewState legacySlot = compendiumPersonaSlots[legacySlotIndex];
+                if (!legacySlot.Exists)
+                {
+                    slotIndex = legacySlotIndex;
+                    return true;
+                }
+            }
+        }
+
         for (int index = 0; index < compendiumPersonaSlots.Count; index++)
         {
             PersonaSlotViewState slot = compendiumPersonaSlots[index];
@@ -1235,9 +1249,11 @@ public sealed partial class MainWindow : Window
     internal static bool ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(
         int? selectedCompendiumSlotIndexBeforeMutation,
         int? selectedCompendiumSlotIndexAfterMutation,
-        bool mutationSucceeded) =>
+        bool mutationSucceeded,
+        bool selectedCompendiumSlotMatchedRequestedPersonaBeforeMutation) =>
         !mutationSucceeded ||
-        selectedCompendiumSlotIndexBeforeMutation == selectedCompendiumSlotIndexAfterMutation;
+        (selectedCompendiumSlotIndexBeforeMutation == selectedCompendiumSlotIndexAfterMutation &&
+         selectedCompendiumSlotMatchedRequestedPersonaBeforeMutation);
 
     internal static int ResolveSelectedPersonaSlotIndexForProtagonistView(
         int selectedPersonaSlotIndex,
@@ -1832,13 +1848,18 @@ public sealed partial class MainWindow : Window
 
         uiDiagnosticsOverride = null;
         int? selectedCompendiumSlotIndexBeforeMutation = selectedCompendiumSlotIndex;
+        bool selectedCompendiumSlotMatchedRequestedPersonaBeforeMutation =
+            selectedCompendiumSlotIndexBeforeMutation.HasValue &&
+            selectedCompendiumSlotIndexBeforeMutation.Value < viewModel.CompendiumPersonaSlots.Count &&
+            viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndexBeforeMutation.Value].PersonaId == selectedChoice.PersonaId;
         SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
             () => SelectOrAddCompendiumPersona(selectedChoice));
         RefreshFromViewModelPreservingInventoryQuantityDraft(
             preserveSelectedCompendiumDraft: ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(
                 selectedCompendiumSlotIndexBeforeMutation,
                 selectedCompendiumSlotIndex,
-                result.Succeeded));
+                result.Succeeded,
+                selectedCompendiumSlotMatchedRequestedPersonaBeforeMutation));
         if (!result.Succeeded)
         {
             SetUiDiagnostics(result.Diagnostics);

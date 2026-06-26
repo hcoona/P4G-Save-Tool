@@ -213,7 +213,7 @@ public sealed class CompendiumSelectionTests
     }
 
     [Fact]
-    public void CompendiumSelectionHelperAddsIntoFirstFreeSlotAndSelectsIt()
+    public void CompendiumAddTargetResolverUsesPersonaIdSlotWhenInRangeEvenIfEarlierSlotIsFree()
     {
         IReadOnlyList<PersonaSlotViewState> compendiumSlots =
         [
@@ -222,7 +222,79 @@ public sealed class CompendiumSelectionTests
             new(2, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
         ];
 
-        PersonaChoiceViewState selectedChoice = new(0xBEEF, "New Persona");
+        bool succeeded = MainWindow.TryResolveCompendiumPersonaAddTarget(
+            compendiumSlots,
+            3,
+            out int slotIndex,
+            out bool existingSlot,
+            out SaveDiagnostic? diagnostic);
+
+        Assert.True(succeeded);
+        Assert.Equal(2, slotIndex);
+        Assert.False(existingSlot);
+        Assert.Null(diagnostic);
+    }
+
+    [Fact]
+    public void CompendiumAddTargetResolverFallsBackToFreeSlotWhenLegacySlotIsOccupiedByDifferentPersona()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, true, 0x2222, 13, 101, [1, 2, 3, 4, 5, 6, 7, 8], 11, 12, 13, 14, 15),
+            new(2, true, 0x4444, 14, 102, [1, 2, 3, 4, 5, 6, 7, 8], 12, 13, 14, 15, 16),
+            new(3, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+        ];
+
+        bool succeeded = MainWindow.TryResolveCompendiumPersonaAddTarget(
+            compendiumSlots,
+            3,
+            out int slotIndex,
+            out bool existingSlot,
+            out SaveDiagnostic? diagnostic);
+
+        Assert.True(succeeded);
+        Assert.Equal(3, slotIndex);
+        Assert.False(existingSlot);
+        Assert.Null(diagnostic);
+    }
+
+    [Fact]
+    public void CompendiumAddTargetResolverFailsWhenLegacySlotIsOccupiedByDifferentPersonaAndNoFreeSlotExists()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, true, 0x2222, 13, 101, [1, 2, 3, 4, 5, 6, 7, 8], 11, 12, 13, 14, 15),
+            new(2, true, 0x4444, 14, 102, [1, 2, 3, 4, 5, 6, 7, 8], 12, 13, 14, 15, 16),
+        ];
+
+        bool succeeded = MainWindow.TryResolveCompendiumPersonaAddTarget(
+            compendiumSlots,
+            3,
+            out int slotIndex,
+            out bool existingSlot,
+            out SaveDiagnostic? diagnostic);
+
+        Assert.False(succeeded);
+        Assert.Equal(-1, slotIndex);
+        Assert.False(existingSlot);
+        Assert.NotNull(diagnostic);
+        Assert.Equal("P4GWINUI027", diagnostic!.Code);
+        Assert.Equal("Compendium", diagnostic.Target);
+    }
+
+    [Fact]
+    public void CompendiumSelectionHelperAddsIntoPersonaIdSlotAndSelectsIt()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+            new(2, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+        ];
+
+        PersonaChoiceViewState selectedChoice = new(3, "New Persona");
         int selectedSlotIndex = -1;
         int editCallCount = 0;
         PersonaSlotEdit? appliedEdit = null;
@@ -236,18 +308,18 @@ public sealed class CompendiumSelectionTests
                 editCallCount++;
                 appliedEdit = personaSlotEdit;
                 appliedEditCaptured = true;
-                Assert.Equal(1, slotIndex);
+                Assert.Equal(2, slotIndex);
                 return new SaveEditorOperationResult(true, []);
             },
             slotIndex => selectedSlotIndex = slotIndex);
 
         Assert.True(result.Succeeded);
         Assert.Empty(result.Diagnostics);
-        Assert.Equal(1, selectedSlotIndex);
+        Assert.Equal(2, selectedSlotIndex);
         Assert.Equal(1, editCallCount);
         Assert.True(appliedEditCaptured);
         PersonaSlotEdit appliedEditValue = Assert.IsType<PersonaSlotEdit>(appliedEdit);
-        Assert.Equal(0xBEEF, appliedEditValue.PersonaId);
+        Assert.Equal((ushort)3, appliedEditValue.PersonaId);
         Assert.Equal((byte)1, appliedEditValue.Level);
         Assert.Equal((uint)0, appliedEditValue.TotalExperience);
         Assert.Equal([0, 0, 0, 0, 0, 0, 0, 0], appliedEditValue.SkillIds);
@@ -256,6 +328,41 @@ public sealed class CompendiumSelectionTests
         Assert.Equal((byte)1, appliedEditValue.Endurance);
         Assert.Equal((byte)1, appliedEditValue.Agility);
         Assert.Equal((byte)1, appliedEditValue.Luck);
+    }
+
+    [Fact]
+    public void CompendiumSelectionHelperAddsIntoFreeSlotWhenLegacySlotIsOccupiedByDifferentPersona()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, true, 0x2222, 13, 101, [1, 2, 3, 4, 5, 6, 7, 8], 11, 12, 13, 14, 15),
+            new(2, true, 0x4444, 14, 102, [1, 2, 3, 4, 5, 6, 7, 8], 12, 13, 14, 15, 16),
+            new(3, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+        ];
+
+        PersonaChoiceViewState selectedChoice = new(3, "New Persona");
+        int selectedSlotIndex = -1;
+        int editCallCount = 0;
+        int appliedSlotIndex = -1;
+
+        SaveEditorOperationResult result = MainWindow.SelectOrAddCompendiumPersonaCore(
+            compendiumSlots,
+            selectedChoice,
+            (slotIndex, personaSlotEdit) =>
+            {
+                editCallCount++;
+                appliedSlotIndex = slotIndex;
+                Assert.Equal((ushort)3, personaSlotEdit.PersonaId);
+                return new SaveEditorOperationResult(true, []);
+            },
+            slotIndex => selectedSlotIndex = slotIndex);
+
+        Assert.True(result.Succeeded);
+        Assert.Empty(result.Diagnostics);
+        Assert.Equal(3, selectedSlotIndex);
+        Assert.Equal(3, appliedSlotIndex);
+        Assert.Equal(1, editCallCount);
     }
 
     [Fact]
@@ -674,6 +781,91 @@ public sealed class CompendiumSelectionTests
     }
 
     [Fact]
+    public void CompendiumAddRefreshDoesNotRestoreDraftWhenSameSlotMutationChangesPersonaData()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, true, 0x2222, 13, 101, [1, 2, 3, 4, 5, 6, 7, 8], 11, 12, 13, 14, 15),
+            new(2, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+        ];
+
+        PersonaChoiceViewState selectedChoice = new(3, "New Persona");
+        int selectedSlotIndex = 2;
+
+        SaveEditorOperationResult addResult = MainWindow.SelectOrAddCompendiumPersonaCore(
+            compendiumSlots,
+            selectedChoice,
+            (_, _) => new SaveEditorOperationResult(true, []),
+            slotIndex => selectedSlotIndex = slotIndex);
+
+        Assert.True(addResult.Succeeded);
+        Assert.Empty(addResult.Diagnostics);
+        Assert.Equal(2, selectedSlotIndex);
+
+        MainWindow.CompendiumDraftState draft = new(
+            2,
+            0x1111,
+            "draft-xp",
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            0x2101,
+            0x2102,
+            0x2103,
+            0x2104,
+            0x2105,
+            0x2106,
+            0x2107,
+            0x2108);
+
+        ushort selectedPersonaId = 3;
+        string experienceText = "0";
+        double level = 1;
+        double strength = 1;
+        double magic = 1;
+        double endurance = 1;
+        double agility = 1;
+        double luck = 1;
+        ushort[] skillIds = [0, 0, 0, 0, 0, 0, 0, 0];
+
+        bool preserveSelectedCompendiumDraft = MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(
+            2,
+            selectedSlotIndex,
+            addResult.Succeeded,
+            compendiumSlots[2].PersonaId == selectedChoice.PersonaId);
+
+        Assert.False(preserveSelectedCompendiumDraft);
+
+        SimulateCompendiumDraftRefresh(
+            draft,
+            selectedSlotIndex,
+            ref selectedPersonaId,
+            ref experienceText,
+            ref level,
+            ref strength,
+            ref magic,
+            ref endurance,
+            ref agility,
+            ref luck,
+            skillIds,
+            preserveSelectedCompendiumDraft);
+
+        Assert.Equal((ushort)3, selectedPersonaId);
+        Assert.Equal("0", experienceText);
+        Assert.Equal(1d, level);
+        Assert.Equal(1d, strength);
+        Assert.Equal(1d, magic);
+        Assert.Equal(1d, endurance);
+        Assert.Equal(1d, agility);
+        Assert.Equal(1d, luck);
+        Assert.Equal(new[] { (ushort)0, (ushort)0, (ushort)0, (ushort)0, (ushort)0, (ushort)0, (ushort)0, (ushort)0 }, skillIds);
+    }
+
+    [Fact]
     public void CompendiumAddRefreshPreservesDraftWhenFullAddFailureLeavesSelectionStable()
     {
         IReadOnlyList<PersonaSlotViewState> compendiumSlots =
@@ -856,9 +1048,10 @@ public sealed class CompendiumSelectionTests
     [Fact]
     public void CompendiumDraftAfterSelectOrAddIsPreservedOnlyWhenSelectionContextIsStableOrMutationFails()
     {
-        Assert.True(MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(0, 0, true));
-        Assert.False(MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(0, 1, true));
-        Assert.True(MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(0, 1, false));
+        Assert.True(MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(0, 0, true, true));
+        Assert.False(MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(0, 0, true, false));
+        Assert.False(MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(0, 1, true, true));
+        Assert.True(MainWindow.ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(0, 1, false, false));
     }
 
     [Fact]
@@ -994,9 +1187,11 @@ public sealed class CompendiumSelectionTests
         ref double endurance,
         ref double agility,
         ref double luck,
-        ushort[] skillIds)
+        ushort[] skillIds,
+        bool preserveSelectedCompendiumDraft = true)
     {
-        if (!MainWindow.ShouldRestoreSelectedCompendiumDraft(draft, selectedCompendiumSlotIndexAfterRefresh))
+        if (!preserveSelectedCompendiumDraft ||
+            !MainWindow.ShouldRestoreSelectedCompendiumDraft(draft, selectedCompendiumSlotIndexAfterRefresh))
         {
             return;
         }

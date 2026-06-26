@@ -388,6 +388,9 @@ public sealed class SaveEditorViewModelTests
 
         ushort knownPersonaId = P4GCatalog.Personas[1].Id;
         IReadOnlyList<PersonaChoiceViewState> personaChoices = viewModel.GetPersonaChoices(knownPersonaId, out PersonaChoiceViewState selectedPersona);
+        Assert.Contains(personaChoices, static choice => choice.PersonaId == 0 && choice.Name == "Blank" && !choice.IsUnknown);
+        Assert.DoesNotContain(personaChoices, static choice => choice.PersonaId == 43);
+        Assert.DoesNotContain(personaChoices, static choice => choice.PersonaId == 52);
         Assert.Contains(personaChoices, static choice => choice.PersonaId == P4GCatalog.Personas[1].Id);
         Assert.Equal(knownPersonaId, selectedPersona.PersonaId);
         Assert.False(selectedPersona.IsUnknown);
@@ -397,10 +400,18 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal((ushort)0xDEAD, unknownPersona.PersonaId);
         Assert.Contains(unknownPersonaChoices, static choice => choice.PersonaId == 0xDEAD && choice.IsUnknown);
 
+        ushort knownSkillId = P4GCatalog.Skills[1].Id;
         IReadOnlyList<SkillChoiceViewState> skillChoices = viewModel.GetSkillChoices(0xBEEF, out SkillChoiceViewState unknownSkill);
+        Assert.DoesNotContain(skillChoices, static choice => choice.SkillId == 255);
+        Assert.DoesNotContain(skillChoices, static choice => choice.SkillId == 301);
         Assert.True(unknownSkill.IsUnknown);
         Assert.Equal((ushort)0xBEEF, unknownSkill.SkillId);
         Assert.Contains(skillChoices, static choice => choice.SkillId == 0xBEEF && choice.IsUnknown);
+
+        IReadOnlyList<SkillChoiceViewState> knownSkillChoices = viewModel.GetSkillChoices(knownSkillId, out SkillChoiceViewState selectedSkill);
+        Assert.Equal(knownSkillId, selectedSkill.SkillId);
+        Assert.False(selectedSkill.IsUnknown);
+        Assert.Contains(knownSkillChoices, choice => choice.SkillId == knownSkillId);
     }
 
     [Fact]

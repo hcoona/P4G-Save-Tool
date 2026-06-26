@@ -8,6 +8,22 @@ namespace P4G.SaveTool.Presentation;
 
 internal static class PersonaSelectionProjection
 {
+    private static readonly (ushort Start, ushort Length)[] legacyPersonaRanges =
+    [
+        (1, 42),
+        (44, 8),
+        (53, 127),
+        (182, 32),
+        (224, 26),
+    ];
+    private static readonly (ushort Start, ushort Length)[] legacySkillRanges =
+    [
+        (0, 255),
+        (259, 42),
+        (349, 46),
+        (440, 13),
+        (472, 151),
+    ];
     private static readonly ReadOnlyCollection<PersonaChoiceViewState> personas = CreatePersonaChoices();
     private static readonly ReadOnlyCollection<SkillChoiceViewState> skills = CreateSkillChoices();
 
@@ -31,11 +47,45 @@ internal static class PersonaSelectionProjection
     internal static IReadOnlyList<SkillChoiceViewState> GetSkillChoices(ushort currentSkillId, out SkillChoiceViewState selectedChoice) =>
         ResolveChoices(skills, currentSkillId, CreateUnknownSkillChoice, out selectedChoice);
 
-    private static ReadOnlyCollection<PersonaChoiceViewState> CreatePersonaChoices() =>
-        Array.AsReadOnly(P4GCatalog.Personas.Select(static persona => new PersonaChoiceViewState(persona.Id, persona.Name)).ToArray());
+    private static ReadOnlyCollection<PersonaChoiceViewState> CreatePersonaChoices()
+    {
+        List<PersonaChoiceViewState> choices = [new PersonaChoiceViewState(0, "Blank")];
+        AppendPersonaChoices(choices);
+        return Array.AsReadOnly(choices.ToArray());
+    }
 
-    private static ReadOnlyCollection<SkillChoiceViewState> CreateSkillChoices() =>
-        Array.AsReadOnly(P4GCatalog.Skills.Select(static skill => new SkillChoiceViewState(skill.Id, skill.Name)).ToArray());
+    private static ReadOnlyCollection<SkillChoiceViewState> CreateSkillChoices()
+    {
+        List<SkillChoiceViewState> choices = [];
+        AppendSkillChoices(choices);
+        return Array.AsReadOnly(choices.ToArray());
+    }
+
+    private static void AppendPersonaChoices(List<PersonaChoiceViewState> choices)
+    {
+        foreach ((ushort Start, ushort Length) in legacyPersonaRanges)
+        {
+            int end = Start + Length;
+            for (ushort personaId = Start; personaId < end; personaId++)
+            {
+                PersonaCatalogEntry persona = P4GCatalog.PersonasById[personaId];
+                choices.Add(new PersonaChoiceViewState(persona.Id, persona.Name));
+            }
+        }
+    }
+
+    private static void AppendSkillChoices(List<SkillChoiceViewState> choices)
+    {
+        foreach ((ushort Start, ushort Length) in legacySkillRanges)
+        {
+            int end = Start + Length;
+            for (ushort skillId = Start; skillId < end; skillId++)
+            {
+                SkillCatalogEntry skill = P4GCatalog.SkillsById[skillId];
+                choices.Add(new SkillChoiceViewState(skill.Id, skill.Name));
+            }
+        }
+    }
 
     private static IReadOnlyList<TChoice> ResolveChoices<TChoice>(
         ReadOnlyCollection<TChoice> choices,

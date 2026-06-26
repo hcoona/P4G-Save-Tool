@@ -48,6 +48,12 @@ public sealed class SaveApplicationService : ISaveApplicationService
         return new SaveOpenResult<WorkingSave>(save, openResult.Diagnostics);
     }
 
+    public SaveOpenResult<WorkingSave> CreateBlankSave()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        return Open(new byte[layout.MinimumLength]);
+    }
+
     public SaveEditResult<WorkingSave> ApplyEdits(WorkingSave save, IEnumerable<SaveEditCommand> edits)
     {
         ApplicationWorkingSave applicationSave = GetApplicationSave(save);

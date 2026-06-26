@@ -125,6 +125,23 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
+    public void CreateBlankSaveProducesWritableBlankState()
+    {
+        SaveApplicationService service = new();
+
+        SaveOpenResult<WorkingSave> result = ((ISaveApplicationService)service).CreateBlankSave();
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        WorkingSave save = Assert.IsAssignableFrom<WorkingSave>(result.Snapshot);
+        Assert.Equal(new SaveNames(string.Empty, string.Empty), save.State.Names);
+        Assert.Equal(0u, save.State.Yen);
+        Assert.All(save.State.PartyMembers, static member => Assert.Equal((byte)0, member.Value));
+        Assert.All(save.State.EquippedWeapons, static item => Assert.Equal((ushort)0, item));
+        Assert.All(save.State.SocialStats, static stat => Assert.Equal((ushort)0, stat));
+        Assert.Empty(save.State.SocialLinks);
+    }
+
+    [Fact]
     public void ApplyEditsAndWritePatchesSupportedFieldsOnly()
     {
         byte[] input = CreateSyntheticSave();

@@ -271,6 +271,26 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowLaunchOpenPathReportsPersistenceFailures()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string openBody = GetSection(
+            content,
+            "private async Task<BusyOperationCompletion> OpenSaveFileFromPathAsync(string path, string source)",
+            "private async void MainWindow_Loaded(object sender, RoutedEventArgs e)");
+        string helperBody = GetSection(
+            content,
+            "private static bool IsPersistenceException(Exception ex) =>",
+            "private static string FormatPersonaSlot(PersonaSlotViewState slot) =>");
+
+        Assert.Contains("catch (Exception ex) when (IsPersistenceException(ex))", openBody, StringComparison.Ordinal);
+        Assert.Contains("await ReportOpenFailureAsync(source, $\"Could not read the selected file: {ex.Message}\");", openBody, StringComparison.Ordinal);
+        Assert.Contains("ArgumentException", helperBody, StringComparison.Ordinal);
+        Assert.Contains("NotSupportedException", helperBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowXamlDeclaresSocialLinkEditingControls()
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
@@ -451,10 +471,17 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("ShouldPreserveSelectedCompendiumDraftAfterApply(edits)", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("if (forcePicker && !viewModel.HasSave)", saveBody, StringComparison.Ordinal);
+        Assert.Contains("SaveEditorOperationResult blankSaveResult = viewModel.CreateBlankSave();", saveBody, StringComparison.Ordinal);
+        Assert.Contains("if (!blankSaveResult.Succeeded)", saveBody, StringComparison.Ordinal);
+        Assert.Contains("RestoreNoSaveStateAfterFailedBlankSave(", saveBody, StringComparison.Ordinal);
         Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
-        Assert.Equal(5, Regex.Count(saveBody, Regex.Escape("return BusyOperationCompletion.PreserveEditorState;")));
+        Assert.Contains("if (string.IsNullOrWhiteSpace(targetPath))", saveBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft();", saveBody, StringComparison.Ordinal);
+        Assert.Contains("currentFilePath = targetPath;", saveBody, StringComparison.Ordinal);
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", saveBody, StringComparison.Ordinal);
-        Assert.Equal(3, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
+        Assert.Contains("return BusyOperationCompletion.PreserveEditorState;", saveBody, StringComparison.Ordinal);
+        Assert.Equal(4, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
         Assert.Contains("string inventoryQuantityDraft = InventoryQuantityTextBox.Text;", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDraftState? socialLinkDraft = CaptureSelectedSocialLinkDraft();", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumDraftState? compendiumDraft = preserveSelectedCompendiumDraft ? CaptureSelectedCompendiumDraft() : null;", inventoryRefreshBody, StringComparison.Ordinal);
@@ -464,6 +491,21 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("RestoreSelectedSocialLinkDraft(socialLinkDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("if (compendiumDraft is not null)", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("RestoreSelectedCompendiumDraft(compendiumDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowBlankSaveRollbackHelperClearsLoadedSaveBeforeRefreshingShellState()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string helperBody = GetSection(
+            content,
+            "private void RestoreNoSaveStateAfterFailedBlankSave(IReadOnlyList<SaveDiagnostic> diagnostics)",
+            "private async Task<string?> PickSavePathAsync()");
+
+        Assert.Contains("uiDiagnosticsOverride = diagnostics;", helperBody, StringComparison.Ordinal);
+        Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(() => viewModel.ClearSave());", helperBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshFromViewModel();", helperBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -482,7 +524,7 @@ public sealed class WinUIArchitectureTests
 
         Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
-        Assert.Equal(3, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
+        Assert.Equal(4, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
     }
 
     [Fact]
@@ -514,7 +556,7 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
-    public void MainWindowOpenAndResetClearSelectedSocialLinkLinkId()
+    public void MainWindowOpenAndResetClearsPersonaInventoryEquipmentAndSocialLinkState()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -527,8 +569,19 @@ public sealed class WinUIArchitectureTests
             "private void RefreshSocialLinksState()",
             "private void RefreshInventoryState()");
 
+        Assert.Contains("selectedInventoryCategoryId = null;", openBody, StringComparison.Ordinal);
+        Assert.Contains("selectedInventoryItemId = null;", openBody, StringComparison.Ordinal);
+        Assert.Contains("selectedInventoryEntryId = null;", openBody, StringComparison.Ordinal);
+        Assert.Contains("selectedEquipmentCharacterId = null;", openBody, StringComparison.Ordinal);
+        Assert.Contains("selectedPersonaMemberId = 0;", openBody, StringComparison.Ordinal);
+        Assert.Contains("selectedPersonaSlotIndex = 0;", openBody, StringComparison.Ordinal);
+        Assert.Contains("inventorySelectionState.Reset();", openBody, StringComparison.Ordinal);
+        Assert.Contains("autoSelectInventoryEntryAfterOpen = true;", openBody, StringComparison.Ordinal);
+        Assert.Contains("autoSelectCompendiumEntryAfterOpen = true;", openBody, StringComparison.Ordinal);
+        Assert.Contains("selectedCompendiumSlotIndex = null;", openBody, StringComparison.Ordinal);
         Assert.Contains("selectedSocialLinkIndex = null;", openBody, StringComparison.Ordinal);
         Assert.Contains("selectedSocialLinkLinkId = null;", openBody, StringComparison.Ordinal);
+        Assert.Contains("InventoryQuantityTextBox.Text = string.Empty;", openBody, StringComparison.Ordinal);
         Assert.Contains("ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);", refreshSocialLinksBody, StringComparison.Ordinal);
     }
 
@@ -549,6 +602,35 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentAccessoryComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentCostumeComboBox\"", xaml);
+    }
+
+    [Fact]
+    public void MainWindowXamlDeclaresShellChromeAndDragDropSurface()
+    {
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+
+        Assert.Contains("Loaded=\"MainWindow_Loaded\"", xaml);
+        Assert.Contains("AllowDrop=\"True\"", xaml);
+        Assert.Contains("DragOver=\"MainWindow_DragOver\"", xaml);
+        Assert.Contains("Drop=\"MainWindow_Drop\"", xaml);
+        Assert.Contains("<MenuBar>", xaml);
+        Assert.Contains("x:Name=\"FileOpenMenuItem\"", xaml);
+        Assert.Contains("Text=\"Open...\"", xaml);
+        Assert.Contains("Text=\"Save as...\"", xaml);
+        Assert.Contains("Text=\"About\"", xaml);
+        Assert.Contains("x:Name=\"AboutButton\"", xaml);
+    }
+
+    [Fact]
+    public void AboutDialogXamlExposesLegacyAboutSurface()
+    {
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "AboutDialog.xaml"));
+
+        Assert.Contains("Title=\"About Version 1.6.0\"", xaml);
+        Assert.Contains("NavigateUri=\"http://s15.zetaboards.com/Amicitia/index/\"", xaml);
+        Assert.Contains("NavigateUri=\"https://discord.gg/M3uGjsk\"", xaml);
+        Assert.Contains("NavigateUri=\"https://github.com/Fennec-kun/P4G-Save-Tool\"", xaml);
+        Assert.Contains("NavigateUri=\"https://henkaku.xyz\"", xaml);
     }
 
     [Fact]
@@ -639,6 +721,170 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("NextPhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState", content, StringComparison.Ordinal);
         Assert.Contains("RefreshSocialStatsState();", content, StringComparison.Ordinal);
         Assert.Contains("RefreshCalendarState();", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowSourceSupportsDropOpenAboutAndWindowTitleUpdates()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string dragOverBody = GetSection(
+            content,
+            "private async void MainWindow_DragOver(object sender, DragEventArgs e)",
+            "private async void MainWindow_Drop(object sender, DragEventArgs e)");
+        string dropBody = GetSection(
+            content,
+            "private async void MainWindow_Drop(object sender, DragEventArgs e)",
+            "private async Task<DataPackageOperation> EvaluateDragOverAcceptanceAsync(DataPackageView dataView)");
+        string saveBody = GetSection(
+            content,
+            "private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)",
+            "private async Task<string?> PickSavePathAsync()");
+        string shellStateBody = GetSection(
+            content,
+            "private void UpdateShellState()",
+            "private void RefreshSocialStatsState()");
+
+        Assert.Contains("private async void MainWindow_Loaded(object sender, RoutedEventArgs e)", content, StringComparison.Ordinal);
+        Assert.Contains("private async Task<DataPackageOperation> EvaluateDragOverAcceptanceAsync(DataPackageView dataView)", content, StringComparison.Ordinal);
+        Assert.Contains("if (isBusy)", dragOverBody, StringComparison.Ordinal);
+        Assert.True(
+            dragOverBody.IndexOf("if (isBusy)", StringComparison.Ordinal) <
+            dragOverBody.IndexOf("DragOperationDeferral deferral = e.GetDeferral();", StringComparison.Ordinal));
+        Assert.Contains("DragOperationDeferral deferral = e.GetDeferral();", dragOverBody, StringComparison.Ordinal);
+        Assert.Contains("DataPackageOperation acceptedOperation = await EvaluateDragOverAcceptanceAsync(e.DataView);", dragOverBody, StringComparison.Ordinal);
+        Assert.Contains("e.AcceptedOperation = acceptedOperation;", dragOverBody, StringComparison.Ordinal);
+        Assert.Contains("e.AcceptedOperation = DataPackageOperation.None;", dragOverBody, StringComparison.Ordinal);
+        Assert.True(
+            dragOverBody.IndexOf("DataPackageOperation acceptedOperation = await EvaluateDragOverAcceptanceAsync(e.DataView);", StringComparison.Ordinal) <
+            dragOverBody.IndexOf("if (isBusy)", dragOverBody.IndexOf("DataPackageOperation acceptedOperation = await EvaluateDragOverAcceptanceAsync(e.DataView);", StringComparison.Ordinal), StringComparison.Ordinal));
+        Assert.True(
+            dragOverBody.IndexOf("if (isBusy)", dragOverBody.IndexOf("DataPackageOperation acceptedOperation = await EvaluateDragOverAcceptanceAsync(e.DataView);", StringComparison.Ordinal), StringComparison.Ordinal) <
+            dragOverBody.IndexOf("e.AcceptedOperation = acceptedOperation;", StringComparison.Ordinal));
+        Assert.DoesNotContain("dragOverAcceptanceTask", dragOverBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", dragOverBody, StringComparison.Ordinal);
+        Assert.Contains("try", dropBody, StringComparison.Ordinal);
+        Assert.Contains("IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();", dropBody, StringComparison.Ordinal);
+        Assert.Contains("if (isBusy)", dropBody, StringComparison.Ordinal);
+        Assert.Contains("ShellDragDropHelper.TryGetOpenablePath(items.OfType<StorageFile>().Select(file => file.Path), out string openPath)", dropBody, StringComparison.Ordinal);
+        Assert.Contains("await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, \"Drop\"));", dropBody, StringComparison.Ordinal);
+        Assert.Contains("catch (Exception ex)", dropBody, StringComparison.Ordinal);
+        Assert.Contains("await ReportOpenFailureAsync(\"Drop\", $\"Could not read the dropped file: {ex.Message}\");", dropBody, StringComparison.Ordinal);
+        Assert.Contains("private async Task<BusyOperationCompletion> OpenSaveFileFromPathAsync(", content, StringComparison.Ordinal);
+        Assert.Contains("private async Task ShowAboutDialogAsync()", content, StringComparison.Ordinal);
+        Assert.Contains("AboutDialog dialog = new();", content, StringComparison.Ordinal);
+        Assert.Contains("dialog.XamlRoot = root.XamlRoot;", content, StringComparison.Ordinal);
+        Assert.Contains("UpdateWindowTitle();", saveBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateWindowTitle();", shellStateBody, StringComparison.Ordinal);
+        Assert.Contains("Title = ShellStateFormatter.GetWindowTitle(currentFilePath);", content, StringComparison.Ordinal);
+        Assert.Contains("FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);", content, StringComparison.Ordinal);
+        Assert.Contains("StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite);", content, StringComparison.Ordinal);
+        Assert.Contains("FileOpenMenuItem.IsEnabled = !isBusy;", shellStateBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowSourceUsesLaunchArgumentAndDragDropHelpers()
+    {
+        string appSourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "App.xaml.cs");
+        string appContent = File.ReadAllText(appSourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowSourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string mainWindowContent = File.ReadAllText(mainWindowSourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string dragOverBody = GetSection(
+            mainWindowContent,
+            "private async void MainWindow_DragOver(object sender, DragEventArgs e)",
+            "private async void MainWindow_Drop(object sender, DragEventArgs e)");
+
+        Assert.Contains("LaunchArgumentParser.GetOpenPath(args.Arguments)", appContent, StringComparison.Ordinal);
+        Assert.Contains("new MainWindow(openPath)", appContent, StringComparison.Ordinal);
+        Assert.Contains("private async void OpenButton_Click(object sender, RoutedEventArgs e) =>", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("private async void SaveAsButton_Click(object sender, RoutedEventArgs e) =>", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("bool canSaveAs = !isBusy;", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("SaveAsButton.IsEnabled = canSaveAs;", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("FileSaveMenuItem.IsEnabled = canSave;", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("FileSaveAsMenuItem.IsEnabled = canSaveAs;", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("SaveButton.IsEnabled = canSave;", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("private async void MainWindow_DragOver(object sender, DragEventArgs e)", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("if (isBusy)", dragOverBody, StringComparison.Ordinal);
+        Assert.True(
+            dragOverBody.IndexOf("if (isBusy)", StringComparison.Ordinal) <
+            dragOverBody.IndexOf("DragOperationDeferral deferral = e.GetDeferral();", StringComparison.Ordinal));
+        Assert.Contains("DragOperationDeferral deferral = e.GetDeferral();", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("DataPackageOperation acceptedOperation = await EvaluateDragOverAcceptanceAsync(e.DataView);", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("if (isBusy)", dragOverBody, StringComparison.Ordinal);
+        Assert.Contains("private async void MainWindow_Drop(object sender, DragEventArgs e)", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("ShellDragDropHelper.TryGetOpenablePath(items.OfType<StorageFile>().Select(file => file.Path), out string openPath)", mainWindowContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", mainWindowContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("dragOverAcceptanceTask", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("await ReportOpenFailureAsync(\"Drop\", $\"Could not read the dropped file: {ex.Message}\");", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("ShellStateFormatter.GetWindowTitle(currentFilePath)", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("ShellStateFormatter.GetFilePathText(currentFilePath)", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite)", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("ShellStateFormatter.GetDiagnosticsText(diagnostics)", mainWindowContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowXamlWiresSaveAndAboutMenuAndButtons()
+    {
+        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("<MenuBar>", content, StringComparison.Ordinal);
+        Assert.Contains("<MenuFlyoutItem x:Name=\"FileOpenMenuItem\" Text=\"Open...\" Click=\"OpenButton_Click\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<MenuFlyoutItem x:Name=\"FileSaveMenuItem\" Text=\"Save\" Click=\"SaveButton_Click\" IsEnabled=\"False\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<MenuFlyoutItem x:Name=\"FileSaveAsMenuItem\" Text=\"Save as...\" Click=\"SaveAsButton_Click\" IsEnabled=\"False\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<MenuFlyoutItem Text=\"About\" Click=\"About_Click\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<Button x:Name=\"OpenButton\" Content=\"Open save...\" Click=\"OpenButton_Click\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<Button x:Name=\"SaveButton\" Content=\"Save\" Click=\"SaveButton_Click\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<Button x:Name=\"SaveAsButton\" Content=\"Save as...\" Click=\"SaveAsButton_Click\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<Button x:Name=\"AboutButton\" Content=\"About\" Click=\"About_Click\" />", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AboutDialogXamlExposesLegacyBodyCopyAndChrome()
+    {
+        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "AboutDialog.xaml");
+        string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("Title=\"About Version 1.6.0\"", content, StringComparison.Ordinal);
+        Assert.Contains("CloseButtonText=\"OK\"", content, StringComparison.Ordinal);
+        Assert.Contains("DefaultButton=\"Close\"", content, StringComparison.Ordinal);
+        Assert.Contains("Written by Fennec-kun with aid from TGE, Shrinefox, and Pan from", content, StringComparison.Ordinal);
+        Assert.Contains("You can contact us live in our Discord server!", content, StringComparison.Ordinal);
+        Assert.Contains("Special thanks to you guys who report issues on my GitHub!", content, StringComparison.Ordinal);
+        Assert.Contains("This was made possible by", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowSourceHandlesDragDropAcceptanceAndPathRejection()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("private async Task<DataPackageOperation> EvaluateDragOverAcceptanceAsync(DataPackageView dataView)", content, StringComparison.Ordinal);
+        Assert.Contains("DragOperationDeferral deferral = e.GetDeferral();", content, StringComparison.Ordinal);
+        Assert.Contains("DataPackageOperation acceptedOperation = await EvaluateDragOverAcceptanceAsync(e.DataView);", content, StringComparison.Ordinal);
+        Assert.Contains("if (isBusy)", content, StringComparison.Ordinal);
+        Assert.Contains("e.AcceptedOperation = DataPackageOperation.None;", content, StringComparison.Ordinal);
+        Assert.Contains("if (!e.DataView.Contains(StandardDataFormats.StorageItems))", content, StringComparison.Ordinal);
+        Assert.Contains("IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();", content, StringComparison.Ordinal);
+        Assert.Contains("ShellDragDropHelper.TryGetOpenablePath(items.OfType<StorageFile>().Select(file => file.Path), out string openPath)", content, StringComparison.Ordinal);
+        Assert.Contains("await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, \"Drop\"));", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowSourceFormatsShellTitleStatusAndDiagnosticsReset()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("private async void MainWindow_Loaded(object sender, RoutedEventArgs e)", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (File.Exists(openPath))", content, StringComparison.Ordinal);
+        Assert.Contains("await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, \"Launch\"));", content, StringComparison.Ordinal);
+        Assert.Contains("FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);", content, StringComparison.Ordinal);
+        Assert.Contains("StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite);", content, StringComparison.Ordinal);
+        Assert.Contains("DiagnosticsListView.ItemsSource = ShellStateFormatter.GetDiagnosticsText(diagnostics);", content, StringComparison.Ordinal);
+        Assert.Contains("Title = ShellStateFormatter.GetWindowTitle(currentFilePath);", content, StringComparison.Ordinal);
     }
 
     [Fact]

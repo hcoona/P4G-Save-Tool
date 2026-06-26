@@ -218,26 +218,60 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public SaveEditorOperationResult OpenSave(ReadOnlyMemory<byte> bytes)
     {
-        SaveOpenResult<WorkingSave> result = saveApplicationService.Open(bytes);
+        return LoadSave(saveApplicationService.Open(bytes));
+    }
 
-        if (!result.Succeeded || result.Snapshot is null)
+    public SaveEditorOperationResult CreateBlankSave()
+    {
+        if (HasSave)
         {
-            SetDiagnostics(result.Diagnostics);
-            return new SaveEditorOperationResult(false, result.Diagnostics);
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
         }
 
-        workingSave = result.Snapshot;
-        lastPersistedState = result.Snapshot.State;
+        return LoadSave(saveApplicationService.CreateBlankSave());
+    }
+
+    public SaveEditorOperationResult ClearSave()
+    {
+        workingSave = null;
+        lastPersistedState = null;
         pendingSerializedSave = null;
-        ProjectionChange projectionChange = ProjectStateBacking(result.Snapshot.State);
-        bool isDirtyChanged = SetDirtyStateBacking(false);
-        SetDiagnosticsBacking(result.Diagnostics, DiagnosticScope.General, null);
+        familyName = string.Empty;
+        givenName = string.Empty;
+        yen = 0;
+        partyMembers = EmptyPartyMembers;
+        partyMemberChoices = EmptyPartyMemberChoices;
+        protagonistPersonaSlots = EmptyPersonaSlots;
+        partyPersonaSlots = EmptyPersonaSlots;
+        compendiumPersonaSlots = EmptyPersonaSlots;
+        inventoryEntries = EmptyInventoryStacks;
+        equipmentCharacters = EmptyEquipmentCharacters;
+        socialStats = EmptySocialStats;
+        socialLinks = EmptySocialLinks;
+        calendar = new CalendarViewState(0, 0, 0, 0);
+        SetDirtyStateBacking(false);
+        SetDiagnosticsBacking([], DiagnosticScope.General, null);
 
-        NotifyProjectionChanged(projectionChange);
         OnPropertyChanged(nameof(HasSave));
-        NotifyLifecycleStateChanged(isDirtyChanged, canWriteChanged: true, diagnosticsChanged: true);
+        OnPropertyChanged(nameof(CanWrite));
+        OnPropertyChanged(nameof(IsDirty));
+        NotifyProjectionChanged(
+            ProjectionChange.FamilyName |
+            ProjectionChange.GivenName |
+            ProjectionChange.Yen |
+            ProjectionChange.PartyMembers |
+            ProjectionChange.PartyMemberChoices |
+            ProjectionChange.EquipmentCharacters |
+            ProjectionChange.SocialStats |
+            ProjectionChange.Calendar |
+            ProjectionChange.ProtagonistPersonaSlots |
+            ProjectionChange.PartyPersonaSlots |
+            ProjectionChange.CompendiumPersonaSlots |
+            ProjectionChange.InventoryEntries |
+            ProjectionChange.SocialLinks);
+        NotifyDiagnosticsChanged();
 
-        return new SaveEditorOperationResult(true, result.Diagnostics);
+        return new SaveEditorOperationResult(true, []);
     }
 
     public SaveEditorOperationResult SetNames(string familyName, string givenName)
@@ -288,6 +322,28 @@ public sealed class SaveEditorViewModel : ViewModelBase
         }
 
         return ApplyEdits(edits);
+    }
+
+    private SaveEditorOperationResult LoadSave(SaveOpenResult<WorkingSave> result)
+    {
+        if (!result.Succeeded || result.Snapshot is null)
+        {
+            SetDiagnostics(result.Diagnostics);
+            return new SaveEditorOperationResult(false, result.Diagnostics);
+        }
+
+        workingSave = result.Snapshot;
+        lastPersistedState = result.Snapshot.State;
+        pendingSerializedSave = null;
+        ProjectionChange projectionChange = ProjectStateBacking(result.Snapshot.State);
+        bool isDirtyChanged = SetDirtyStateBacking(false);
+        SetDiagnosticsBacking(result.Diagnostics, DiagnosticScope.General, null);
+
+        NotifyProjectionChanged(projectionChange);
+        OnPropertyChanged(nameof(HasSave));
+        NotifyLifecycleStateChanged(isDirtyChanged, canWriteChanged: true, diagnosticsChanged: true);
+
+        return new SaveEditorOperationResult(true, result.Diagnostics);
     }
 
     public SaveEditorOperationResult SetPartyMember(int slotIndex, PartyMemberId memberId) =>

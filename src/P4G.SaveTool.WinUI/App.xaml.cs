@@ -11,7 +11,8 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        window = new MainWindow();
+        string? openPath = LaunchArgumentParser.GetOpenPath(args.Arguments);
+        window = new MainWindow(openPath);
         window.Activate();
     }
 }

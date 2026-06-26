@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+  x:Class="P4G.SaveTool.WinUI.AboutDialog"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="d"
+  Title="About Version 1.6.0"
+  CloseButtonText="OK"
+  DefaultButton="Close">
+
+  <StackPanel Spacing="10" MaxWidth="480">
+    <TextBlock Text="Written by Fennec-kun with aid from TGE, Shrinefox, and Pan from" TextWrapping="Wrap" TextAlignment="Center" />
+    <HyperlinkButton Content="Amicitia" NavigateUri="http://s15.zetaboards.com/Amicitia/index/" HorizontalAlignment="Center" />
+    <TextBlock Text="You can contact us live in our Discord server!" TextWrapping="Wrap" TextAlignment="Center" />
+    <HyperlinkButton Content="https://discord.gg/M3uGjsk" NavigateUri="https://discord.gg/M3uGjsk" HorizontalAlignment="Center" />
+    <TextBlock Text="Special thanks to you guys who report issues on my GitHub!" TextWrapping="Wrap" TextAlignment="Center" FontSize="12" />
+    <HyperlinkButton Content="GitHub" NavigateUri="https://github.com/Fennec-kun/P4G-Save-Tool" HorizontalAlignment="Center" />
+    <TextBlock Text="This was made possible by" TextWrapping="Wrap" TextAlignment="Center" />
+    <HyperlinkButton Content="HENkaku.xyz" NavigateUri="https://henkaku.xyz" HorizontalAlignment="Center" />
+  </StackPanel>
+</ContentDialog>

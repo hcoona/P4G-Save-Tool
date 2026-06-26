@@ -1217,6 +1217,72 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void CreateBlankSaveLoadsDefaultStateAndCanWrite()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult result = viewModel.CreateBlankSave();
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        Assert.True(viewModel.HasSave);
+        Assert.True(viewModel.CanWrite);
+        Assert.False(viewModel.IsDirty);
+        Assert.Equal(string.Empty, viewModel.FamilyName);
+        Assert.Equal(string.Empty, viewModel.GivenName);
+        Assert.Equal(0u, viewModel.Yen);
+        Assert.Equal(1, service.CreateBlankSaveCalls);
+        Assert.Empty(viewModel.Diagnostics);
+    }
+
+    [Fact]
+    public void CreateBlankSaveCanBePersistedSuccessfully()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+            WriteHandler = _ => SaveWriteResult.Success([0x1, 0x2, 0x3]),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult createResult = viewModel.CreateBlankSave();
+        SaveEditorWriteResult writeResult = viewModel.WriteSave();
+        SaveEditorWriteToken writeToken = AssertOperationToken(writeResult);
+        SaveEditorOperationResult acknowledgeResult = viewModel.AcknowledgeSaved(writeToken);
+
+        Assert.True(createResult.Succeeded, FormatDiagnostics(createResult.Diagnostics));
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        Assert.True(acknowledgeResult.Succeeded, FormatDiagnostics(acknowledgeResult.Diagnostics));
+        Assert.Equal(new byte[] { 0x1, 0x2, 0x3 }, writeResult.Bytes);
+        Assert.True(viewModel.HasSave);
+        Assert.True(viewModel.CanWrite);
+        Assert.False(viewModel.IsDirty);
+        Assert.Equal(1, service.CreateBlankSaveCalls);
+        Assert.Single(service.WrittenSaves);
+        Assert.Empty(viewModel.Diagnostics);
+    }
+
+    [Fact]
+    public void ClearSaveResetsBlankSaveStateToNoOpenSave()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.CreateBlankSave();
+
+        SaveEditorOperationResult result = viewModel.ClearSave();
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        AssertNoOpenSaveState(viewModel);
+        Assert.Equal(1, service.CreateBlankSaveCalls);
+    }
+
+    [Fact]
     public void EditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
     {
         FakeSaveApplicationService service = new()
@@ -2403,17 +2469,44 @@ public sealed class SaveEditorViewModelTests
         }
     }
 
+    private static void AssertNoOpenSaveState(SaveEditorViewModel viewModel)
+    {
+        Assert.False(viewModel.HasSave);
+        Assert.False(viewModel.CanWrite);
+        Assert.False(viewModel.IsDirty);
+        Assert.Equal(string.Empty, viewModel.FamilyName);
+        Assert.Equal(string.Empty, viewModel.GivenName);
+        Assert.Equal(0u, viewModel.Yen);
+        Assert.Empty(viewModel.PartyMembers);
+        Assert.Empty(viewModel.PartyMemberChoices);
+        Assert.Empty(viewModel.ProtagonistPersonaSlots);
+        Assert.Empty(viewModel.PartyPersonaSlots);
+        Assert.Empty(viewModel.CompendiumPersonaSlots);
+        Assert.Empty(viewModel.InventoryEntries);
+        Assert.Empty(viewModel.EquipmentCharacters);
+        Assert.Empty(viewModel.SocialStats);
+        Assert.Empty(viewModel.SocialLinks);
+        Assert.Equal(new CalendarViewState(0, 0, 0, 0), viewModel.Calendar);
+        Assert.Empty(viewModel.Diagnostics);
+        Assert.False(viewModel.HasDiagnostics);
+        Assert.False(viewModel.HasErrors);
+    }
+
     private sealed class FakeWorkingSave(WorkingSaveState state) : WorkingSave(state);
 
     private sealed class FakeSaveApplicationService : ISaveApplicationService
     {
         public Func<ReadOnlyMemory<byte>, SaveOpenResult<WorkingSave>>? OpenHandler { get; init; }
 
+        public Func<SaveOpenResult<WorkingSave>>? CreateBlankSaveHandler { get; init; }
+
         public Func<WorkingSave, IEnumerable<SaveEditCommand>, SaveEditResult<WorkingSave>>? ApplyEditsHandler { get; init; }
 
         public Func<WorkingSave, SaveWriteResult>? WriteHandler { get; init; }
 
         public List<byte[]> OpenInputs { get; } = [];
+
+        public int CreateBlankSaveCalls { get; private set; }
 
         public List<SaveEditCommand[]> AppliedEdits { get; } = [];
 
@@ -2425,6 +2518,14 @@ public sealed class SaveEditorViewModelTests
             return OpenHandler is null
                 ? new SaveOpenResult<WorkingSave>(null, [new SaveDiagnostic(DiagnosticSeverity.Error, "FAKE001", "No open handler.", "Fake")])
                 : OpenHandler(bytes);
+        }
+
+        public SaveOpenResult<WorkingSave> CreateBlankSave()
+        {
+            CreateBlankSaveCalls++;
+            return CreateBlankSaveHandler is null
+                ? new SaveOpenResult<WorkingSave>(null, [new SaveDiagnostic(DiagnosticSeverity.Error, "FAKE003", "No blank-save handler.", "Fake")])
+                : CreateBlankSaveHandler();
         }
 
         public SaveEditResult<WorkingSave> ApplyEdits(WorkingSave save, IEnumerable<SaveEditCommand> edits)

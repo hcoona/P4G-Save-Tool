@@ -1,10 +1,12 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using P4G.SaveTool.Application;
 using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Presentation;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
@@ -22,6 +24,7 @@ public sealed partial class MainWindow : Window
     private readonly SaveEditorViewModel viewModel;
     private readonly InventorySelectionState inventorySelectionState = new();
     private readonly SaveEditorRefreshCoordinator saveEditorRefreshCoordinator = new();
+    private string? startupOpenPath;
     private IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride;
     private string? currentFilePath;
     private bool isBusy;
@@ -44,8 +47,9 @@ public sealed partial class MainWindow : Window
     private byte? selectedPersonaMemberId;
     private int selectedPersonaSlotIndex;
 
-    public MainWindow()
+    public MainWindow(string? startupOpenPath = null)
     {
+        this.startupOpenPath = startupOpenPath;
         InitializeComponent();
 
         viewModel = new SaveEditorViewModel(new SaveApplicationService());
@@ -66,6 +70,9 @@ public sealed partial class MainWindow : Window
 
     private async void SaveAsButton_Click(object sender, RoutedEventArgs e) =>
         await RunBusyAsync(() => SaveAsync(forcePicker: true));
+
+    private async void About_Click(object sender, RoutedEventArgs e) =>
+        await ShowAboutDialogAsync();
 
     internal readonly record struct SocialLinkDraftState(
         int SlotIndex,
@@ -164,55 +171,65 @@ public sealed partial class MainWindow : Window
         StorageFile? file = await picker.PickSingleFileAsync();
         if (file is null)
         {
-            return BusyOperationCompletion.RefreshViewModel;
+            return BusyOperationCompletion.PreserveEditorState;
         }
 
         if (string.IsNullOrWhiteSpace(file.Path))
         {
             SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI001", "The selected file does not expose a local path.", "Open")]);
-            return BusyOperationCompletion.RefreshViewModel;
+            return BusyOperationCompletion.PreserveEditorState;
+        }
+
+        return await OpenSaveFileFromPathAsync(file.Path, "Open");
+    }
+
+    private async Task<BusyOperationCompletion> OpenSaveFileFromPathAsync(string path, string source)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI001", "The selected file does not expose a local path.", source)]);
+            return BusyOperationCompletion.PreserveEditorState;
         }
 
         try
         {
-            byte[] bytes = await File.ReadAllBytesAsync(file.Path);
+            byte[] bytes = await File.ReadAllBytesAsync(path);
             uiDiagnosticsOverride = null;
-            SaveEditorOperationResult result = viewModel.OpenSave(bytes);
-            if (result.Succeeded)
-            {
-                currentFilePath = file.Path;
-                selectedInventoryCategoryId = null;
-                selectedInventoryItemId = null;
-                selectedInventoryEntryId = null;
-                selectedEquipmentCharacterId = null;
-                selectedCompendiumSlotIndex = null;
-                selectedSocialLinkIndex = null;
-                selectedSocialLinkLinkId = null;
-                selectedPersonaMemberId = 0;
-                selectedPersonaSlotIndex = 0;
-                inventorySelectionState.Reset();
-                autoSelectInventoryEntryAfterOpen = true;
-                autoSelectCompendiumEntryAfterOpen = true;
-                InventoryQuantityTextBox.Text = string.Empty;
-            }
+            SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+                () => viewModel.OpenSave(bytes));
+            ApplyOpenResult(
+                result.Succeeded,
+                () =>
+                {
+                    currentFilePath = path;
+                    selectedInventoryCategoryId = null;
+                    selectedInventoryItemId = null;
+                    selectedInventoryEntryId = null;
+                    selectedEquipmentCharacterId = null;
+                    selectedCompendiumSlotIndex = null;
+                    selectedSocialLinkIndex = null;
+                    selectedSocialLinkLinkId = null;
+                    selectedPersonaMemberId = 0;
+                    selectedPersonaSlotIndex = 0;
+                    inventorySelectionState.Reset();
+                    autoSelectInventoryEntryAfterOpen = true;
+                    autoSelectCompendiumEntryAfterOpen = true;
+                    InventoryQuantityTextBox.Text = string.Empty;
+                    RefreshFromViewModel();
+                },
+                UpdateShellState);
 
-            RefreshFromViewModel();
             if (!result.Succeeded)
             {
                 await ShowMessageAsync("Open failed", FormatDiagnostics(result.Diagnostics));
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (IsPersistenceException(ex))
         {
-            IReadOnlyList<SaveDiagnostic> diagnostics =
-            [
-                CreateUiDiagnostic("P4GWINUI002", $"Could not read the selected file: {ex.Message}", "Open"),
-            ];
-            SetUiDiagnostics(diagnostics);
-            await ShowMessageAsync("Open failed", FormatDiagnostics(diagnostics));
+            await ReportOpenFailureAsync(source, $"Could not read the selected file: {ex.Message}");
         }
 
-        return BusyOperationCompletion.RefreshViewModel;
+        return BusyOperationCompletion.PreserveEditorState;
     }
 
     private bool ApplyEditorFields()
@@ -250,28 +267,62 @@ public sealed partial class MainWindow : Window
 
     private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)
     {
-        if (!ApplyEditorFields())
+        string? targetPath;
+        bool blankSaveLoaded = false;
+        if (forcePicker && !viewModel.HasSave)
         {
-            return BusyOperationCompletion.PreserveEditorState;
-        }
+            targetPath = await PickSavePathAsync();
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                return BusyOperationCompletion.PreserveEditorState;
+            }
 
-        string? targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)
-            ? await PickSavePathAsync()
-            : currentFilePath;
-        if (string.IsNullOrWhiteSpace(targetPath))
+            uiDiagnosticsOverride = null;
+            SaveEditorOperationResult blankSaveResult = viewModel.CreateBlankSave();
+            if (!blankSaveResult.Succeeded)
+            {
+                DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+                await ShowMessageAsync("Save failed", FormatDiagnostics(blankSaveResult.Diagnostics));
+                return BusyOperationCompletion.PreserveEditorState;
+            }
+
+            blankSaveLoaded = true;
+        }
+        else
         {
-            return BusyOperationCompletion.PreserveEditorState;
+            if (!ApplyEditorFields())
+            {
+                return BusyOperationCompletion.PreserveEditorState;
+            }
+
+            targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)
+                ? await PickSavePathAsync()
+                : currentFilePath;
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                return BusyOperationCompletion.PreserveEditorState;
+            }
         }
 
         uiDiagnosticsOverride = null;
         SaveEditorWriteResult writeResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
             () => viewModel.WriteSave());
-        RefreshFromViewModelPreservingInventoryQuantityDraft();
         if (!writeResult.Succeeded || writeResult.Bytes is null || writeResult.OperationToken is null)
         {
+            if (blankSaveLoaded)
+            {
+                RestoreNoSaveStateAfterFailedBlankSave(writeResult.Diagnostics);
+            }
+            else
+            {
+                RefreshFromViewModelPreservingInventoryQuantityDraft();
+            }
+
             await ShowMessageAsync("Save failed", FormatDiagnostics(writeResult.Diagnostics));
             return BusyOperationCompletion.PreserveEditorState;
         }
+
+        RefreshFromViewModelPreservingInventoryQuantityDraft();
 
         SaveEditorWriteToken operationToken = writeResult.OperationToken.Value;
         try
@@ -286,12 +337,21 @@ public sealed partial class MainWindow : Window
             ];
             SaveEditorOperationResult reportResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
                 () => viewModel.ReportSaveFailed(operationToken, diagnostics));
-            RefreshFromViewModelPreservingInventoryQuantityDraft();
+            if (blankSaveLoaded)
+            {
+                RestoreNoSaveStateAfterFailedBlankSave(reportResult.Diagnostics);
+            }
+            else
+            {
+                RefreshFromViewModelPreservingInventoryQuantityDraft();
+            }
+
             await ShowMessageAsync("Save failed", FormatDiagnostics(reportResult.Diagnostics));
             return BusyOperationCompletion.PreserveEditorState;
         }
 
         currentFilePath = targetPath;
+        UpdateWindowTitle();
         SaveEditorOperationResult acknowledgeResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
             () => viewModel.AcknowledgeSaved(operationToken));
         RefreshFromViewModelPreservingInventoryQuantityDraft();
@@ -301,6 +361,13 @@ public sealed partial class MainWindow : Window
         }
 
         return BusyOperationCompletion.PreserveEditorState;
+    }
+
+    private void RestoreNoSaveStateAfterFailedBlankSave(IReadOnlyList<SaveDiagnostic> diagnostics)
+    {
+        uiDiagnosticsOverride = diagnostics;
+        saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(() => viewModel.ClearSave());
+        RefreshFromViewModel();
     }
 
     private async Task<string?> PickSavePathAsync()
@@ -330,6 +397,94 @@ public sealed partial class MainWindow : Window
 
         SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI005", "The selected save target does not expose a local path.", "Save")]);
         return null;
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        UpdateWindowTitle();
+
+        if (string.IsNullOrWhiteSpace(startupOpenPath))
+        {
+            return;
+        }
+
+        string openPath = startupOpenPath;
+        startupOpenPath = null;
+
+        await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, "Launch"));
+    }
+
+    private async void MainWindow_DragOver(object sender, DragEventArgs e)
+    {
+        if (isBusy)
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+            return;
+        }
+
+        if (!e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+            return;
+        }
+
+        DragOperationDeferral deferral = e.GetDeferral();
+        try
+        {
+            DataPackageOperation acceptedOperation = await EvaluateDragOverAcceptanceAsync(e.DataView);
+            if (isBusy)
+            {
+                e.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            e.AcceptedOperation = acceptedOperation;
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    private async void MainWindow_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
+            if (isBusy)
+            {
+                return;
+            }
+
+            if (!ShellDragDropHelper.TryGetOpenablePath(items.OfType<StorageFile>().Select(file => file.Path), out string openPath))
+            {
+                return;
+            }
+
+            await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, "Drop"));
+        }
+        catch (Exception ex)
+        {
+            await ReportOpenFailureAsync("Drop", $"Could not read the dropped file: {ex.Message}");
+        }
+    }
+
+    private async Task<DataPackageOperation> EvaluateDragOverAcceptanceAsync(DataPackageView dataView)
+    {
+        try
+        {
+            IReadOnlyList<IStorageItem> items = await dataView.GetStorageItemsAsync();
+            return ShellDragDropHelper.GetAcceptedDragOperation(items.OfType<StorageFile>().Select(file => file.Path));
+        }
+        catch
+        {
+            return DataPackageOperation.None;
+        }
     }
 
     private bool TryBuildEditBatch(
@@ -1135,11 +1290,15 @@ public sealed partial class MainWindow : Window
     {
         bool canEdit = viewModel.HasSave && !isBusy;
         bool canSave = canEdit && viewModel.CanWrite;
+        bool canSaveAs = !isBusy;
 
+        FileOpenMenuItem.IsEnabled = !isBusy;
         OpenButton.IsEnabled = !isBusy;
         ApplyButton.IsEnabled = canEdit;
         SaveButton.IsEnabled = canSave;
-        SaveAsButton.IsEnabled = canSave;
+        SaveAsButton.IsEnabled = canSaveAs;
+        FileSaveMenuItem.IsEnabled = canSave;
+        FileSaveAsMenuItem.IsEnabled = canSaveAs;
         FamilyNameTextBox.IsEnabled = canEdit;
         GivenNameTextBox.IsEnabled = canEdit;
         YenTextBox.IsEnabled = canEdit;
@@ -1196,12 +1355,9 @@ public sealed partial class MainWindow : Window
         InventoryAddUpdateButton.IsEnabled = canEdit && selectedInventoryItemId.HasValue;
         InventoryDeleteButton.IsEnabled = canEdit && selectedInventoryEntryId.HasValue && selectedInventoryItemId.HasValue;
 
-        FilePathTextBlock.Text = string.IsNullOrWhiteSpace(currentFilePath)
-            ? "No save file is open."
-            : currentFilePath;
-        StateTextBlock.Text = string.Create(
-            CultureInfo.InvariantCulture,
-            $"Has save: {FormatBoolean(viewModel.HasSave)} | Dirty: {FormatBoolean(viewModel.IsDirty)} | Can write: {FormatBoolean(viewModel.CanWrite)}");
+        FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);
+        StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite);
+        UpdateWindowTitle();
     }
 
     private void RefreshSocialStatsState()
@@ -2382,9 +2538,7 @@ public sealed partial class MainWindow : Window
 
     private void DisplayDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)
     {
-        DiagnosticsListView.ItemsSource = diagnostics.Count == 0
-            ? new[] { "No diagnostics." }
-            : diagnostics.Select(FormatDiagnostic).ToArray();
+        DiagnosticsListView.ItemsSource = ShellStateFormatter.GetDiagnosticsText(diagnostics);
     }
 
     private void SetUiDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)
@@ -2404,6 +2558,46 @@ public sealed partial class MainWindow : Window
         };
 
         await dialog.ShowAsync();
+    }
+
+    private async Task ReportOpenFailureAsync(string source, string message)
+    {
+        IReadOnlyList<SaveDiagnostic> diagnostics =
+        [
+            CreateUiDiagnostic("P4GWINUI002", message, source),
+        ];
+        SetUiDiagnostics(diagnostics);
+        await ShowMessageAsync("Open failed", FormatDiagnostics(diagnostics));
+    }
+
+    private async Task ShowAboutDialogAsync()
+    {
+        AboutDialog dialog = new();
+        if (Content is FrameworkElement root)
+        {
+            dialog.XamlRoot = root.XamlRoot;
+        }
+
+        await dialog.ShowAsync();
+    }
+
+    private void UpdateWindowTitle()
+    {
+        Title = ShellStateFormatter.GetWindowTitle(currentFilePath);
+    }
+
+    internal static void ApplyOpenResult(bool succeeded, Action refreshEditorState, Action preserveEditorState)
+    {
+        ArgumentNullException.ThrowIfNull(refreshEditorState);
+        ArgumentNullException.ThrowIfNull(preserveEditorState);
+
+        if (succeeded)
+        {
+            refreshEditorState();
+            return;
+        }
+
+        preserveEditorState();
     }
 
     private static SaveDiagnostic CreateUiDiagnostic(string code, string message, string target) =>

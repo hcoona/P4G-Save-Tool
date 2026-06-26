@@ -170,6 +170,9 @@ public sealed class SocialStatRulesTests
     {
         public Func<ReadOnlyMemory<byte>, SaveOpenResult<WorkingSave>>? OpenHandler { get; init; }
 
+        public SaveOpenResult<WorkingSave> CreateBlankSave() =>
+            throw new NotSupportedException();
+
         public SaveOpenResult<WorkingSave> Open(ReadOnlyMemory<byte> bytes) =>
             OpenHandler?.Invoke(bytes) ?? throw new InvalidOperationException("OpenHandler must be configured.");
 

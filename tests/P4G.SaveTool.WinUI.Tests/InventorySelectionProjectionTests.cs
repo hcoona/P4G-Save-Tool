@@ -53,6 +53,30 @@ public sealed class InventorySelectionProjectionTests
     }
 
     [Fact]
+    public void UnknownInventoryEntryIsSynthesizedWhenMissingFromItemChoices()
+    {
+        IReadOnlyList<InventoryItemChoiceViewState> itemChoices =
+        [
+            new InventoryItemChoiceViewState(0, (byte)ItemCategoryId.Weapons, "Blank", true),
+            new InventoryItemChoiceViewState(1, (byte)ItemCategoryId.Weapons, "Blade"),
+        ];
+
+        InventoryStackViewState selectedEntry = new(7, 9999, "Unknown item (9999)", (byte)ItemCategoryId.Weapons, "Weapons", 3);
+
+        IReadOnlyList<InventoryItemChoiceViewState> projectedChoices =
+            InventorySelectionProjection.ResolveItemChoices(itemChoices, selectedEntry, null, out InventoryItemChoiceViewState? selectedItem);
+
+        Assert.NotNull(selectedItem);
+        Assert.Equal((ushort)9999, selectedItem!.ItemId);
+        Assert.Equal("Unknown item (9999)", selectedItem.Name);
+        Assert.Equal((byte)ItemCategoryId.Weapons, selectedItem.CategoryId);
+        Assert.False(selectedItem.IsPlaceholder);
+        Assert.Equal(itemChoices.Count + 1, projectedChoices.Count);
+        Assert.Same(selectedItem, projectedChoices[^1]);
+        Assert.Contains(projectedChoices, item => item.ItemId == 9999);
+    }
+
+    [Fact]
     public void EquipmentChoiceResolverKeepsUnsupportedCurrentSelectionVisible()
     {
         IReadOnlyList<InventoryItemChoiceViewState> itemChoices =

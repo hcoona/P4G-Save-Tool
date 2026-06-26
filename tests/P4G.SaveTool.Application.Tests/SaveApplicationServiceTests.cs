@@ -142,6 +142,34 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
+    public void CreateBlankSaveWritesAndReopensAtMinimumLength()
+    {
+        SaveApplicationService service = new();
+
+        SaveOpenResult<WorkingSave> blankResult = ((ISaveApplicationService)service).CreateBlankSave();
+        Assert.True(blankResult.Succeeded, FormatDiagnostics(blankResult.Diagnostics));
+        WorkingSave blankSave = Assert.IsAssignableFrom<WorkingSave>(blankResult.Snapshot);
+
+        SaveWriteResult writeResult = service.Write(blankSave);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal(P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed).MinimumLength, output.Length);
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.Equal(new SaveNames(string.Empty, string.Empty), reopenedSave.State.Names);
+        Assert.Equal(0u, reopenedSave.State.Yen);
+        Assert.All(reopenedSave.State.PartyMembers, static member => Assert.Equal((byte)0, member.Value));
+        Assert.All(reopenedSave.State.EquippedWeapons, static item => Assert.Equal((ushort)0, item));
+        Assert.All(reopenedSave.State.EquippedArmors, static item => Assert.Equal((ushort)0, item));
+        Assert.All(reopenedSave.State.EquippedAccessories, static item => Assert.Equal((ushort)0, item));
+        Assert.All(reopenedSave.State.EquippedCostumes, static item => Assert.Equal((ushort)0, item));
+        Assert.All(reopenedSave.State.SocialStats, static stat => Assert.Equal((ushort)0, stat));
+        Assert.Empty(reopenedSave.State.InventoryStacks);
+        Assert.Empty(reopenedSave.State.SocialLinks);
+    }
+
+    [Fact]
     public void ApplyEditsAndWritePatchesSupportedFieldsOnly()
     {
         byte[] input = CreateSyntheticSave();
@@ -211,6 +239,120 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(7654321u, reopenedSave.State.Yen);
         Assert.Equal(new PartyMemberId(0x07), reopenedSave.State.PartyMembers[1]);
         Assert.Equal(new InventoryStack(257, 9), reopenedSave.State.InventoryStacks.Single(stack => stack.ItemId == 257));
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteRemovesExistingInventoryItemAndClearsSerializedByte()
+    {
+        byte[] input = CreateSyntheticSave();
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, [new RemoveInventoryItemEdit(257)]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        Assert.DoesNotContain(editedSave.State.InventoryStacks, static stack => stack.ItemId == 257);
+
+        SaveWriteResult writeResult = service.Write(editedSave);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 257]);
+        AssertOnlyRangesChanged(input, output, (LegacyInventoryOffset + 257, 1));
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 257);
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteSupportsAccessoryAndPartyCostumeExactOffsets()
+    {
+        byte[] input = CreateSyntheticSave();
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
+            save,
+            [
+                new SetEquippedAccessoryEdit(0, 513),
+                new SetEquippedCostumeEdit(1, 2041),
+            ]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        Assert.Equal((ushort)513, editedSave.State.EquippedAccessories[0]);
+        Assert.Equal((ushort)2041, editedSave.State.EquippedCostumes[1]);
+
+        SaveWriteResult writeResult = service.Write(editedSave);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        int accessoryOffset = LegacyProtagonistEquipmentOffset + 4;
+        int partyCostumeOffset = LegacyPartyEquipmentOffset + 6;
+        Assert.Equal((ushort)513, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(accessoryOffset, sizeof(ushort))));
+        Assert.Equal((ushort)2041, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(partyCostumeOffset, sizeof(ushort))));
+        Assert.Equal(
+            BinaryPrimitives.ReadUInt16LittleEndian(input.AsSpan(LegacyProtagonistEquipmentOffset, sizeof(ushort))),
+            BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyProtagonistEquipmentOffset, sizeof(ushort))));
+        Assert.Equal(
+            BinaryPrimitives.ReadUInt16LittleEndian(input.AsSpan(LegacyProtagonistEquipmentOffset + 2, sizeof(ushort))),
+            BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyProtagonistEquipmentOffset + 2, sizeof(ushort))));
+        Assert.Equal(
+            BinaryPrimitives.ReadUInt16LittleEndian(input.AsSpan(LegacyProtagonistEquipmentOffset + 6, sizeof(ushort))),
+            BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyProtagonistEquipmentOffset + 6, sizeof(ushort))));
+        Assert.Equal(
+            BinaryPrimitives.ReadUInt16LittleEndian(input.AsSpan(LegacyPartyEquipmentOffset, sizeof(ushort))),
+            BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset, sizeof(ushort))));
+        Assert.Equal(
+            BinaryPrimitives.ReadUInt16LittleEndian(input.AsSpan(LegacyPartyEquipmentOffset + 2, sizeof(ushort))),
+            BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset + 2, sizeof(ushort))));
+        Assert.Equal(
+            BinaryPrimitives.ReadUInt16LittleEndian(input.AsSpan(LegacyPartyEquipmentOffset + 4, sizeof(ushort))),
+            BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset + 4, sizeof(ushort))));
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (LegacyProtagonistEquipmentOffset + 4, sizeof(ushort)),
+            (LegacyPartyEquipmentOffset + 6, sizeof(ushort)));
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.Equal((ushort)513, reopenedSave.State.EquippedAccessories[0]);
+        Assert.Equal((ushort)2041, reopenedSave.State.EquippedCostumes[1]);
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteSupportsMiddleSocialStatIndices()
+    {
+        byte[] input = CreateSyntheticSave();
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
+            save,
+            [
+                new SetSocialStatRankEdit(1, 5),
+                new SetSocialStatRankEdit(2, 1),
+                new SetSocialStatRankEdit(3, 2),
+            ]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        Assert.Equal(new ushort[] { 15, 240, 15, 16, 85 }, editedSave.State.SocialStats);
+
+        SaveWriteResult writeResult = service.Write(editedSave);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((ushort)15, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacySocialStatsOffset, sizeof(ushort))));
+        Assert.Equal((ushort)240, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacySocialStatsOffset + 2, sizeof(ushort))));
+        Assert.Equal((ushort)15, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacySocialStatsOffset + 4, sizeof(ushort))));
+        Assert.Equal((ushort)16, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacySocialStatsOffset + 6, sizeof(ushort))));
+        Assert.Equal((ushort)85, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacySocialStatsOffset + 8, sizeof(ushort))));
+        AssertOnlyRangesChanged(input, output, (LegacySocialStatsOffset + 2, 6));
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.Equal(new ushort[] { 15, 240, 15, 16, 85 }, reopenedSave.State.SocialStats);
     }
 
     [Fact]

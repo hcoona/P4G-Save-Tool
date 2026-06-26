@@ -130,12 +130,11 @@ public sealed partial class MainWindow : Window
 
     private async Task RunBusyAsync(Func<Task<BusyOperationCompletion>> operation)
     {
-        if (isBusy)
+        if (!TryBeginBusyOperation(ref isBusy))
         {
             return;
         }
 
-        isBusy = true;
         UpdateShellState();
         BusyOperationCompletion completion = BusyOperationCompletion.RefreshViewModel;
         try
@@ -144,7 +143,7 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            isBusy = false;
+            EndBusyOperation(ref isBusy);
             if (completion == BusyOperationCompletion.RefreshViewModel)
             {
                 RefreshFromViewModel();
@@ -311,7 +310,12 @@ public sealed partial class MainWindow : Window
         {
             if (blankSaveLoaded)
             {
-                RestoreNoSaveStateAfterFailedBlankSave(writeResult.Diagnostics);
+                RestoreNoSaveStateAfterFailedBlankSaveCore(
+                    saveEditorRefreshCoordinator,
+                    viewModel,
+                    writeResult.Diagnostics,
+                    RefreshFromViewModel,
+                    ref uiDiagnosticsOverride);
             }
             else
             {
@@ -339,7 +343,12 @@ public sealed partial class MainWindow : Window
                 () => viewModel.ReportSaveFailed(operationToken, diagnostics));
             if (blankSaveLoaded)
             {
-                RestoreNoSaveStateAfterFailedBlankSave(reportResult.Diagnostics);
+                RestoreNoSaveStateAfterFailedBlankSaveCore(
+                    saveEditorRefreshCoordinator,
+                    viewModel,
+                    reportResult.Diagnostics,
+                    RefreshFromViewModel,
+                    ref uiDiagnosticsOverride);
             }
             else
             {
@@ -403,13 +412,11 @@ public sealed partial class MainWindow : Window
     {
         UpdateWindowTitle();
 
-        if (string.IsNullOrWhiteSpace(startupOpenPath))
+        string? openPath = ConsumeStartupOpenPath(ref startupOpenPath);
+        if (openPath is null)
         {
             return;
         }
-
-        string openPath = startupOpenPath;
-        startupOpenPath = null;
 
         await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, "Launch"));
     }
@@ -2598,6 +2605,49 @@ public sealed partial class MainWindow : Window
         }
 
         preserveEditorState();
+    }
+
+    internal static string? ConsumeStartupOpenPath(ref string? startupOpenPath)
+    {
+        if (string.IsNullOrWhiteSpace(startupOpenPath))
+        {
+            return null;
+        }
+
+        string openPath = startupOpenPath;
+        startupOpenPath = null;
+        return openPath;
+    }
+
+    internal static bool TryBeginBusyOperation(ref bool isBusy)
+    {
+        if (isBusy)
+        {
+            return false;
+        }
+
+        isBusy = true;
+        return true;
+    }
+
+    internal static void EndBusyOperation(ref bool isBusy) =>
+        isBusy = false;
+
+    internal static void RestoreNoSaveStateAfterFailedBlankSaveCore(
+        SaveEditorRefreshCoordinator refreshCoordinator,
+        SaveEditorViewModel viewModel,
+        IReadOnlyList<SaveDiagnostic> diagnostics,
+        Action refreshFromViewModel,
+        ref IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride)
+    {
+        ArgumentNullException.ThrowIfNull(refreshCoordinator);
+        ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(refreshFromViewModel);
+
+        uiDiagnosticsOverride = diagnostics;
+        refreshCoordinator.RunWithFullRefreshSuppressed(() => viewModel.ClearSave());
+        refreshFromViewModel();
     }
 
     private static SaveDiagnostic CreateUiDiagnostic(string code, string message, string target) =>

@@ -47,4 +47,21 @@ public sealed class ShellStateFormatterTests
 
         Assert.Equal(["Error CODE [Target]: Boom"], diagnostics);
     }
+
+    [Fact]
+    public void GetDiagnosticsTextFormatsTargetlessAndTargetedDiagnosticsInOrder()
+    {
+        IReadOnlyList<string> diagnostics = ShellStateFormatter.GetDiagnosticsText(
+            [
+                new SaveDiagnostic(DiagnosticSeverity.Warning, "WARN", "First", null),
+                new SaveDiagnostic(DiagnosticSeverity.Error, "ERR", "Second", "Patch"),
+            ]);
+
+        Assert.Equal(
+            [
+                "Warning WARN: First",
+                "Error ERR [Patch]: Second",
+            ],
+            diagnostics);
+    }
 }

@@ -36,6 +36,7 @@ public sealed class WinUIArchitectureTests
     private const string RequiredCsWinRTWindowsMetadataPackageVersion = "10.0.22000.196";
     private const string RequiredCsWinRTWindowsMetadataPlatformVersion = "10.0.22000.0";
     private const string RequiredWindowsSdkPackageVersion = "10.0.22000.57";
+    private const string LegacyWpfAssemblyName = "P4G Save Tool";
 
     [Fact]
     public void WinUISourceDoesNotReferenceDomainOrSaveFormat()
@@ -944,6 +945,7 @@ public sealed class WinUIArchitectureTests
             .ToArray();
 
         Assert.NotEmpty(directReferences);
+        Assert.DoesNotContain(LegacyWpfAssemblyName, directReferences);
         foreach (string forbiddenAssemblyName in ForbiddenBoundaryAssemblyNames)
         {
             Assert.DoesNotContain(forbiddenAssemblyName, directReferences);
@@ -965,6 +967,8 @@ public sealed class WinUIArchitectureTests
         {
             Assert.DoesNotContain(forbiddenAssemblyName, referencedAssemblies);
         }
+
+        Assert.DoesNotContain(LegacyWpfAssemblyName, referencedAssemblies);
     }
 
     [Fact]

@@ -442,6 +442,37 @@ public sealed class P4GSaveCodecTests
             wrongLengthBytes.Length.ToString(CultureInfo.InvariantCulture));
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(249)]
+    public void WriteReportsDiagnosticForOutOfRangeCompendiumPersonaPatch(int slotIndex)
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+
+        SaveWriteResult result = P4GSaveCodec.Write(
+            snapshot,
+            [
+                new SaveFieldPatch(
+                    $"{layout.CompendiumPersonaSlots.Name}[{slotIndex}]",
+                    new byte[PersonaSlotBinaryCodec.BinaryLength]),
+            ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Bytes);
+        SaveDiagnostic diagnostic = AssertSingleErrorDiagnostic(
+            result.Diagnostics,
+            "P4G004",
+            "Patch",
+            "Save field patch data is invalid for the target.");
+        AssertDiagnosticDoesNotExposeDetails(
+            diagnostic,
+            layout.CompendiumPersonaSlots.Name,
+            slotIndex.ToString(CultureInfo.InvariantCulture),
+            "bytes");
+    }
+
     [Fact]
     public void OriginalBytesReturnsCopyThatCannotMutateSnapshot()
     {

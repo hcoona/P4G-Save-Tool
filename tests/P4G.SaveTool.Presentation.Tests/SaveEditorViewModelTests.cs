@@ -1239,6 +1239,37 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void CreateBlankSaveNoOpsWhenSaveAlreadyExists()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        SaveEditorOperationResult firstResult = viewModel.CreateBlankSave();
+        string familyName = viewModel.FamilyName;
+        string givenName = viewModel.GivenName;
+        uint yen = viewModel.Yen;
+        bool canWrite = viewModel.CanWrite;
+        bool isDirty = viewModel.IsDirty;
+        IReadOnlyList<SaveDiagnostic> diagnostics = viewModel.Diagnostics;
+
+        SaveEditorOperationResult secondResult = viewModel.CreateBlankSave();
+
+        Assert.True(firstResult.Succeeded, FormatDiagnostics(firstResult.Diagnostics));
+        Assert.True(secondResult.Succeeded, FormatDiagnostics(secondResult.Diagnostics));
+        Assert.True(viewModel.HasSave);
+        Assert.Equal(1, service.CreateBlankSaveCalls);
+        Assert.Equal(familyName, viewModel.FamilyName);
+        Assert.Equal(givenName, viewModel.GivenName);
+        Assert.Equal(yen, viewModel.Yen);
+        Assert.Equal(canWrite, viewModel.CanWrite);
+        Assert.Equal(isDirty, viewModel.IsDirty);
+        Assert.Same(diagnostics, viewModel.Diagnostics);
+    }
+
+    [Fact]
     public void CreateBlankSaveCanBePersistedSuccessfully()
     {
         FakeSaveApplicationService service = new()

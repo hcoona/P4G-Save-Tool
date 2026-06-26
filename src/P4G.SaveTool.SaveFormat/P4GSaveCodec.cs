@@ -46,6 +46,7 @@ public static class P4GSaveCodec
             ReadPersonaBlock(span, layout.CompendiumPersonaSlots),
             ReadInventory(span, layout.Inventory),
             ReadSocialStats(span, layout.SocialStats),
+            ReadSocialLinks(span, layout.SocialLinks),
             calendar.Day,
             calendar.DayPhase,
             calendar.NextDay,
@@ -217,6 +218,27 @@ public static class P4GSaveCodec
         }
 
         return socialStats;
+    }
+
+    private static IReadOnlyList<SocialLinkState> ReadSocialLinks(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
+    {
+        List<SocialLinkState> socialLinks = [];
+        for (int offset = 0; offset < field.Length; offset += 16)
+        {
+            byte linkId = source[field.Offset + offset];
+            if (linkId == 0)
+            {
+                continue;
+            }
+
+            socialLinks.Add(new SocialLinkState(
+                linkId,
+                source[field.Offset + offset + 2],
+                source[field.Offset + offset + 4],
+                source[field.Offset + offset + 12]));
+        }
+
+        return socialLinks;
     }
 
     private static CalendarValues ReadCalendar(ReadOnlySpan<byte> source, SaveFieldDescriptor field) =>

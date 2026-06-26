@@ -16,6 +16,7 @@ public sealed class SaveSnapshot
     private readonly ReadOnlyCollection<ushort> equippedAccessories;
     private readonly ReadOnlyCollection<ushort> equippedCostumes;
     private readonly ReadOnlyCollection<ushort> socialStats;
+    private readonly ReadOnlyCollection<SocialLinkState> socialLinks;
     private readonly ReadOnlyCollection<PersonaSlot> protagonistPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> partyPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> compendiumPersonaSlots;
@@ -36,6 +37,7 @@ public sealed class SaveSnapshot
         IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
         IReadOnlyList<InventoryStack>? inventoryStacks = null,
         IReadOnlyList<ushort>? socialStats = null,
+        IReadOnlyList<SocialLinkState>? socialLinks = null,
         byte day = 0,
         byte dayPhase = 0,
         byte nextDay = 0,
@@ -51,6 +53,7 @@ public sealed class SaveSnapshot
         this.equippedAccessories = CopyFixedLength(equippedAccessories, EquipmentSlotCount, nameof(equippedAccessories));
         this.equippedCostumes = CopyFixedLength(equippedCostumes, EquipmentSlotCount, nameof(equippedCostumes));
         this.socialStats = CopyFixedLength(socialStats ?? new ushort[SocialStatCount], SocialStatCount, nameof(socialStats));
+        this.socialLinks = Array.AsReadOnly((socialLinks ?? Array.Empty<SocialLinkState>()).ToArray());
         this.protagonistPersonaSlots = Array.AsReadOnly(protagonistPersonaSlots.ToArray());
         this.partyPersonaSlots = Array.AsReadOnly(partyPersonaSlots.ToArray());
         this.compendiumPersonaSlots = Array.AsReadOnly(compendiumPersonaSlots.ToArray());
@@ -80,6 +83,8 @@ public sealed class SaveSnapshot
     public IReadOnlyList<ushort> EquippedCostumes => equippedCostumes;
 
     public IReadOnlyList<ushort> SocialStats => socialStats;
+
+    public IReadOnlyList<SocialLinkState> SocialLinks => socialLinks;
 
     public IReadOnlyList<PersonaSlot> ProtagonistPersonaSlots => protagonistPersonaSlots;
 

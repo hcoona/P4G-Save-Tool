@@ -33,3 +33,13 @@ public sealed record RemoveInventoryItemEdit(ushort ItemId) : SaveEditCommand;
 public sealed record SetProtagonistPersonaSlotEdit(int SlotIndex, PersonaSlotEdit PersonaSlot) : SaveEditCommand;
 
 public sealed record SetPartyPersonaSlotEdit(int SlotIndex, PersonaSlotEdit PersonaSlot) : SaveEditCommand;
+
+public sealed record AddSocialLinkEdit(byte LinkId) : SaveEditCommand;
+
+public sealed record RemoveSocialLinkEdit(int SlotIndex) : SaveEditCommand;
+
+public sealed record SetSocialLinkLevelEdit(int SlotIndex, byte Level) : SaveEditCommand;
+
+public sealed record SetSocialLinkProgressEdit(int SlotIndex, byte Progress) : SaveEditCommand;
+
+public sealed record SetSocialLinkFlagEdit(int SlotIndex, byte Flag) : SaveEditCommand;

@@ -8,6 +8,7 @@ namespace P4G.SaveTool.Application;
 public sealed class SaveApplicationService : ISaveApplicationService
 {
     private const int PartyMemberCount = 3;
+    private const int SocialLinkSlotStride = 16;
     private const string EditDiagnosticTarget = "Edit";
     private const string NamesDiagnosticTarget = "Names";
     private const string PartyMembersDiagnosticTarget = "PartyMembers";
@@ -16,6 +17,10 @@ public sealed class SaveApplicationService : ISaveApplicationService
     private const string InventoryDiagnosticTarget = "Inventory";
     private const string EquipmentDiagnosticTarget = "Equipment";
     private const string PersonaDiagnosticTarget = "Persona";
+    private const string SocialLinksDiagnosticTarget = "SocialLinks";
+    private const string InvalidSocialLinkDiagnosticCode = "P4GAPP016";
+    private const string DuplicateSocialLinkDiagnosticCode = "P4GAPP017";
+    private const string SocialLinksCapacityDiagnosticCode = "P4GAPP015";
 
     private readonly IApplicationSaveCodec codec;
 
@@ -71,6 +76,19 @@ public sealed class SaveApplicationService : ISaveApplicationService
     public SaveWriteResult Write(WorkingSave save)
     {
         ApplicationWorkingSave applicationSave = GetApplicationSave(save);
+        P4GSaveLayout layout = P4GSaveLayout.For(applicationSave.Snapshot.LayoutKind);
+
+        if (applicationSave.State.SocialLinks.Count > GetSocialLinkSlotCount(layout))
+        {
+            return SaveWriteResult.Failure(
+                [
+                    new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        SocialLinksCapacityDiagnosticCode,
+                        "Social link state exceeds the available slot capacity.",
+                        SocialLinksDiagnosticTarget),
+                ]);
+        }
 
         return codec.Write(applicationSave.Snapshot, CreatePatches(applicationSave));
     }
@@ -272,6 +290,112 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     state.PartyPersonaSlots,
                     "PartyPersonaSlots");
 
+            case AddSocialLinkEdit addSocialLink:
+                if (addSocialLink.LinkId == 0)
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        InvalidSocialLinkDiagnosticCode,
+                        "Social link edit targets an unsupported link id.",
+                        SocialLinksDiagnosticTarget));
+                    return state;
+                }
+
+                if (state.SocialLinks.Any(existing => existing.LinkId == addSocialLink.LinkId))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        DuplicateSocialLinkDiagnosticCode,
+                        "Social link edit targets a duplicate link id.",
+                        SocialLinksDiagnosticTarget));
+                    return state;
+                }
+
+                if (state.SocialLinks.Count >= GetSocialLinkSlotCount(layout))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        SocialLinksCapacityDiagnosticCode,
+                        "Social link edits cannot exceed the available slot capacity.",
+                        SocialLinksDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithSocialLinkAdded(new SocialLinkState(addSocialLink.LinkId, 1, 0, 0));
+
+            case RemoveSocialLinkEdit removeSocialLink:
+                if ((uint)removeSocialLink.SlotIndex >= (uint)state.SocialLinks.Count)
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP014",
+                        "Social link edit targets an unsupported slot.",
+                        SocialLinksDiagnosticTarget));
+                    return state;
+                }
+
+                return state.WithSocialLinkRemoved(removeSocialLink.SlotIndex);
+
+            case SetSocialLinkLevelEdit setSocialLinkLevel:
+                if ((uint)setSocialLinkLevel.SlotIndex >= (uint)state.SocialLinks.Count)
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP014",
+                        "Social link edit targets an unsupported slot.",
+                        SocialLinksDiagnosticTarget));
+                    return state;
+                }
+
+                if (state.SocialLinks[setSocialLinkLevel.SlotIndex].Level == setSocialLinkLevel.Level)
+                {
+                    return state;
+                }
+
+                return state.WithSocialLink(
+                    setSocialLinkLevel.SlotIndex,
+                    state.SocialLinks[setSocialLinkLevel.SlotIndex] with { Level = setSocialLinkLevel.Level });
+
+            case SetSocialLinkProgressEdit setSocialLinkProgress:
+                if ((uint)setSocialLinkProgress.SlotIndex >= (uint)state.SocialLinks.Count)
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP014",
+                        "Social link edit targets an unsupported slot.",
+                        SocialLinksDiagnosticTarget));
+                    return state;
+                }
+
+                if (state.SocialLinks[setSocialLinkProgress.SlotIndex].Progress == setSocialLinkProgress.Progress)
+                {
+                    return state;
+                }
+
+                return state.WithSocialLink(
+                    setSocialLinkProgress.SlotIndex,
+                    state.SocialLinks[setSocialLinkProgress.SlotIndex] with { Progress = setSocialLinkProgress.Progress });
+
+            case SetSocialLinkFlagEdit setSocialLinkFlag:
+                if ((uint)setSocialLinkFlag.SlotIndex >= (uint)state.SocialLinks.Count)
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP014",
+                        "Social link edit targets an unsupported slot.",
+                        SocialLinksDiagnosticTarget));
+                    return state;
+                }
+
+                if (state.SocialLinks[setSocialLinkFlag.SlotIndex].Flag == setSocialLinkFlag.Flag)
+                {
+                    return state;
+                }
+
+                return state.WithSocialLink(
+                    setSocialLinkFlag.SlotIndex,
+                    state.SocialLinks[setSocialLinkFlag.SlotIndex] with { Flag = setSocialLinkFlag.Flag });
+
             default:
                 diagnostics.Add(new SaveDiagnostic(
                     DiagnosticSeverity.Error,
@@ -319,6 +443,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
             snapshot.CompendiumPersonaSlots,
             snapshot.InventoryStacks,
             snapshot.SocialStats,
+            snapshot.SocialLinks,
             snapshot.Day,
             snapshot.DayPhase,
             snapshot.NextDay,
@@ -367,6 +492,11 @@ public sealed class SaveApplicationService : ISaveApplicationService
         if (!SocialStatsEqual(state.SocialStats, snapshot.SocialStats))
         {
             patches.Add(CreateSocialStatsPatch(layout.SocialStats, state.SocialStats, snapshot));
+        }
+
+        if (!SocialLinksEqual(state.SocialLinks, snapshot.SocialLinks))
+        {
+            patches.Add(CreateSocialLinksPatch(layout.SocialLinks, state.SocialLinks, snapshot));
         }
 
         if (!CalendarEqual(state, snapshot))
@@ -443,6 +573,26 @@ public sealed class SaveApplicationService : ISaveApplicationService
         for (int index = 0; index < socialStats.Count; index++)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * sizeof(ushort), sizeof(ushort)), socialStats[index]);
+        }
+
+        return new SaveFieldPatch(field.Name, bytes);
+    }
+
+    private static SaveFieldPatch CreateSocialLinksPatch(
+        SaveFieldDescriptor field,
+        IReadOnlyList<SocialLinkState> socialLinks,
+        SaveSnapshot snapshot)
+    {
+        byte[] bytes = snapshot.OriginalBytes.Slice(field.Offset, field.Length).ToArray();
+        int slotCount = field.Length / SocialLinkSlotStride;
+        for (int index = 0; index < slotCount; index++)
+        {
+            SocialLinkState socialLink = index < socialLinks.Count ? socialLinks[index] : default;
+            int offset = index * SocialLinkSlotStride;
+            bytes[offset] = socialLink.LinkId;
+            bytes[offset + 2] = socialLink.Level;
+            bytes[offset + 4] = socialLink.Progress;
+            bytes[offset + 12] = socialLink.Flag;
         }
 
         return new SaveFieldPatch(field.Name, bytes);
@@ -560,6 +710,15 @@ public sealed class SaveApplicationService : ISaveApplicationService
         IReadOnlyList<ushort> right) =>
         left.Count == right.Count &&
         left.SequenceEqual(right);
+
+    private static bool SocialLinksEqual(
+        IReadOnlyList<SocialLinkState> left,
+        IReadOnlyList<SocialLinkState> right) =>
+        left.Count == right.Count &&
+        left.SequenceEqual(right);
+
+    private static int GetSocialLinkSlotCount(P4GSaveLayout layout) =>
+        layout.SocialLinks.Length / SocialLinkSlotStride;
 
     private static bool CalendarEqual(WorkingSaveState state, SaveSnapshot snapshot) =>
         state.Day == snapshot.Day &&

@@ -43,6 +43,7 @@ public sealed class P4GSaveCodecTests
     private const int LegacyCalendarLength = 11;
     private const int LegacySocialLinksOffset = 6512;
     private const int LegacySocialLinksLength = 368;
+    private const int LegacySocialLinkSlotCount = LegacySocialLinksLength / 16;
     private const int LegacyCompendiumPersonaSlotsOffset = 9688;
     private const int LegacyCompendiumPersonaSlotsCount = 249;
     private const int LegacyCompendiumPersonaSlotStride = 48;
@@ -114,6 +115,11 @@ public sealed class P4GSaveCodecTests
         SaveSnapshot snapshot = OpenOrThrow(input);
 
         AssertParsedSyntheticSave(snapshot);
+        Assert.Equal(SocialLinkPaddingSentinel(0), snapshot.OriginalBytes.Span[LegacySocialLinksOffset + 1]);
+        Assert.Equal(SocialLinkPaddingSentinel(1), snapshot.OriginalBytes.Span[LegacySocialLinksOffset + 16 + 3]);
+        Assert.Equal(
+            SocialLinkPaddingSentinel(22),
+            snapshot.OriginalBytes.Span[LegacySocialLinksOffset + (22 * 16) + 15]);
 
         SaveWriteResult result = P4GSaveCodec.Write(snapshot);
 
@@ -121,6 +127,9 @@ public sealed class P4GSaveCodecTests
         Assert.NotNull(result.Bytes);
         Assert.NotSame(input, result.Bytes);
         Assert.Equal(input, result.Bytes);
+        Assert.Equal(SocialLinkPaddingSentinel(0), result.Bytes[LegacySocialLinksOffset + 1]);
+        Assert.Equal(SocialLinkPaddingSentinel(1), result.Bytes[LegacySocialLinksOffset + 16 + 3]);
+        Assert.Equal(SocialLinkPaddingSentinel(22), result.Bytes[LegacySocialLinksOffset + (22 * 16) + 15]);
     }
 
     [Fact]
@@ -217,6 +226,33 @@ public sealed class P4GSaveCodecTests
         Assert.Equal((byte)19, output[layout.Calendar.Offset + 8]);
         Assert.Equal((byte)5, output[layout.Calendar.Offset + 10]);
         AssertOnlyRangesChanged(input, output, (layout.Calendar.Offset, layout.Calendar.Length));
+    }
+
+    [Fact]
+    public void FieldPatchChangesOnlySocialLinksRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        byte[] socialLinkBytes = snapshot.OriginalBytes.Slice(layout.SocialLinks.Offset, layout.SocialLinks.Length).ToArray();
+        socialLinkBytes[0] = 9;
+        socialLinkBytes[2] = 5;
+        socialLinkBytes[4] = 7;
+        socialLinkBytes[12] = 3;
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch(layout.SocialLinks.Name, socialLinkBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((byte)9, output[layout.SocialLinks.Offset]);
+        Assert.Equal((byte)5, output[layout.SocialLinks.Offset + 2]);
+        Assert.Equal((byte)7, output[layout.SocialLinks.Offset + 4]);
+        Assert.Equal((byte)3, output[layout.SocialLinks.Offset + 12]);
+        Assert.Equal(input[layout.SocialLinks.Offset + 1], output[layout.SocialLinks.Offset + 1]);
+        Assert.Equal(input[layout.SocialLinks.Offset + (4 * 16) + 1], output[layout.SocialLinks.Offset + (4 * 16) + 1]);
+        Assert.Equal(SocialLinkPaddingSentinel(0), output[layout.SocialLinks.Offset + 1]);
+        Assert.Equal(SocialLinkPaddingSentinel(1), output[layout.SocialLinks.Offset + 16 + 3]);
+        AssertOnlyRangesChanged(input, output, (layout.SocialLinks.Offset, layout.SocialLinks.Length));
     }
 
     [Fact]
@@ -466,6 +502,7 @@ public sealed class P4GSaveCodecTests
         AssertReadOnlyListDoesNotExposeArray(snapshot.ProtagonistPersonaSlots, snapshot.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(snapshot.PartyPersonaSlots, snapshot.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(snapshot.CompendiumPersonaSlots, snapshot.ProtagonistPersonaSlots[0]);
+        AssertReadOnlyListDoesNotExposeArray(snapshot.SocialLinks, new SocialLinkState(0x42, 1, 1, 1));
     }
 
     [Fact]
@@ -666,6 +703,14 @@ public sealed class P4GSaveCodecTests
         Assert.Equal((byte)4, snapshot.DayPhase);
         Assert.Equal((byte)19, snapshot.NextDay);
         Assert.Equal((byte)5, snapshot.NextDayPhase);
+        Assert.Equal(
+            new[]
+            {
+                new SocialLinkState(1, 5, 3, 2),
+                new SocialLinkState(8, 2, 1, 0),
+                new SocialLinkState(10, 1, 0, 1),
+            },
+            snapshot.SocialLinks);
         Assert.Collection(
             snapshot.InventoryStacks,
             static stack =>
@@ -761,6 +806,10 @@ public sealed class P4GSaveCodecTests
         bytes[LegacyPartyMembersOffset + 4] = 0x80;
         WriteSocialStats(bytes, 15, 30, 80, 140, 85);
         WriteCalendar(bytes, 18, 4, 19, 5);
+        WriteSocialLinks(bytes,
+            (1, 5, 3, 2),
+            (8, 2, 1, 0),
+            (10, 1, 0, 1));
         bytes.AsSpan(LegacyInventoryOffset, LegacyInventoryLength).Clear();
         bytes[LegacyInventoryOffset + 1] = 2;
         bytes[LegacyInventoryOffset + 257] = 3;
@@ -838,6 +887,45 @@ public sealed class P4GSaveCodecTests
         bytes[LegacyCalendarOffset + 2] = dayPhase;
         bytes[LegacyCalendarOffset + 8] = nextDay;
         bytes[LegacyCalendarOffset + 10] = nextDayPhase;
+    }
+
+    private static void WriteSocialLinks(
+        byte[] bytes,
+        params (byte LinkId, byte Level, byte Progress, byte Flag)[] socialLinks)
+    {
+        bytes.AsSpan(LegacySocialLinksOffset, LegacySocialLinksLength).Clear();
+        for (int index = 0; index < socialLinks.Length; index++)
+        {
+            int offset = LegacySocialLinksOffset + (index * 16);
+            (byte linkId, byte level, byte progress, byte flag) = socialLinks[index];
+            bytes[offset] = linkId;
+            bytes[offset + 2] = level;
+            bytes[offset + 4] = progress;
+            bytes[offset + 12] = flag;
+        }
+
+        for (int index = 0; index < LegacySocialLinkSlotCount; index++)
+        {
+            SeedSocialLinkPadding(bytes, LegacySocialLinksOffset + (index * 16), SocialLinkPaddingSentinel(index));
+        }
+    }
+
+    private static byte SocialLinkPaddingSentinel(int slotIndex) => (byte)(0xC0 + slotIndex);
+
+    private static void SeedSocialLinkPadding(byte[] bytes, int offset, byte sentinel)
+    {
+        bytes[offset + 1] = sentinel;
+        bytes[offset + 3] = sentinel;
+        bytes[offset + 5] = sentinel;
+        bytes[offset + 6] = sentinel;
+        bytes[offset + 7] = sentinel;
+        bytes[offset + 8] = sentinel;
+        bytes[offset + 9] = sentinel;
+        bytes[offset + 10] = sentinel;
+        bytes[offset + 11] = sentinel;
+        bytes[offset + 13] = sentinel;
+        bytes[offset + 14] = sentinel;
+        bytes[offset + 15] = sentinel;
     }
 
     private static void WriteEquipmentSlot(byte[] bytes, int offset, ushort weaponId, ushort armorId, ushort accessoryId, ushort costumeId)

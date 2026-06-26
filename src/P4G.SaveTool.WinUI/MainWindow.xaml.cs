@@ -28,6 +28,7 @@ public sealed partial class MainWindow : Window
     private bool suppressInventoryEvents;
     private bool suppressEquipmentEvents;
     private bool suppressPersonaEvents;
+    private bool suppressSocialLinkEvents;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool preservePersonaEditorStateDuringEquipmentRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
@@ -35,6 +36,8 @@ public sealed partial class MainWindow : Window
     private ushort? selectedInventoryItemId;
     private ushort? selectedInventoryEntryId;
     private byte? selectedEquipmentCharacterId;
+    private int? selectedSocialLinkIndex;
+    private byte? selectedSocialLinkLinkId;
     private byte? selectedPersonaMemberId;
     private int selectedPersonaSlotIndex;
 
@@ -60,6 +63,13 @@ public sealed partial class MainWindow : Window
 
     private async void SaveAsButton_Click(object sender, RoutedEventArgs e) =>
         await RunBusyAsync(() => SaveAsync(forcePicker: true));
+
+    internal readonly record struct SocialLinkDraftState(
+        int SlotIndex,
+        byte LinkId,
+        string LevelText,
+        string ProgressText,
+        string FlagText);
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -153,6 +163,8 @@ public sealed partial class MainWindow : Window
                 selectedInventoryItemId = null;
                 selectedInventoryEntryId = null;
                 selectedEquipmentCharacterId = null;
+                selectedSocialLinkIndex = null;
+                selectedSocialLinkLinkId = null;
                 selectedPersonaMemberId = 0;
                 selectedPersonaSlotIndex = 0;
                 inventorySelectionState.Reset();
@@ -206,7 +218,8 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        RefreshFromViewModelPreservingInventoryQuantityDraft();
+        RefreshFromViewModelPreservingInventoryQuantityDraft(
+            ShouldPreserveSelectedSocialLinkDraftAfterApply(edits));
         return true;
     }
 
@@ -333,6 +346,7 @@ public sealed partial class MainWindow : Window
             batch,
             validationDiagnostics);
         AddPersonaEdit(batch, validationDiagnostics);
+        TryAppendSelectedSocialLinkEdits(batch, validationDiagnostics);
 
         return TryFinalizeEditBatch(batch, validationDiagnostics, out edits, out diagnostics);
     }
@@ -400,6 +414,148 @@ public sealed partial class MainWindow : Window
         }
 
         edits.Add(new SetPartyPersonaSlotEdit(partySlotIndex, partyPersonaSlotEdit));
+    }
+
+    private bool TryAppendSelectedSocialLinkEdits(List<SaveEditCommand> edits, List<SaveDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        return TryBuildSocialLinkEdits(
+            selectedSocialLinkIndex,
+            SocialLinkLevelTextBox.Text ?? string.Empty,
+            SocialLinkProgressTextBox.Text ?? string.Empty,
+            SocialLinkFlagTextBox.Text ?? string.Empty,
+            edits,
+            diagnostics);
+    }
+
+    internal static SaveEditorOperationResult RefreshSocialLinkDraftPreservingSelection(
+        Func<SocialLinkDraftState?> captureDraft,
+        Func<SaveEditorOperationResult> mutateSocialLinks,
+        Action refreshSocialLinksState,
+        Func<SocialLinkViewState?> selectedLinkProvider,
+        Action<SocialLinkDraftState> restoreDraft)
+    {
+        ArgumentNullException.ThrowIfNull(captureDraft);
+        ArgumentNullException.ThrowIfNull(mutateSocialLinks);
+        ArgumentNullException.ThrowIfNull(refreshSocialLinksState);
+        ArgumentNullException.ThrowIfNull(selectedLinkProvider);
+        ArgumentNullException.ThrowIfNull(restoreDraft);
+
+        SocialLinkDraftState? socialLinkDraft = captureDraft();
+        SaveEditorOperationResult result = mutateSocialLinks();
+        refreshSocialLinksState();
+        if (socialLinkDraft is not null && ShouldRestoreSelectedSocialLinkDraft(socialLinkDraft.Value, selectedLinkProvider()))
+        {
+            restoreDraft(socialLinkDraft.Value);
+        }
+        return result;
+    }
+
+    internal static SocialLinkViewState? ResolveSelectedSocialLinkViewState(
+        IReadOnlyList<SocialLinkViewState> socialLinks,
+        int? selectedSocialLinkIndex,
+        byte? selectedSocialLinkLinkId)
+    {
+        ArgumentNullException.ThrowIfNull(socialLinks);
+
+        if (socialLinks.Count == 0)
+        {
+            return null;
+        }
+
+        if (selectedSocialLinkLinkId.HasValue)
+        {
+            SocialLinkViewState? selectedLink = socialLinks.FirstOrDefault(link => link.LinkId == selectedSocialLinkLinkId.Value);
+            if (selectedLink is not null)
+            {
+                return selectedLink;
+            }
+        }
+
+        if (selectedSocialLinkIndex.HasValue)
+        {
+            SocialLinkViewState? selectedLink = socialLinks.FirstOrDefault(link => link.SlotIndex == selectedSocialLinkIndex.Value);
+            if (selectedLink is not null)
+            {
+                return selectedLink;
+            }
+        }
+
+        return socialLinks[0];
+    }
+
+    internal static void ResetSelectedSocialLinkState(ref int? selectedSocialLinkIndex, ref byte? selectedSocialLinkLinkId)
+    {
+        selectedSocialLinkIndex = null;
+        selectedSocialLinkLinkId = null;
+    }
+
+    private SocialLinkDraftState? CaptureSelectedSocialLinkDraft()
+    {
+        if (!selectedSocialLinkIndex.HasValue || SocialLinkListView.SelectedItem is not SocialLinkViewState selectedLink)
+        {
+            return null;
+        }
+
+        return new SocialLinkDraftState(
+            selectedLink.SlotIndex,
+            selectedLink.LinkId,
+            SocialLinkLevelTextBox.Text ?? string.Empty,
+            SocialLinkProgressTextBox.Text ?? string.Empty,
+            SocialLinkFlagTextBox.Text ?? string.Empty);
+    }
+
+    private SocialLinkViewState? GetSelectedSocialLinkViewState() =>
+        ResolveSelectedSocialLinkViewState(viewModel.SocialLinks, selectedSocialLinkIndex, selectedSocialLinkLinkId);
+
+    private void RestoreSelectedSocialLinkDraft(SocialLinkDraftState socialLinkDraft)
+    {
+        if (!ShouldRestoreSelectedSocialLinkDraft(socialLinkDraft, GetSelectedSocialLinkViewState()))
+        {
+            return;
+        }
+
+        SocialLinkLevelTextBox.Text = socialLinkDraft.LevelText;
+        SocialLinkProgressTextBox.Text = socialLinkDraft.ProgressText;
+        SocialLinkFlagTextBox.Text = socialLinkDraft.FlagText;
+    }
+
+    internal static bool ShouldRestoreSelectedSocialLinkDraft(
+        SocialLinkDraftState socialLinkDraft,
+        SocialLinkViewState? selectedLink) =>
+        selectedLink is not null &&
+        selectedLink.LinkId == socialLinkDraft.LinkId;
+
+    internal static bool TryBuildSocialLinkEdits(
+        int? selectedSocialLinkIndex,
+        string levelText,
+        string progressText,
+        string flagText,
+        List<SaveEditCommand> edits,
+        List<SaveDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        if (!selectedSocialLinkIndex.HasValue)
+        {
+            return true;
+        }
+
+        bool levelIsValid = TryReadSocialLinkField(levelText, "Level", "SocialLinks.Level", diagnostics, out byte level);
+        bool progressIsValid = TryReadSocialLinkField(progressText, "Progress", "SocialLinks.Progress", diagnostics, out byte progress);
+        bool flagIsValid = TryReadSocialLinkField(flagText, "Flag", "SocialLinks.Flag", diagnostics, out byte flag);
+        if (!levelIsValid || !progressIsValid || !flagIsValid)
+        {
+            return false;
+        }
+
+        edits.Add(new SetSocialLinkLevelEdit(selectedSocialLinkIndex.Value, level));
+        edits.Add(new SetSocialLinkProgressEdit(selectedSocialLinkIndex.Value, progress));
+        edits.Add(new SetSocialLinkFlagEdit(selectedSocialLinkIndex.Value, flag));
+        return true;
     }
 
     internal static bool ShouldSkipPersonaEdit(PersonaSlotViewState currentSlot, PersonaSlotEdit personaSlotEdit)
@@ -590,12 +746,13 @@ public sealed partial class MainWindow : Window
         UpdateShellState();
     }
 
-    private void RefreshFromViewModelPreservingInventoryQuantityDraft()
+    private void RefreshFromViewModelPreservingInventoryQuantityDraft(bool preserveSelectedSocialLinkDraft = true)
     {
         byte? selectedInventoryCategoryIdBeforeRefresh = selectedInventoryCategoryId;
         ushort? selectedInventoryItemIdBeforeRefresh = selectedInventoryItemId;
         ushort? selectedInventoryEntryIdBeforeRefresh = selectedInventoryEntryId;
         string inventoryQuantityDraft = InventoryQuantityTextBox.Text;
+        SocialLinkDraftState? socialLinkDraft = CaptureSelectedSocialLinkDraft();
 
         RefreshFromViewModel();
 
@@ -609,6 +766,19 @@ public sealed partial class MainWindow : Window
         {
             InventoryQuantityTextBox.Text = inventoryQuantityDraft;
         }
+
+        if (preserveSelectedSocialLinkDraft && socialLinkDraft is not null)
+        {
+            RestoreSelectedSocialLinkDraft(socialLinkDraft.Value);
+        }
+    }
+
+    internal static bool ShouldPreserveSelectedSocialLinkDraftAfterApply(IReadOnlyList<SaveEditCommand> edits)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+
+        return !edits.Any(static edit =>
+            edit is SetSocialLinkLevelEdit or SetSocialLinkProgressEdit or SetSocialLinkFlagEdit);
     }
 
     private void RefreshEditableFields()
@@ -618,6 +788,7 @@ public sealed partial class MainWindow : Window
         YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
         RefreshSocialStatsState();
         RefreshCalendarState();
+        RefreshSocialLinksState();
         PartySlot0TextBox.Text = GetPartyMemberValue(0);
         PartySlot1TextBox.Text = GetPartyMemberValue(1);
         PartySlot2TextBox.Text = GetPartyMemberValue(2);
@@ -646,6 +817,13 @@ public sealed partial class MainWindow : Window
         PhaseComboBox.IsEnabled = canEdit;
         NextDayTextBox.IsEnabled = canEdit;
         NextPhaseComboBox.IsEnabled = canEdit;
+        SocialLinkListView.IsEnabled = canEdit;
+        SocialLinkAddComboBox.IsEnabled = canEdit;
+        SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
+        SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
+        SocialLinkFlagTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
+        SocialLinkApplyButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
+        SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         PartySlot0TextBox.IsEnabled = canEdit;
         PartySlot1TextBox.IsEnabled = canEdit;
         PartySlot2TextBox.IsEnabled = canEdit;
@@ -737,6 +915,48 @@ public sealed partial class MainWindow : Window
         PhaseComboBox.SelectedItem = selectedPhase;
         NextPhaseComboBox.ItemsSource = viewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);
         NextPhaseComboBox.SelectedItem = selectedNextPhase;
+    }
+
+    private void RefreshSocialLinksState()
+    {
+        suppressSocialLinkEvents = true;
+        try
+        {
+            SocialLinkListView.ItemsSource = viewModel.HasSave
+                ? viewModel.SocialLinks
+                : Array.Empty<SocialLinkViewState>();
+
+            IReadOnlyList<SocialLinkChoiceViewState> linkChoices = viewModel.GetSocialLinkChoices(0, out SocialLinkChoiceViewState blankChoice);
+            SocialLinkAddComboBox.ItemsSource = viewModel.HasSave
+                ? linkChoices
+                : Array.Empty<SocialLinkChoiceViewState>();
+
+            if (!viewModel.HasSave || viewModel.SocialLinks.Count == 0)
+            {
+                ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
+                SocialLinkListView.SelectedItem = null;
+                SocialLinkAddComboBox.SelectedItem = viewModel.HasSave ? blankChoice : null;
+                SocialLinkLevelTextBox.Text = string.Empty;
+                SocialLinkProgressTextBox.Text = string.Empty;
+                SocialLinkFlagTextBox.Text = string.Empty;
+                return;
+            }
+
+            SocialLinkViewState selectedLink = ResolveSelectedSocialLinkViewState(viewModel.SocialLinks, selectedSocialLinkIndex, selectedSocialLinkLinkId)
+                ?? viewModel.SocialLinks[0];
+            selectedSocialLinkIndex = selectedLink.SlotIndex;
+            selectedSocialLinkLinkId = selectedLink.LinkId;
+
+            SocialLinkListView.SelectedItem = selectedLink;
+            SocialLinkAddComboBox.SelectedItem = blankChoice;
+            SocialLinkLevelTextBox.Text = selectedLink.Level.ToString(CultureInfo.InvariantCulture);
+            SocialLinkProgressTextBox.Text = selectedLink.Progress.ToString(CultureInfo.InvariantCulture);
+            SocialLinkFlagTextBox.Text = selectedLink.Flag.ToString(CultureInfo.InvariantCulture);
+        }
+        finally
+        {
+            suppressSocialLinkEvents = false;
+        }
     }
 
     private void RefreshInventoryState()
@@ -855,6 +1075,146 @@ public sealed partial class MainWindow : Window
         finally
         {
             suppressInventoryEvents = false;
+        }
+    }
+
+    private void SocialLinkListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressSocialLinkEvents)
+        {
+            return;
+        }
+
+        if (SocialLinkListView.SelectedItem is not SocialLinkViewState selectedLink)
+        {
+            selectedSocialLinkIndex = null;
+            selectedSocialLinkLinkId = null;
+            RefreshSocialLinksState();
+            UpdateShellState();
+            return;
+        }
+
+        selectedSocialLinkIndex = selectedLink.SlotIndex;
+        selectedSocialLinkLinkId = selectedLink.LinkId;
+        RefreshSocialLinksState();
+        UpdateShellState();
+    }
+
+    private void SocialLinkAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (suppressSocialLinkEvents)
+        {
+            return;
+        }
+
+        if (SocialLinkAddComboBox.SelectedItem is not SocialLinkChoiceViewState selectedChoice ||
+            selectedChoice.IsPlaceholder)
+        {
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = RefreshSocialLinkDraftPreservingSelection(
+            CaptureSelectedSocialLinkDraft,
+            () =>
+            {
+                SaveEditorOperationResult mutationResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+                    () => viewModel.AddSocialLink(selectedChoice.LinkId));
+                if (mutationResult.Succeeded && viewModel.SocialLinks.Count > 0)
+                {
+                    SocialLinkViewState selectedLink = viewModel.SocialLinks.Last();
+                    selectedSocialLinkIndex = selectedLink.SlotIndex;
+                    selectedSocialLinkLinkId = selectedLink.LinkId;
+                }
+
+                return mutationResult;
+            },
+            RefreshSocialLinksState,
+            GetSelectedSocialLinkViewState,
+            RestoreSelectedSocialLinkDraft);
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+        if (!result.Succeeded)
+        {
+            SetUiDiagnostics(result.Diagnostics);
+            _ = ShowMessageAsync("Social link add failed", FormatDiagnostics(result.Diagnostics));
+        }
+    }
+
+    private void SocialLinkApplyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!viewModel.HasSave)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI022", "Open a save before editing social links.", "SocialLinks")]);
+            return;
+        }
+
+        if (!selectedSocialLinkIndex.HasValue)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI023", "Select a social link before applying edits.", "SocialLinks.Item")]);
+            return;
+        }
+
+        List<SaveEditCommand> edits = [];
+        List<SaveDiagnostic> validationDiagnostics = [];
+        if (!TryAppendSelectedSocialLinkEdits(edits, validationDiagnostics))
+        {
+            SetUiDiagnostics(validationDiagnostics);
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.ApplyEdits(edits));
+        RefreshSocialLinksState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+        if (!result.Succeeded)
+        {
+            SetUiDiagnostics(result.Diagnostics);
+            _ = ShowMessageAsync("Social link update failed", FormatDiagnostics(result.Diagnostics));
+        }
+    }
+
+    private void SocialLinkDeleteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!viewModel.HasSave)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI022", "Open a save before editing social links.", "SocialLinks")]);
+            return;
+        }
+
+        if (!selectedSocialLinkIndex.HasValue)
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI023", "Select a social link before deleting it.", "SocialLinks.Item")]);
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = RefreshSocialLinkDraftPreservingSelection(
+            CaptureSelectedSocialLinkDraft,
+            () =>
+            {
+                SaveEditorOperationResult mutationResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+                    () => viewModel.RemoveSocialLink(selectedSocialLinkIndex.Value));
+                if (mutationResult.Succeeded)
+                {
+                    selectedSocialLinkIndex = viewModel.SocialLinks.Count == 0
+                        ? null
+                        : Math.Min(selectedSocialLinkIndex.Value, viewModel.SocialLinks.Count - 1);
+                }
+
+                return mutationResult;
+            },
+            RefreshSocialLinksState,
+            GetSelectedSocialLinkViewState,
+            RestoreSelectedSocialLinkDraft);
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+        if (!result.Succeeded)
+        {
+            SetUiDiagnostics(result.Diagnostics);
+            _ = ShowMessageAsync("Social link delete failed", FormatDiagnostics(result.Diagnostics));
         }
     }
 
@@ -1387,6 +1747,23 @@ public sealed partial class MainWindow : Window
 
         quantity = 0;
         SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI011", "Inventory quantity must be a whole number from 0 to 255.", "Inventory.Quantity")]);
+        return false;
+    }
+
+    internal static bool TryReadSocialLinkField(
+        string? text,
+        string fieldName,
+        string target,
+        List<SaveDiagnostic> diagnostics,
+        out byte value)
+    {
+        if (byte.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            return true;
+        }
+
+        value = 0;
+        diagnostics.Add(CreateUiDiagnostic("P4GWINUI024", $"{fieldName} must be a whole number from 0 to 255.", target));
         return false;
     }
 

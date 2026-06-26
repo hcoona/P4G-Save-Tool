@@ -100,6 +100,31 @@ public sealed class ContractDtoStabilityTests
         Assert.Equal(new[] { inventoryStack }, state.InventoryStacks);
     }
 
+    [Fact]
+    public void WorkingSaveStateRejectsOversizedSocialLinks()
+    {
+        List<SocialLinkState> socialLinks = [];
+        for (byte index = 1; index <= 24; index++)
+        {
+            socialLinks.Add(new SocialLinkState(index, 1, 0, 0));
+        }
+
+        Assert.Throws<ArgumentException>(() => new WorkingSaveState(
+            new SaveNames("Sato", "Yu"),
+            123456u,
+            [new PartyMemberId(0x01), new PartyMemberId(0x02), new PartyMemberId(0x03)],
+            [0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107],
+            [0x0200, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206, 0x0207],
+            [0x0300, 0x0301, 0x0302, 0x0303, 0x0304, 0x0305, 0x0306, 0x0307],
+            [0x0400, 0x0401, 0x0402, 0x0403, 0x0404, 0x0405, 0x0406, 0x0407],
+            [CreatePersonaSlot(0x101)],
+            [CreatePersonaSlot(0x202)],
+            [CreatePersonaSlot(0x303)],
+            [new InventoryStack(0x101, 3)],
+            [15, 30, 80, 140, 85],
+            socialLinks));
+    }
+
     private static PersonaSlot CreatePersonaSlot(ushort personaId) =>
         new(
             exists: true,

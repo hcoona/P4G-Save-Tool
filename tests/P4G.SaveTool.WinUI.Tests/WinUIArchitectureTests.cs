@@ -104,6 +104,82 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowSocialLinkHandlersRefreshShellStateAfterSelectionChanges()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string applyBody = GetSection(
+            content,
+            "private void SocialLinkApplyButton_Click(object sender, RoutedEventArgs e)",
+            "private void SocialLinkDeleteButton_Click(");
+        string deleteBody = GetSection(
+            content,
+            "private void SocialLinkDeleteButton_Click(object sender, RoutedEventArgs e)",
+            "private void RefreshEquipmentState()");
+        string addBody = GetSection(
+            content,
+            "private void SocialLinkAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void SocialLinkApplyButton_Click(object sender, RoutedEventArgs e)");
+
+        Assert.Contains("RefreshSocialLinksState();", content, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkListView_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkAddComboBox_SelectionChanged", content, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkApplyButton_Click", content, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkDeleteButton_Click", content, StringComparison.Ordinal);
+        Assert.Contains("RefreshSocialLinkDraftPreservingSelection(", addBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshSocialLinkDraftPreservingSelection(", deleteBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryAppendSelectedSocialLinkEdits(edits, validationDiagnostics))", applyBody, StringComparison.Ordinal);
+        Assert.Contains("SetUiDiagnostics(validationDiagnostics);", applyBody, StringComparison.Ordinal);
+        Assert.Contains("viewModel.ApplyEdits(edits)", applyBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetSocialLinkLevel(", applyBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetSocialLinkProgress(", applyBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetSocialLinkFlag(", applyBody, StringComparison.Ordinal);
+        Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", addBody, StringComparison.Ordinal);
+        Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", deleteBody, StringComparison.Ordinal);
+        Assert.Contains("AddSocialLink(", content, StringComparison.Ordinal);
+        Assert.Contains("RemoveSocialLink(", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("viewModel.SocialLinks.Any(link => link.LinkId == selectedChoice.LinkId)", addBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowXamlDeclaresSocialLinkEditingControls()
+    {
+        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("x:Name=\"SocialLinkListView\"", content, StringComparison.Ordinal);
+        Assert.Contains("SelectionChanged=\"SocialLinkListView_SelectionChanged\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SocialLinkAddComboBox\"", content, StringComparison.Ordinal);
+        Assert.Contains("SelectionChanged=\"SocialLinkAddComboBox_SelectionChanged\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SocialLinkLevelTextBox\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SocialLinkProgressTextBox\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SocialLinkFlagTextBox\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SocialLinkApplyButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Click=\"SocialLinkApplyButton_Click\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SocialLinkDeleteButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Click=\"SocialLinkDeleteButton_Click\"", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowUpdateShellStateEnablesAndDisablesSocialLinkEditorControls()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string updateShellStateBody = GetSection(
+            content,
+            "private void UpdateShellState()",
+            "private void RefreshSocialStatsState()");
+
+        Assert.Contains("SocialLinkListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkFlagTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkApplyButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowPersonaSummaryRefreshesWithPersonaSelectionState()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
@@ -194,7 +270,7 @@ public sealed class WinUIArchitectureTests
             "private async Task<string?> PickSavePathAsync()");
         string inventoryRefreshBody = GetSection(
             content,
-            "private void RefreshFromViewModelPreservingInventoryQuantityDraft()",
+            "private void RefreshFromViewModelPreservingInventoryQuantityDraft(bool preserveSelectedSocialLinkDraft = true)",
             "private void RefreshEditableFields()");
 
         Assert.Contains("BusyOperationCompletion completion = BusyOperationCompletion.RefreshViewModel;", runBusyBody, StringComparison.Ordinal);
@@ -203,14 +279,19 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("saveEditorRefreshCoordinator.IsFullRefreshSuppressed", propertyChangedBody, StringComparison.Ordinal);
         Assert.Contains("DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);", propertyChangedBody, StringComparison.Ordinal);
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", applyEditorFieldsBody, StringComparison.Ordinal);
-        Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("ShouldPreserveSelectedSocialLinkDraftAfterApply(edits)", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
         Assert.Equal(5, Regex.Count(saveBody, Regex.Escape("return BusyOperationCompletion.PreserveEditorState;")));
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", saveBody, StringComparison.Ordinal);
         Assert.Equal(3, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
         Assert.Contains("string inventoryQuantityDraft = InventoryQuantityTextBox.Text;", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("SocialLinkDraftState? socialLinkDraft = CaptureSelectedSocialLinkDraft();", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("InventorySelectionState.ShouldRestoreQuantityDraft(", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("InventoryQuantityTextBox.Text = inventoryQuantityDraft;", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("if (preserveSelectedSocialLinkDraft && socialLinkDraft is not null)", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("RestoreSelectedSocialLinkDraft(socialLinkDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -227,7 +308,8 @@ public sealed class WinUIArchitectureTests
             "private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)",
             "private async Task<string?> PickSavePathAsync()");
 
-        Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Equal(3, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
     }
 
@@ -257,6 +339,25 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("selectedEntry = viewModel.InventoryEntries[lastInventoryEntryIndex];", content, StringComparison.Ordinal);
         Assert.Contains("int lastInventoryEntryIndex = viewModel.InventoryEntries.Count - 1;", content, StringComparison.Ordinal);
         Assert.Contains("inventorySelectionState.DisableAutoSelectAfterDelete();", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowOpenAndResetClearSelectedSocialLinkLinkId()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string openBody = GetSection(
+            content,
+            "private async Task<BusyOperationCompletion> OpenSaveFileAsync()",
+            "private bool ApplyEditorFields()");
+        string refreshSocialLinksBody = GetSection(
+            content,
+            "private void RefreshSocialLinksState()",
+            "private void RefreshInventoryState()");
+
+        Assert.Contains("selectedSocialLinkIndex = null;", openBody, StringComparison.Ordinal);
+        Assert.Contains("selectedSocialLinkLinkId = null;", openBody, StringComparison.Ordinal);
+        Assert.Contains("ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);", refreshSocialLinksBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -334,12 +435,27 @@ public sealed class WinUIArchitectureTests
             content,
             "private bool TryBuildEditBatch(",
             "private static void AddPartyMemberValue(");
+        string tryBuildSocialLinkEditsBody = GetSection(
+            content,
+            "internal static bool TryBuildSocialLinkEdits(",
+            "internal static bool TryReadSocialLinkField(");
+        string tryReadSocialLinkFieldBody = GetSection(
+            content,
+            "internal static bool TryReadSocialLinkField(",
+            "private string GetPartyMemberValue(int slotIndex)");
 
         Assert.Contains("Group4EditBatchBuilder.TryBuild(", content, StringComparison.Ordinal);
         Assert.Contains("CreateGroup4EditInputs(", tryBuildEditBatchBody, StringComparison.Ordinal);
         Assert.Contains("AppendGroup4Edits(", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.Contains("TryAppendSelectedSocialLinkEdits(batch, validationDiagnostics);", tryBuildEditBatchBody, StringComparison.Ordinal);
         Assert.Contains("TryFinalizeEditBatch(", tryBuildEditBatchBody, StringComparison.Ordinal);
         Assert.DoesNotContain("new Group4EditInputs(", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.Contains("bool levelIsValid = TryReadSocialLinkField(levelText, \"Level\", \"SocialLinks.Level\", diagnostics, out byte level);", content, StringComparison.Ordinal);
+        Assert.Contains("bool progressIsValid = TryReadSocialLinkField(progressText, \"Progress\", \"SocialLinks.Progress\", diagnostics, out byte progress);", content, StringComparison.Ordinal);
+        Assert.Contains("bool flagIsValid = TryReadSocialLinkField(flagText, \"Flag\", \"SocialLinks.Flag\", diagnostics, out byte flag);", content, StringComparison.Ordinal);
+        Assert.Contains("if (!levelIsValid || !progressIsValid || !flagIsValid)", tryBuildSocialLinkEditsBody, StringComparison.Ordinal);
+        Assert.Contains("diagnostics.Add(CreateUiDiagnostic(\"P4GWINUI024\",", tryReadSocialLinkFieldBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetUiDiagnostics(", tryReadSocialLinkFieldBody, StringComparison.Ordinal);
         Assert.Contains("CourageComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
         Assert.Contains("KnowledgeComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
         Assert.Contains("ExpressionComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);

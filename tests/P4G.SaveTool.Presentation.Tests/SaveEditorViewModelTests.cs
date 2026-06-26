@@ -37,6 +37,11 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal(5, viewModel.SocialStats.Count);
         Assert.Equal("Average", viewModel.SocialStats[0].RankName);
         Assert.Equal(18, viewModel.Calendar.Day);
+        Assert.Equal(3, viewModel.SocialLinks.Count);
+        Assert.Equal((byte)1, viewModel.SocialLinks[0].LinkId);
+        Assert.Equal((byte)5, viewModel.SocialLinks[0].Level);
+        Assert.Equal((byte)3, viewModel.SocialLinks[0].Progress);
+        Assert.Equal((byte)2, viewModel.SocialLinks[0].Flag);
         Assert.Equal(input, service.OpenInputs.Single());
         Assert.Equal(new[] { warning }, viewModel.Diagnostics);
         Assert.False(viewModel.HasErrors);
@@ -467,6 +472,58 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void OpenSaveProjectsBlankSocialLinkChoiceWhenCurrentLinkIdIsZero()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        IReadOnlyList<SocialLinkChoiceViewState> linkChoices = viewModel.GetSocialLinkChoices(0, out SocialLinkChoiceViewState selectedChoice);
+
+        Assert.Equal(P4GCatalog.SocialLinks.Count, linkChoices.Count);
+        Assert.Same(linkChoices[0], selectedChoice);
+        Assert.Equal((byte)0, selectedChoice.LinkId);
+        Assert.True(selectedChoice.IsPlaceholder);
+        Assert.False(selectedChoice.IsUnknown);
+        Assert.Contains(linkChoices, static choice => choice.LinkId == 0 && choice.IsPlaceholder);
+        Assert.DoesNotContain(linkChoices, static choice => choice.IsUnknown);
+    }
+
+    [Fact]
+    public void OpenSaveProjectsUnknownSocialLinkProjectionAndSelectorChoice()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(socialLinks:
+                [
+                    new SocialLinkState(1, 5, 3, 2),
+                    new SocialLinkState(99, 2, 4, 1),
+                ])),
+                []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        Assert.True(viewModel.SocialLinks[1].IsUnknown);
+        Assert.Equal((byte)99, viewModel.SocialLinks[1].LinkId);
+        Assert.Equal("Unknown (99)", viewModel.SocialLinks[1].Name);
+        Assert.Equal("Unknown (99)", viewModel.SocialLinks[1].DisplayName);
+
+        IReadOnlyList<SocialLinkChoiceViewState> linkChoices = viewModel.GetSocialLinkChoices(99, out SocialLinkChoiceViewState selectedChoice);
+
+        Assert.Equal(P4GCatalog.SocialLinks.Count + 1, linkChoices.Count);
+        Assert.Same(linkChoices[^1], selectedChoice);
+        Assert.Equal((byte)99, selectedChoice.LinkId);
+        Assert.True(selectedChoice.IsUnknown);
+        Assert.Equal("Unknown (99)", selectedChoice.Name);
+        Assert.Contains(linkChoices, static choice => choice.LinkId == 99 && choice.IsUnknown);
+    }
+
+    [Fact]
     public void NameEditsRefreshEquipmentCharactersProjectionAndTrackDirtyState()
     {
         FakeSaveApplicationService service = new()
@@ -753,6 +810,106 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void SocialLinkEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult addResult = viewModel.AddSocialLink(12);
+        SaveEditorOperationResult levelResult = viewModel.SetSocialLinkLevel(0, 6);
+        SaveEditorOperationResult progressResult = viewModel.SetSocialLinkProgress(1, 4);
+        SaveEditorOperationResult flagResult = viewModel.SetSocialLinkFlag(2, 7);
+        SaveEditorOperationResult removeResult = viewModel.RemoveSocialLink(3);
+
+        Assert.True(addResult.Succeeded, FormatDiagnostics(addResult.Diagnostics));
+        Assert.True(levelResult.Succeeded, FormatDiagnostics(levelResult.Diagnostics));
+        Assert.True(progressResult.Succeeded, FormatDiagnostics(progressResult.Diagnostics));
+        Assert.True(flagResult.Succeeded, FormatDiagnostics(flagResult.Diagnostics));
+        Assert.True(removeResult.Succeeded, FormatDiagnostics(removeResult.Diagnostics));
+        Assert.Equal((byte)1, viewModel.SocialLinks[0].LinkId);
+        Assert.Equal((byte)6, viewModel.SocialLinks[0].Level);
+        Assert.Equal((byte)3, viewModel.SocialLinks[0].Progress);
+        Assert.Equal((byte)2, viewModel.SocialLinks[0].Flag);
+        Assert.Equal((byte)8, viewModel.SocialLinks[1].LinkId);
+        Assert.Equal((byte)2, viewModel.SocialLinks[1].Level);
+        Assert.Equal((byte)4, viewModel.SocialLinks[1].Progress);
+        Assert.Equal((byte)0, viewModel.SocialLinks[1].Flag);
+        Assert.Equal((byte)10, viewModel.SocialLinks[2].LinkId);
+        Assert.Equal((byte)1, viewModel.SocialLinks[2].Level);
+        Assert.Equal((byte)0, viewModel.SocialLinks[2].Progress);
+        Assert.Equal((byte)7, viewModel.SocialLinks[2].Flag);
+        Assert.True(viewModel.IsDirty);
+        Assert.Collection(
+            service.AppliedEdits,
+            static edits => Assert.IsType<AddSocialLinkEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetSocialLinkLevelEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetSocialLinkProgressEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<SetSocialLinkFlagEdit>(Assert.Single(edits)),
+            static edits => Assert.IsType<RemoveSocialLinkEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void SocialLinkAddMethodSurfacesDiagnosticsForInvalidIds()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (_, edits) =>
+            {
+                AddSocialLinkEdit addSocialLink = Assert.IsType<AddSocialLinkEdit>(Assert.Single(edits));
+                return addSocialLink.LinkId switch
+                {
+                    0 => new SaveEditResult<WorkingSave>(
+                        null,
+                        [new SaveDiagnostic(DiagnosticSeverity.Error, "P4GAPP016", "Social link edit targets an unsupported link id.", "SocialLinks")]),
+                    1 => new SaveEditResult<WorkingSave>(
+                        null,
+                        [new SaveDiagnostic(DiagnosticSeverity.Error, "P4GAPP017", "Social link edit targets a duplicate link id.", "SocialLinks")]),
+                    _ => throw new InvalidOperationException("Unexpected social link id."),
+                };
+            },
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult zeroResult = viewModel.AddSocialLink(0);
+        SaveEditorOperationResult duplicateResult = viewModel.AddSocialLink(1);
+
+        Assert.False(zeroResult.Succeeded);
+        Assert.False(duplicateResult.Succeeded);
+        Assert.Equal("P4GAPP016", zeroResult.Diagnostics.Single().Code);
+        Assert.Equal("P4GAPP017", duplicateResult.Diagnostics.Single().Code);
+        Assert.Equal(2, service.AppliedEdits.Count);
+    }
+
+    [Fact]
+    public void SocialLinkEditMethodsSkipNoOpEditsAndPreserveDirtyState()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState()), []),
+            ApplyEditsHandler = static (_, _) => throw new InvalidOperationException("Unchanged social link edits should not apply."),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult levelResult = viewModel.SetSocialLinkLevel(0, 5);
+        SaveEditorOperationResult progressResult = viewModel.SetSocialLinkProgress(1, 1);
+        SaveEditorOperationResult flagResult = viewModel.SetSocialLinkFlag(2, 1);
+
+        Assert.True(levelResult.Succeeded, FormatDiagnostics(levelResult.Diagnostics));
+        Assert.True(progressResult.Succeeded, FormatDiagnostics(progressResult.Diagnostics));
+        Assert.True(flagResult.Succeeded, FormatDiagnostics(flagResult.Diagnostics));
+        Assert.False(viewModel.IsDirty);
+        Assert.Empty(service.AppliedEdits);
+    }
+
+    [Fact]
     public void InventoryEditMethodsApplyCommandsRefreshProjectionAndTrackDirtyState()
     {
         FakeSaveApplicationService service = new()
@@ -1012,6 +1169,11 @@ public sealed class SaveEditorViewModelTests
             ("SetNextDay", static viewModel => viewModel.SetNextDay(19)),
             ("SetNextDayPhase", static viewModel => viewModel.SetNextDayPhase(5)),
             ("SetPartyMember", static viewModel => viewModel.SetPartyMember(1, new PartyMemberId(0x07))),
+            ("AddSocialLink", static viewModel => viewModel.AddSocialLink(12)),
+            ("RemoveSocialLink", static viewModel => viewModel.RemoveSocialLink(0)),
+            ("SetSocialLinkLevel", static viewModel => viewModel.SetSocialLinkLevel(0, 5)),
+            ("SetSocialLinkProgress", static viewModel => viewModel.SetSocialLinkProgress(0, 3)),
+            ("SetSocialLinkFlag", static viewModel => viewModel.SetSocialLinkFlag(0, 2)),
             ("SetInventoryItemQuantity", static viewModel => viewModel.SetInventoryItemQuantity(257, 9)),
             ("RemoveInventoryItem", static viewModel => viewModel.RemoveInventoryItem(257)),
             ("ApplyEdits", static viewModel => viewModel.ApplyEdits([new SetYenEdit(500_000u)])),
@@ -1923,6 +2085,17 @@ public sealed class SaveEditorViewModelTests
                 SetEquippedArmorEdit setEquippedArmor => state.WithEquippedArmor(setEquippedArmor.CharacterId, setEquippedArmor.ItemId),
                 SetEquippedAccessoryEdit setEquippedAccessory => state.WithEquippedAccessory(setEquippedAccessory.CharacterId, setEquippedAccessory.ItemId),
                 SetEquippedCostumeEdit setEquippedCostume => state.WithEquippedCostume(setEquippedCostume.CharacterId, setEquippedCostume.ItemId),
+                AddSocialLinkEdit addSocialLink => state.WithSocialLinkAdded(new SocialLinkState(addSocialLink.LinkId, 1, 0, 0)),
+                RemoveSocialLinkEdit removeSocialLink => state.WithSocialLinkRemoved(removeSocialLink.SlotIndex),
+                SetSocialLinkLevelEdit setSocialLinkLevel => state.WithSocialLink(
+                    setSocialLinkLevel.SlotIndex,
+                    state.SocialLinks[setSocialLinkLevel.SlotIndex] with { Level = setSocialLinkLevel.Level }),
+                SetSocialLinkProgressEdit setSocialLinkProgress => state.WithSocialLink(
+                    setSocialLinkProgress.SlotIndex,
+                    state.SocialLinks[setSocialLinkProgress.SlotIndex] with { Progress = setSocialLinkProgress.Progress }),
+                SetSocialLinkFlagEdit setSocialLinkFlag => state.WithSocialLink(
+                    setSocialLinkFlag.SlotIndex,
+                    state.SocialLinks[setSocialLinkFlag.SlotIndex] with { Flag = setSocialLinkFlag.Flag }),
                 SetProtagonistPersonaSlotEdit setProtagonistPersonaSlot => state.WithProtagonistPersonaSlot(setProtagonistPersonaSlot.SlotIndex, BuildPersonaSlot(setProtagonistPersonaSlot.PersonaSlot, state.ProtagonistPersonaSlots[setProtagonistPersonaSlot.SlotIndex])),
                 SetPartyPersonaSlotEdit setPartyPersonaSlot => state.WithPartyPersonaSlot(setPartyPersonaSlot.SlotIndex, BuildPersonaSlot(setPartyPersonaSlot.PersonaSlot, state.PartyPersonaSlots[setPartyPersonaSlot.SlotIndex])),
                 SetInventoryItemQuantityEdit setInventoryItemQuantity => state.WithInventoryItemQuantity(setInventoryItemQuantity.ItemId, setInventoryItemQuantity.Quantity),
@@ -1944,6 +2117,7 @@ public sealed class SaveEditorViewModelTests
         IReadOnlyList<ushort>? equippedCostumes = null,
         IReadOnlyList<InventoryStack>? inventoryStacks = null,
         IReadOnlyList<ushort>? socialStats = null,
+        IReadOnlyList<SocialLinkState>? socialLinks = null,
         byte day = 18,
         byte dayPhase = 4,
         byte nextDay = 19,
@@ -1961,6 +2135,7 @@ public sealed class SaveEditorViewModelTests
             [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)],
             inventoryStacks ?? [],
             socialStats ?? [15, 30, 80, 140, 85],
+            socialLinks ?? [new SocialLinkState(1, 5, 3, 2), new SocialLinkState(8, 2, 1, 0), new SocialLinkState(10, 1, 0, 1)],
             day,
             dayPhase,
             nextDay,

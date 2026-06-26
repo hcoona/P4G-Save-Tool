@@ -27,6 +27,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static readonly ReadOnlyCollection<SocialStatViewState> EmptySocialStats =
         Array.AsReadOnly(Array.Empty<SocialStatViewState>());
 
+    private static readonly ReadOnlyCollection<SocialLinkViewState> EmptySocialLinks =
+        Array.AsReadOnly(Array.Empty<SocialLinkViewState>());
+
     private static readonly ReadOnlyCollection<PartyMemberChoiceViewState> EmptyPartyMemberChoices =
         Array.AsReadOnly(Array.Empty<PartyMemberChoiceViewState>());
 
@@ -48,6 +51,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private IReadOnlyList<InventoryStackViewState> inventoryEntries = EmptyInventoryStacks;
     private IReadOnlyList<EquipmentCharacterViewState> equipmentCharacters = EmptyEquipmentCharacters;
     private IReadOnlyList<SocialStatViewState> socialStats = EmptySocialStats;
+    private IReadOnlyList<SocialLinkViewState> socialLinks = EmptySocialLinks;
     private CalendarViewState calendar = new(0, 0, 0, 0);
     private IReadOnlyList<SaveDiagnostic> diagnostics = EmptyDiagnostics;
     private bool isDirty;
@@ -135,6 +139,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
         private set => SetProperty(ref socialStats, value);
     }
 
+    public IReadOnlyList<SocialLinkViewState> SocialLinks
+    {
+        get => socialLinks;
+        private set => SetProperty(ref socialLinks, value);
+    }
+
     public CalendarViewState Calendar
     {
         get => calendar;
@@ -179,6 +189,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public IReadOnlyList<SocialStatRankChoiceViewState> GetSocialStatChoices(int statIndex, ushort currentPoints, out SocialStatRankChoiceViewState selectedChoice) =>
         SocialStatProjection.GetRankChoices(statIndex, currentPoints, out selectedChoice);
+
+    public IReadOnlyList<SocialLinkChoiceViewState> GetSocialLinkChoices(byte currentLinkId, out SocialLinkChoiceViewState selectedChoice) =>
+        SocialLinkProjection.GetChoices(currentLinkId, out selectedChoice);
 
     public IReadOnlyList<CalendarPhaseChoiceViewState> GetCalendarPhaseChoices(int currentPhaseId, out CalendarPhaseChoiceViewState selectedChoice) =>
         CalendarProjection.GetPhaseChoices(currentPhaseId, out selectedChoice);
@@ -289,6 +302,50 @@ public sealed class SaveEditorViewModel : ViewModelBase
         }
 
         return ApplyEdits([new SetSocialStatRankEdit(statIndex, rank)]);
+    }
+
+    public SaveEditorOperationResult AddSocialLink(byte linkId)
+    {
+        return ApplyEdits([new AddSocialLinkEdit(linkId)]);
+    }
+
+    public SaveEditorOperationResult RemoveSocialLink(int slotIndex) =>
+        ApplyEdits([new RemoveSocialLinkEdit(slotIndex)]);
+
+    public SaveEditorOperationResult SetSocialLinkLevel(int slotIndex, byte level)
+    {
+        if (workingSave is not null &&
+            (uint)slotIndex < (uint)socialLinks.Count &&
+            socialLinks[slotIndex].Level == level)
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new SetSocialLinkLevelEdit(slotIndex, level)]);
+    }
+
+    public SaveEditorOperationResult SetSocialLinkProgress(int slotIndex, byte progress)
+    {
+        if (workingSave is not null &&
+            (uint)slotIndex < (uint)socialLinks.Count &&
+            socialLinks[slotIndex].Progress == progress)
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new SetSocialLinkProgressEdit(slotIndex, progress)]);
+    }
+
+    public SaveEditorOperationResult SetSocialLinkFlag(int slotIndex, byte flag)
+    {
+        if (workingSave is not null &&
+            (uint)slotIndex < (uint)socialLinks.Count &&
+            socialLinks[slotIndex].Flag == flag)
+        {
+            return new SaveEditorOperationResult(true, Array.Empty<SaveDiagnostic>());
+        }
+
+        return ApplyEdits([new SetSocialLinkFlagEdit(slotIndex, flag)]);
     }
 
     public SaveEditorOperationResult SetDay(int day) =>
@@ -522,6 +579,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
         IReadOnlyList<PartyMemberChoiceViewState> nextPartyMemberChoices = ProjectPartyMemberChoices(state);
         IReadOnlyList<EquipmentCharacterViewState> nextEquipmentCharacters = ProjectEquipmentCharacters(state);
         IReadOnlyList<SocialStatViewState> nextSocialStats = ProjectSocialStats(state.SocialStats);
+        IReadOnlyList<SocialLinkViewState> nextSocialLinks = ProjectSocialLinks(state.SocialLinks);
         CalendarViewState nextCalendar = ProjectCalendar(state);
         IReadOnlyList<PersonaSlotViewState> nextProtagonistPersonaSlots = ProjectPersonaSlots(state.ProtagonistPersonaSlots);
         IReadOnlyList<PersonaSlotViewState> nextPartyPersonaSlots = ProjectPersonaSlots(state.PartyPersonaSlots);
@@ -561,6 +619,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
         if (SetBacking(ref socialStats, nextSocialStats, SocialStatsEqual))
         {
             changes |= ProjectionChange.SocialStats;
+        }
+
+        if (SetBacking(ref socialLinks, nextSocialLinks, SocialLinksEqual))
+        {
+            changes |= ProjectionChange.SocialLinks;
         }
 
         if (SetBacking(ref calendar, nextCalendar))
@@ -672,6 +735,11 @@ public sealed class SaveEditorViewModel : ViewModelBase
             OnPropertyChanged(nameof(SocialStats));
         }
 
+        if ((changes & ProjectionChange.SocialLinks) != 0)
+        {
+            OnPropertyChanged(nameof(SocialLinks));
+        }
+
         if ((changes & ProjectionChange.Calendar) != 0)
         {
             OnPropertyChanged(nameof(Calendar));
@@ -770,6 +838,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static ReadOnlyCollection<SocialStatViewState> ProjectSocialStats(IReadOnlyList<ushort> socialStats) =>
         SocialStatProjection.ProjectSocialStats(socialStats);
 
+    private static ReadOnlyCollection<SocialLinkViewState> ProjectSocialLinks(IReadOnlyList<SocialLinkState> socialLinks) =>
+        SocialLinkProjection.ProjectSocialLinks(socialLinks);
+
     private static CalendarViewState ProjectCalendar(WorkingSaveState state) =>
         CalendarProjection.ProjectCalendar(state);
 
@@ -836,11 +907,18 @@ public sealed class SaveEditorViewModel : ViewModelBase
         left.Count == right.Count &&
         left.SequenceEqual(right);
 
+    private static bool SocialLinksEqual(
+        IReadOnlyList<SocialLinkViewState> left,
+        IReadOnlyList<SocialLinkViewState> right) =>
+        left.Count == right.Count &&
+        left.SequenceEqual(right);
+
     private static bool StatesEqual(WorkingSaveState left, WorkingSaveState right) =>
         left.Names == right.Names &&
         left.Yen == right.Yen &&
         left.PartyMembers.SequenceEqual(right.PartyMembers) &&
         left.SocialStats.SequenceEqual(right.SocialStats) &&
+        left.SocialLinks.SequenceEqual(right.SocialLinks) &&
         left.Day == right.Day &&
         left.DayPhase == right.DayPhase &&
         left.NextDay == right.NextDay &&
@@ -898,6 +976,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
         PartyPersonaSlots = 512,
         CompendiumPersonaSlots = 1024,
         InventoryEntries = 2048,
+        SocialLinks = 4096,
     }
 
     private sealed record PendingSerializedSave(SaveEditorWriteToken OperationToken, WorkingSaveState State);

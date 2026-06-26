@@ -26,6 +26,9 @@ public sealed class SaveApplicationServiceTests
     private const int LegacySocialStatsLength = 10;
     private const int LegacyCalendarOffset = 6484;
     private const int LegacyCalendarLength = 11;
+    private const int LegacySocialLinksOffset = 6512;
+    private const int LegacySocialLinksLength = 368;
+    private const int LegacySocialLinkSlotCount = LegacySocialLinksLength / 16;
     private const int LegacyProtagonistPersonaSlotCount = 12;
     private const int LegacyPartyPersonaSlotCount = 7;
     private const int LegacyCompendiumPersonaSlotCount = 249;
@@ -62,6 +65,14 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)4, save.State.DayPhase);
         Assert.Equal((byte)19, save.State.NextDay);
         Assert.Equal((byte)5, save.State.NextDayPhase);
+        Assert.Equal(
+            new[]
+            {
+                new SocialLinkState(1, 5, 3, 2),
+                new SocialLinkState(8, 2, 1, 0),
+                new SocialLinkState(10, 1, 0, 1),
+            },
+            save.State.SocialLinks);
         Assert.Collection(
             save.State.InventoryStacks,
             static stack =>
@@ -169,6 +180,7 @@ public sealed class SaveApplicationServiceTests
             (LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride), 8),
             (3336, 10),
             (6484, 11),
+            (LegacySocialLinksOffset, LegacySocialLinksLength),
             (LegacyFamilyNamePStringOffset, LegacyNameByteLength),
             (LegacyGivenNamePStringOffset, LegacyNameByteLength),
             (LegacyInventoryOffset + 257, 1));
@@ -215,6 +227,204 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)0, reopenedSave.State.DayPhase);
         Assert.Equal((byte)255, reopenedSave.State.NextDay);
         Assert.Equal((byte)0, reopenedSave.State.NextDayPhase);
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteSupportsSocialLinkEdits()
+    {
+        byte[] input = CreateSyntheticSave();
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+        SaveEditCommand[] edits =
+        [
+            new AddSocialLinkEdit(12),
+            new SetSocialLinkLevelEdit(0, 6),
+            new SetSocialLinkProgressEdit(1, 4),
+            new SetSocialLinkFlagEdit(2, 7),
+        ];
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, edits);
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)6, output[LegacySocialLinksOffset + 2]);
+        Assert.Equal((byte)4, output[LegacySocialLinksOffset + 16 + 4]);
+        Assert.Equal((byte)7, output[LegacySocialLinksOffset + 32 + 12]);
+        Assert.Equal(input[LegacySocialLinksOffset + 1], output[LegacySocialLinksOffset + 1]);
+        Assert.Equal(input[LegacySocialLinksOffset + (4 * 16) + 1], output[LegacySocialLinksOffset + (4 * 16) + 1]);
+        Assert.Equal(SocialLinkPaddingSentinel(0), output[LegacySocialLinksOffset + 1]);
+        Assert.Equal(SocialLinkPaddingSentinel(1), output[LegacySocialLinksOffset + 16 + 3]);
+        AssertOnlyRangesChanged(input, output, (LegacySocialLinksOffset, LegacySocialLinksLength));
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.Equal(new SocialLinkState(1, 6, 3, 2), reopenedSave.State.SocialLinks[0]);
+        Assert.Equal(new SocialLinkState(8, 2, 4, 0), reopenedSave.State.SocialLinks[1]);
+        Assert.Equal(new SocialLinkState(10, 1, 0, 7), reopenedSave.State.SocialLinks[2]);
+        Assert.Equal(new SocialLinkState(12, 1, 0, 0), reopenedSave.State.SocialLinks[3]);
+    }
+
+    [Fact]
+    public void ApplyEditsRejectsZeroSocialLinkId()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new AddSocialLinkEdit(0)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP016", diagnostic.Code);
+        Assert.Equal("SocialLinks", diagnostic.Target);
+    }
+
+    [Fact]
+    public void ApplyEditsRejectsDuplicateSocialLinkId()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new AddSocialLinkEdit(1)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP017", diagnostic.Code);
+        Assert.Equal("SocialLinks", diagnostic.Target);
+    }
+
+    [Fact]
+    public void ApplyEditsRejectsAddingSocialLinkWhenSlotCapacityIsFull()
+    {
+        byte[] input = CreateSyntheticSave();
+        WriteSocialLinks(input,
+            (1, 5, 3, 2),
+            (8, 2, 1, 0),
+            (10, 1, 0, 1),
+            (12, 1, 0, 0),
+            (13, 1, 0, 0),
+            (14, 1, 0, 0),
+            (15, 1, 0, 0),
+            (16, 1, 0, 0),
+            (17, 1, 0, 0),
+            (18, 1, 0, 0),
+            (19, 1, 0, 0),
+            (20, 1, 0, 0),
+            (21, 1, 0, 0),
+            (22, 1, 0, 0),
+            (23, 1, 0, 0),
+            (24, 1, 0, 0),
+            (25, 1, 0, 0),
+            (26, 1, 0, 0),
+            (27, 1, 0, 0),
+            (28, 1, 0, 0),
+            (29, 1, 0, 0),
+            (30, 1, 0, 0),
+            (31, 1, 0, 0));
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new AddSocialLinkEdit(32)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP015", diagnostic.Code);
+        Assert.Equal("SocialLinks", diagnostic.Target);
+    }
+
+    [Fact]
+    public void ApplyEditsRejectsUnsupportedSocialLinkSlot()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetSocialLinkLevelEdit(3, 4)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP014", diagnostic.Code);
+        Assert.Equal("SocialLinks", diagnostic.Target);
+    }
+
+    [Theory]
+    [InlineData("Remove", -1)]
+    [InlineData("Remove", 3)]
+    [InlineData("Progress", -1)]
+    [InlineData("Progress", 3)]
+    [InlineData("Flag", -1)]
+    [InlineData("Flag", 3)]
+    public void ApplyEditsRejectsOutOfRangeSocialLinkSlotsForRemoveProgressAndFlag(string editKind, int slotIndex)
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+        SaveEditCommand edit = editKind switch
+        {
+            "Remove" => new RemoveSocialLinkEdit(slotIndex),
+            "Progress" => new SetSocialLinkProgressEdit(slotIndex, 4),
+            "Flag" => new SetSocialLinkFlagEdit(slotIndex, 7),
+            _ => throw new InvalidOperationException("Unexpected edit kind."),
+        };
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [edit]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP014", diagnostic.Code);
+        Assert.Equal("SocialLinks", diagnostic.Target);
+        Assert.Equal(new[]
+        {
+            new SocialLinkState(1, 5, 3, 2),
+            new SocialLinkState(8, 2, 1, 0),
+            new SocialLinkState(10, 1, 0, 1),
+        }, save.State.SocialLinks);
+    }
+
+    [Fact]
+    public void RemoveSocialLinkCompactsAndRoundTrips()
+    {
+        byte[] input = CreateSyntheticSave();
+        WriteSocialLinks(input,
+            (1, 5, 3, 2),
+            (8, 2, 1, 0),
+            (10, 1, 0, 1),
+            (12, 1, 0, 0));
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, [new RemoveSocialLinkEdit(1)]);
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        Assert.Equal(
+            [
+                new SocialLinkState(1, 5, 3, 2),
+                new SocialLinkState(10, 1, 0, 1),
+                new SocialLinkState(12, 1, 0, 0),
+            ],
+            editedSave.State.SocialLinks);
+
+        SaveWriteResult writeResult = service.Write(editedSave);
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        AssertOnlyRangesChanged(input, output, (LegacySocialLinksOffset, LegacySocialLinksLength));
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.Equal(
+            [
+                new SocialLinkState(1, 5, 3, 2),
+                new SocialLinkState(10, 1, 0, 1),
+                new SocialLinkState(12, 1, 0, 0),
+            ],
+            reopenedSave.State.SocialLinks);
     }
 
     [Fact]
@@ -727,6 +937,7 @@ public sealed class SaveApplicationServiceTests
         AssertReadOnlyListDoesNotExposeArray(save.State.PartyPersonaSlots, save.State.CompendiumPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(save.State.CompendiumPersonaSlots, save.State.ProtagonistPersonaSlots[0]);
         AssertReadOnlyListDoesNotExposeArray(save.State.InventoryStacks, new InventoryStack(0x42, 9));
+        AssertReadOnlyListDoesNotExposeArray(save.State.SocialLinks, new SocialLinkState(0x42, 1, 1, 1));
     }
 
     private static WorkingSave OpenOrThrow(SaveApplicationService service, byte[] input)
@@ -755,6 +966,7 @@ public sealed class SaveApplicationServiceTests
         bytes[LegacyPartyMembersOffset + 4] = 0x80;
         WriteSocialStats(bytes, 15, 30, 80, 140, 85);
         WriteCalendar(bytes, 18, 4, 19, 5);
+        WriteSocialLinks(bytes, (1, 5, 3, 2), (8, 2, 1, 0), (10, 1, 0, 1));
         bytes.AsSpan(LegacyInventoryOffset, LegacyInventoryLength).Clear();
         bytes[LegacyInventoryOffset + 1] = 2;
         bytes[LegacyInventoryOffset + 257] = 3;
@@ -793,6 +1005,45 @@ public sealed class SaveApplicationServiceTests
         bytes[LegacyCalendarOffset + 2] = dayPhase;
         bytes[LegacyCalendarOffset + 8] = nextDay;
         bytes[LegacyCalendarOffset + 10] = nextDayPhase;
+    }
+
+    private static void WriteSocialLinks(
+        byte[] bytes,
+        params (byte LinkId, byte Level, byte Progress, byte Flag)[] socialLinks)
+    {
+        bytes.AsSpan(LegacySocialLinksOffset, LegacySocialLinksLength).Clear();
+        for (int index = 0; index < socialLinks.Length; index++)
+        {
+            int offset = LegacySocialLinksOffset + (index * 16);
+            (byte linkId, byte level, byte progress, byte flag) = socialLinks[index];
+            bytes[offset] = linkId;
+            bytes[offset + 2] = level;
+            bytes[offset + 4] = progress;
+            bytes[offset + 12] = flag;
+        }
+
+        for (int index = 0; index < LegacySocialLinkSlotCount; index++)
+        {
+            SeedSocialLinkPadding(bytes, LegacySocialLinksOffset + (index * 16), SocialLinkPaddingSentinel(index));
+        }
+    }
+
+    private static byte SocialLinkPaddingSentinel(int slotIndex) => (byte)(0xC0 + slotIndex);
+
+    private static void SeedSocialLinkPadding(byte[] bytes, int offset, byte sentinel)
+    {
+        bytes[offset + 1] = sentinel;
+        bytes[offset + 3] = sentinel;
+        bytes[offset + 5] = sentinel;
+        bytes[offset + 6] = sentinel;
+        bytes[offset + 7] = sentinel;
+        bytes[offset + 8] = sentinel;
+        bytes[offset + 9] = sentinel;
+        bytes[offset + 10] = sentinel;
+        bytes[offset + 11] = sentinel;
+        bytes[offset + 13] = sentinel;
+        bytes[offset + 14] = sentinel;
+        bytes[offset + 15] = sentinel;
     }
 
     private static void WriteEquipmentSlot(byte[] bytes, int offset, ushort weaponId, ushort armorId, ushort accessoryId, ushort costumeId)

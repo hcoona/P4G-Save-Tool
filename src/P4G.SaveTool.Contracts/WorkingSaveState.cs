@@ -7,6 +7,7 @@ public sealed class WorkingSaveState
 {
     private const int EquipmentSlotCount = 8;
     private const int SocialStatCount = SocialStatRules.StatCount;
+    private const int SocialLinkSlotCount = 23;
 
     private readonly ReadOnlyCollection<PartyMemberId> partyMembers;
     private readonly ReadOnlyCollection<ushort> equippedWeapons;
@@ -18,6 +19,7 @@ public sealed class WorkingSaveState
     private readonly ReadOnlyCollection<PersonaSlot> partyPersonaSlots;
     private readonly ReadOnlyCollection<PersonaSlot> compendiumPersonaSlots;
     private readonly ReadOnlyCollection<InventoryStack> inventoryStacks;
+    private readonly ReadOnlyCollection<SocialLinkState> socialLinks;
 
     public WorkingSaveState(
         SaveNames names,
@@ -32,6 +34,7 @@ public sealed class WorkingSaveState
         IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
         IReadOnlyList<InventoryStack>? inventoryStacks = null,
         IReadOnlyList<ushort>? socialStats = null,
+        IReadOnlyList<SocialLinkState>? socialLinks = null,
         byte day = 0,
         byte dayPhase = 0,
         byte nextDay = 0,
@@ -51,6 +54,8 @@ public sealed class WorkingSaveState
         this.partyPersonaSlots = CopyReadOnly(partyPersonaSlots, nameof(partyPersonaSlots));
         this.compendiumPersonaSlots = CopyReadOnly(compendiumPersonaSlots, nameof(compendiumPersonaSlots));
         this.inventoryStacks = CopyReadOnly(inventoryStacks ?? Array.Empty<InventoryStack>(), nameof(inventoryStacks));
+        this.socialLinks = CopyReadOnly(socialLinks ?? Array.Empty<SocialLinkState>(), nameof(socialLinks));
+        ValidateMaximumLength(this.socialLinks, SocialLinkSlotCount, nameof(socialLinks));
         Day = day;
         DayPhase = dayPhase;
         NextDay = nextDay;
@@ -81,6 +86,8 @@ public sealed class WorkingSaveState
 
     public IReadOnlyList<InventoryStack> InventoryStacks => inventoryStacks;
 
+    public IReadOnlyList<SocialLinkState> SocialLinks => socialLinks;
+
     public byte Day { get; }
 
     public byte DayPhase { get; }
@@ -106,6 +113,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -126,6 +134,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -153,6 +162,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -186,6 +196,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -206,6 +217,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             day,
             DayPhase,
             NextDay,
@@ -225,6 +237,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             dayPhase,
             NextDay,
@@ -244,6 +257,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             DayPhase,
             nextDay,
@@ -263,6 +277,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -282,6 +297,7 @@ public sealed class WorkingSaveState
             state.partyPersonaSlots,
             state.compendiumPersonaSlots,
             state.inventoryStacks,
+            state.socialLinks,
             state.Day,
             state.DayPhase,
             state.NextDay,
@@ -301,6 +317,7 @@ public sealed class WorkingSaveState
             slots,
             state.compendiumPersonaSlots,
             state.inventoryStacks,
+            state.socialLinks,
             state.Day,
             state.DayPhase,
             state.NextDay,
@@ -349,6 +366,7 @@ public sealed class WorkingSaveState
                 partyPersonaSlots,
                 compendiumPersonaSlots,
                 updatedInventory,
+            socialLinks,
                 Day,
                 DayPhase,
                 NextDay,
@@ -370,6 +388,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             insertedInventory,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -380,6 +399,98 @@ public sealed class WorkingSaveState
     {
         int itemIndex = FindInventoryItemIndex(itemId);
         return itemIndex < 0 ? this : WithInventoryItemRemoved(itemIndex);
+    }
+
+    public WorkingSaveState WithSocialLink(int slotIndex, SocialLinkState socialLink)
+    {
+        if ((uint)slotIndex >= (uint)socialLinks.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slotIndex), slotIndex, "Social link slot is out of range.");
+        }
+
+        if (socialLinks[slotIndex].Equals(socialLink))
+        {
+            return this;
+        }
+
+        SocialLinkState[] updatedSocialLinks = socialLinks.ToArray();
+        updatedSocialLinks[slotIndex] = socialLink;
+        return CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            updatedSocialLinks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
+    }
+
+    public WorkingSaveState WithSocialLinkAdded(SocialLinkState socialLink)
+    {
+        if (socialLink.LinkId == 0 || socialLinks.Any(existing => existing.LinkId == socialLink.LinkId))
+        {
+            return this;
+        }
+
+        List<SocialLinkState> updatedSocialLinks = socialLinks.ToList();
+        updatedSocialLinks.Add(socialLink);
+        return CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            updatedSocialLinks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
+    }
+
+    public WorkingSaveState WithSocialLinkRemoved(int slotIndex)
+    {
+        if ((uint)slotIndex >= (uint)socialLinks.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slotIndex), slotIndex, "Social link slot is out of range.");
+        }
+
+        List<SocialLinkState> updatedSocialLinks = socialLinks.ToList();
+        updatedSocialLinks.RemoveAt(slotIndex);
+        return CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            updatedSocialLinks,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
     }
 
     private static ReadOnlyCollection<T> CopyReadOnly<T>(IReadOnlyCollection<T> values, string parameterName)
@@ -402,6 +513,17 @@ public sealed class WorkingSaveState
         return Array.AsReadOnly(values.ToArray());
     }
 
+    private static void ValidateMaximumLength<T>(IReadOnlyCollection<T> values, int maximumLength, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(values, parameterName);
+        if (values.Count > maximumLength)
+        {
+            throw new ArgumentException(
+                $"Field must contain at most {maximumLength} values.",
+                parameterName);
+        }
+    }
+
     private WorkingSaveState WithInventoryItemRemoved(int itemIndex)
     {
         List<InventoryStack> updatedInventory = inventoryStacks.ToList();
@@ -419,6 +541,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             updatedInventory,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -505,6 +628,7 @@ public sealed class WorkingSaveState
             partyPersonaSlots,
             compendiumPersonaSlots,
             inventoryStacks,
+            socialLinks,
             Day,
             DayPhase,
             NextDay,
@@ -524,6 +648,7 @@ public sealed class WorkingSaveState
         IReadOnlyList<PersonaSlot> partyPersonaSlots,
         IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
         IReadOnlyList<InventoryStack> inventoryStacks,
+        IReadOnlyList<SocialLinkState> socialLinks,
         byte day,
         byte dayPhase,
         byte nextDay,
@@ -541,6 +666,7 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialStats,
+            socialLinks,
             day,
             dayPhase,
             nextDay,

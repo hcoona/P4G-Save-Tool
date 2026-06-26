@@ -123,7 +123,9 @@ public sealed class SocialStatRulesTests
         return socialStats;
     }
 
-    private static WorkingSaveState CreateState(IReadOnlyList<ushort>? socialStats = null) =>
+    private static WorkingSaveState CreateState(
+        IReadOnlyList<ushort>? socialStats = null,
+        IReadOnlyList<SocialLinkState>? socialLinks = null) =>
         new(
             new SaveNames("Sato", "Yu"),
             123456u,
@@ -137,6 +139,7 @@ public sealed class SocialStatRulesTests
             [CreatePersonaSlot(0x0303, 22, 0x03030303, 0x3301)],
             [],
             socialStats ?? [15, 30, 80, 140, 85],
+            socialLinks ?? [new SocialLinkState(1, 5, 3, 2), new SocialLinkState(8, 2, 1, 0), new SocialLinkState(10, 1, 0, 1)],
             18,
             4,
             19,

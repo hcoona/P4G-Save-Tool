@@ -337,6 +337,25 @@ public sealed class WinUIArchitectureTests
             "            <TextBlock Text=\"Persona projections (read-only raw values)\" Style=\"{ThemeResource BodyStrongTextBlockStyle}\" />");
 
         Assert.Contains("Text=\"{Binding DisplayName}\"", compendiumSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("{x:Bind", compendiumSection, StringComparison.Ordinal);
+        Assert.Contains("<DataTemplate>", compendiumSection, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowXamlUsesRuntimeBindingsWithNativeAotPreservation()
+    {
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+        string[] dataTemplateLines = xaml
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => line.Contains("<DataTemplate", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(dataTemplateLines);
+        Assert.Contains("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Quantity}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("{x:Bind", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:DataType=", xaml, StringComparison.Ordinal);
+        Assert.Contains("XamlBindingPreservation.PreserveXamlBindingProperties();", File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "App.xaml.cs")), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -597,7 +616,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"InventoryQuantityTextBox\"", xaml);
         Assert.Contains("x:Name=\"InventoryAddUpdateButton\"", xaml);
         Assert.Contains("x:Name=\"InventoryDeleteButton\"", xaml);
-        Assert.Contains("Text=\"{Binding DisplayName}\"", xaml);
+        Assert.Contains("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"EquipmentCharacterComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentWeaponComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", xaml);
@@ -878,7 +897,19 @@ public sealed class WinUIArchitectureTests
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string loadedBody = GetSection(
+            content,
+            "private async void MainWindow_Loaded(object sender, RoutedEventArgs e)",
+            "private async void MainWindow_DragOver(object sender, DragEventArgs e)");
 
+        Assert.Contains("UpdateWindowTitle();", loadedBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshFromViewModel();", loadedBody, StringComparison.Ordinal);
+        Assert.True(
+            loadedBody.IndexOf("UpdateWindowTitle();", StringComparison.Ordinal) <
+            loadedBody.IndexOf("RefreshFromViewModel();", StringComparison.Ordinal));
+        Assert.True(
+            loadedBody.IndexOf("RefreshFromViewModel();", StringComparison.Ordinal) <
+            loadedBody.IndexOf("ConsumeStartupOpenPath(ref startupOpenPath);", StringComparison.Ordinal));
         Assert.Contains("private async void MainWindow_Loaded(object sender, RoutedEventArgs e)", content, StringComparison.Ordinal);
         Assert.DoesNotContain("if (File.Exists(openPath))", content, StringComparison.Ordinal);
         Assert.Contains("await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, \"Launch\"));", content, StringComparison.Ordinal);
@@ -886,6 +917,16 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite);", content, StringComparison.Ordinal);
         Assert.Contains("DiagnosticsListView.ItemsSource = ShellStateFormatter.GetDiagnosticsText(diagnostics);", content, StringComparison.Ordinal);
         Assert.Contains("Title = ShellStateFormatter.GetWindowTitle(currentFilePath);", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppConstructorPreservesXamlBindingPropertiesForNativeAot()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "App.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("XamlBindingPreservation.PreserveXamlBindingProperties();", content, StringComparison.Ordinal);
+        Assert.Contains("InitializeComponent();", content, StringComparison.Ordinal);
     }
 
     [Fact]

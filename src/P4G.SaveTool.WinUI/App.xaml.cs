@@ -6,6 +6,7 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     public App()
     {
+        XamlBindingPreservation.PreserveXamlBindingProperties();
         InitializeComponent();
     }
 

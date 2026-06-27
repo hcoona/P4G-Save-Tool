@@ -54,7 +54,6 @@ public sealed partial class MainWindow : Window
 
         viewModel = new SaveEditorViewModel(new SaveApplicationService());
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
-        RefreshFromViewModel();
     }
 
     private async void OpenButton_Click(object sender, RoutedEventArgs e) =>
@@ -411,6 +410,7 @@ public sealed partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         UpdateWindowTitle();
+        RefreshFromViewModel();
 
         string? openPath = ConsumeStartupOpenPath(ref startupOpenPath);
         if (openPath is null)

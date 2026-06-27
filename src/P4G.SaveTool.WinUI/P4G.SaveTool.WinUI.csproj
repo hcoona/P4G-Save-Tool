@@ -22,6 +22,7 @@
     <WindowsSdkPackageVersion Condition="'$(WindowsSdkPackageVersion)' == ''">10.0.22000.57</WindowsSdkPackageVersion>
     <CsWinRTWindowsMetadataPackageVersion Condition="'$(CsWinRTWindowsMetadataPackageVersion)' == ''">10.0.22000.196</CsWinRTWindowsMetadataPackageVersion>
     <CsWinRTWindowsMetadata Condition="'$(CsWinRTWindowsMetadata)' == ''">$(NuGetPackageRoot)\microsoft.windows.sdk.cpp\$(CsWinRTWindowsMetadataPackageVersion)\c</CsWinRTWindowsMetadata>
+    <NoWarn>$(NoWarn);WMC1510</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

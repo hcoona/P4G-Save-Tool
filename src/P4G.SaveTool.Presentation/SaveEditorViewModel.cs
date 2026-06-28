@@ -224,6 +224,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
     public static IReadOnlyList<CalendarPhaseChoiceViewState> GetCalendarPhaseChoices(int currentPhaseId, out CalendarPhaseChoiceViewState selectedChoice) =>
         CalendarProjection.GetPhaseChoices(currentPhaseId, out selectedChoice);
 
+    public static IReadOnlyList<PartyConfigurationChoiceViewState> GetPartyConfigurationChoices(byte currentMemberValue, out PartyConfigurationChoiceViewState selectedChoice) =>
+        PartyConfigurationProjection.GetChoices(currentMemberValue, out selectedChoice);
+
     public static IReadOnlyList<PersonaChoiceViewState> GetPersonaChoices(ushort currentPersonaId, out PersonaChoiceViewState selectedChoice) =>
         PersonaSelectionProjection.GetPersonaChoices(currentPersonaId, out selectedChoice);
 

@@ -10,7 +10,7 @@ public sealed class SocialLinkDraftTests
     [Fact]
     public void SocialLinkDraftIsRestoredOnlyWhenSelectedLinkMatches()
     {
-        MainWindow.SocialLinkDraftState draft = new(3, 12, "6", "4", "2");
+        MainWindow.SocialLinkDraftState draft = new(3, 12, "6", "4");
         SocialLinkViewState matchingLink = new(3, 12, "Matching", string.Empty, 1, 1, 1);
         SocialLinkViewState shiftedLink = new(2, 12, "Matching", string.Empty, 1, 1, 1);
         SocialLinkViewState changedLink = new(3, 13, "Matching", string.Empty, 1, 1, 1);
@@ -24,7 +24,7 @@ public sealed class SocialLinkDraftTests
     [Fact]
     public void SocialLinkDraftRefreshHelperRestoresAfterSelectedLinkShifts()
     {
-        MainWindow.SocialLinkDraftState draft = new(3, 12, "6", "4", "2");
+        MainWindow.SocialLinkDraftState draft = new(3, 12, "6", "4");
         SocialLinkViewState matchingLink = new(3, 12, "Matching", string.Empty, 1, 1, 1);
         SocialLinkViewState shiftedLink = new(2, 12, "Matching", string.Empty, 1, 1, 1);
 
@@ -137,7 +137,7 @@ public sealed class SocialLinkDraftTests
     [Fact]
     public void SocialLinkDraftRefreshHelperSkipsRestoreWhenSelectionClearsAfterDeletingLastLink()
     {
-        MainWindow.SocialLinkDraftState draft = new(0, 12, "6", "4", "2");
+        MainWindow.SocialLinkDraftState draft = new(0, 12, "6", "4");
 
         static SaveEditorOperationResult CreateSuccessResult() =>
             new(true, Array.Empty<SaveDiagnostic>());
@@ -184,7 +184,7 @@ public sealed class SocialLinkDraftTests
     [Fact]
     public void SocialLinkDraftRefreshHelperCapturesRefreshesAndSkipsDifferentLink()
     {
-        MainWindow.SocialLinkDraftState draft = new(3, 12, "6", "4", "2");
+        MainWindow.SocialLinkDraftState draft = new(3, 12, "6", "4");
         SocialLinkViewState matchingLink = new(3, 12, "Matching", string.Empty, 1, 1, 1);
         SocialLinkViewState changedLink = new(4, 13, "Matching", string.Empty, 1, 1, 1);
 

@@ -9,6 +9,7 @@ public sealed class ShellDragDropHelperTests
     public void GetAcceptedDragOperationReturnsCopyOnlyForOpenablePaths()
     {
         Assert.Equal(DataPackageOperation.Copy, ShellDragDropHelper.GetAcceptedDragOperation([@"Q:\saves\data0001.bin"]));
+        Assert.Equal(DataPackageOperation.None, ShellDragDropHelper.GetAcceptedDragOperation([@"Q:\saves\data0001.sav"]));
         Assert.Equal(DataPackageOperation.None, ShellDragDropHelper.GetAcceptedDragOperation(Array.Empty<string?>()));
         Assert.Equal(DataPackageOperation.None, ShellDragDropHelper.GetAcceptedDragOperation([""]));
     }
@@ -48,7 +49,10 @@ public sealed class ShellDragDropHelperTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void TryGetOpenablePathRejectsEmptyOrNonLocalPaths(string? path)
+    [InlineData(@"Q:\saves\data0001.sav")]
+    [InlineData(@"Q:\saves\data0001.dat")]
+    [InlineData(@"Q:\saves\data0001")]
+    public void TryGetOpenablePathRejectsEmptyOrUnsupportedPaths(string? path)
     {
         bool result = ShellDragDropHelper.TryGetOpenablePath(path, out string openablePath);
 

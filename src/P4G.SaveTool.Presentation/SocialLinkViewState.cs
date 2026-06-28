@@ -19,5 +19,5 @@ public sealed record SocialLinkViewState(
     public override string ToString() =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{DisplayName}  Lv {Level}  Progress {Progress}  Flag {Flag}");
+            $"{DisplayName}  Lv {Level}  Progress {Progress}");
 }

@@ -37,6 +37,9 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<InventoryItemChoiceViewState> equipmentArmorChoices = new();
     private readonly ObservableCollection<InventoryItemChoiceViewState> equipmentAccessoryChoices = new();
     private readonly ObservableCollection<InventoryItemChoiceViewState> equipmentCostumeChoices = new();
+    private readonly ObservableCollection<PartyConfigurationChoiceViewState> partySlot0Choices = new();
+    private readonly ObservableCollection<PartyConfigurationChoiceViewState> partySlot1Choices = new();
+    private readonly ObservableCollection<PartyConfigurationChoiceViewState> partySlot2Choices = new();
     private readonly ObservableCollection<PartyMemberChoiceViewState> personaMemberChoices = new();
     private readonly ObservableCollection<PersonaSlotViewState> personaSlotChoices = new();
     private readonly ObservableCollection<PersonaChoiceViewState> personaChoices = new();
@@ -91,6 +94,9 @@ public sealed partial class MainWindow : Window
         EquipmentArmorComboBox.ItemsSource = equipmentArmorChoices;
         EquipmentAccessoryComboBox.ItemsSource = equipmentAccessoryChoices;
         EquipmentCostumeComboBox.ItemsSource = equipmentCostumeChoices;
+        PartySlot0ComboBox.ItemsSource = partySlot0Choices;
+        PartySlot1ComboBox.ItemsSource = partySlot1Choices;
+        PartySlot2ComboBox.ItemsSource = partySlot2Choices;
         PersonaMemberComboBox.ItemsSource = personaMemberChoices;
         PersonaSlotComboBox.ItemsSource = personaSlotChoices;
         PersonaChoiceComboBox.ItemsSource = personaChoices;
@@ -168,8 +174,7 @@ public sealed partial class MainWindow : Window
         int SlotIndex,
         byte LinkId,
         string LevelText,
-        string ProgressText,
-        string FlagText);
+        string ProgressText);
 
     internal readonly record struct CompendiumDraftState(
         int SlotIndex,
@@ -257,9 +262,6 @@ public sealed partial class MainWindow : Window
             SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
         };
         picker.FileTypeFilter.Add(".bin");
-        picker.FileTypeFilter.Add(".sav");
-        picker.FileTypeFilter.Add(".dat");
-        picker.FileTypeFilter.Add("*");
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
 
         StorageFile? file = await picker.PickSingleFileAsync();
@@ -285,9 +287,16 @@ public sealed partial class MainWindow : Window
             return BusyOperationCompletion.PreserveEditorState;
         }
 
+        if (!ShellDragDropHelper.TryGetOpenablePath(path, out string openablePath))
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI029", "Select a Persona 4 Golden .bin save file.", source)]);
+            await ShowMessageAsync("Open failed", "Select a Persona 4 Golden .bin save file.");
+            return BusyOperationCompletion.PreserveEditorState;
+        }
+
         try
         {
-            byte[] bytes = await File.ReadAllBytesAsync(path);
+            byte[] bytes = await File.ReadAllBytesAsync(openablePath);
             uiDiagnosticsOverride = null;
             SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
                 () => viewModel.OpenSave(bytes));
@@ -295,7 +304,7 @@ public sealed partial class MainWindow : Window
                 result.Succeeded,
                 () =>
                 {
-                    currentFilePath = path;
+                    currentFilePath = openablePath;
                     selectedInventoryCategoryId = null;
                     selectedInventoryItemId = null;
                     selectedInventoryEntryId = null;
@@ -378,40 +387,17 @@ public sealed partial class MainWindow : Window
     private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)
     {
         string? targetPath;
-        bool blankSaveLoaded = false;
-        if (forcePicker && !viewModel.HasSave)
+        if (!ApplyEditorFields())
         {
-            targetPath = await PickSavePathAsync();
-            if (string.IsNullOrWhiteSpace(targetPath))
-            {
-                return BusyOperationCompletion.PreserveEditorState;
-            }
-
-            uiDiagnosticsOverride = null;
-            SaveEditorOperationResult blankSaveResult = viewModel.CreateBlankSave();
-            if (!blankSaveResult.Succeeded)
-            {
-                DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-                await ShowMessageAsync("Save failed", FormatDiagnostics(blankSaveResult.Diagnostics));
-                return BusyOperationCompletion.PreserveEditorState;
-            }
-
-            blankSaveLoaded = true;
+            return BusyOperationCompletion.PreserveEditorState;
         }
-        else
-        {
-            if (!ApplyEditorFields())
-            {
-                return BusyOperationCompletion.PreserveEditorState;
-            }
 
-            targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)
-                ? await PickSavePathAsync()
-                : currentFilePath;
-            if (string.IsNullOrWhiteSpace(targetPath))
-            {
-                return BusyOperationCompletion.PreserveEditorState;
-            }
+        targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)
+            ? await PickSavePathAsync()
+            : currentFilePath;
+        if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return BusyOperationCompletion.PreserveEditorState;
         }
 
         uiDiagnosticsOverride = null;
@@ -419,19 +405,7 @@ public sealed partial class MainWindow : Window
             () => viewModel.WriteSave());
         if (!writeResult.Succeeded || writeResult.Bytes is null || writeResult.OperationToken is null)
         {
-            if (blankSaveLoaded)
-            {
-                RestoreNoSaveStateAfterFailedBlankSaveCore(
-                    saveEditorRefreshCoordinator,
-                    viewModel,
-                    writeResult.Diagnostics,
-                    RefreshFromViewModel,
-                    ref uiDiagnosticsOverride);
-            }
-            else
-            {
-                RefreshFromViewModelPreservingInventoryQuantityDraft();
-            }
+            RefreshFromViewModelPreservingInventoryQuantityDraft();
 
             await ShowMessageAsync("Save failed", FormatDiagnostics(writeResult.Diagnostics));
             return BusyOperationCompletion.PreserveEditorState;
@@ -452,19 +426,7 @@ public sealed partial class MainWindow : Window
             ];
             SaveEditorOperationResult reportResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
                 () => viewModel.ReportSaveFailed(operationToken, diagnostics));
-            if (blankSaveLoaded)
-            {
-                RestoreNoSaveStateAfterFailedBlankSaveCore(
-                    saveEditorRefreshCoordinator,
-                    viewModel,
-                    reportResult.Diagnostics,
-                    RefreshFromViewModel,
-                    ref uiDiagnosticsOverride);
-            }
-            else
-            {
-                RefreshFromViewModelPreservingInventoryQuantityDraft();
-            }
+            RefreshFromViewModelPreservingInventoryQuantityDraft();
 
             await ShowMessageAsync("Save failed", FormatDiagnostics(reportResult.Diagnostics));
             return BusyOperationCompletion.PreserveEditorState;
@@ -483,13 +445,6 @@ public sealed partial class MainWindow : Window
         return BusyOperationCompletion.PreserveEditorState;
     }
 
-    private void RestoreNoSaveStateAfterFailedBlankSave(IReadOnlyList<SaveDiagnostic> diagnostics)
-    {
-        uiDiagnosticsOverride = diagnostics;
-        saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(() => viewModel.ClearSave());
-        RefreshFromViewModel();
-    }
-
     private async Task<string?> PickSavePathAsync()
     {
         FileSavePicker picker = new()
@@ -500,8 +455,6 @@ public sealed partial class MainWindow : Window
                 : Path.GetFileNameWithoutExtension(currentFilePath),
         };
         picker.FileTypeChoices.Add("Persona 4 Golden save", new List<string> { ".bin" });
-        picker.FileTypeChoices.Add("Save file", new List<string> { ".sav" });
-        picker.FileTypeChoices.Add("Data file", new List<string> { ".dat" });
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
 
         StorageFile? file = await picker.PickSaveFileAsync();
@@ -652,9 +605,9 @@ public sealed partial class MainWindow : Window
                 "Main character total experience must be an unsigned whole number.",
                 "MainCharacter.TotalExperience"));
         }
-        AddPartyMemberValue(PartySlot0TextBox, 0, batch, validationDiagnostics);
-        AddPartyMemberValue(PartySlot1TextBox, 1, batch, validationDiagnostics);
-        AddPartyMemberValue(PartySlot2TextBox, 2, batch, validationDiagnostics);
+        AddPartyMemberValue(PartySlot0ComboBox, 0, batch, validationDiagnostics);
+        AddPartyMemberValue(PartySlot1ComboBox, 1, batch, validationDiagnostics);
+        AddPartyMemberValue(PartySlot2ComboBox, 2, batch, validationDiagnostics);
         AppendGroup4Edits(
             viewModel.SocialStats,
             viewModel.Calendar,
@@ -677,20 +630,20 @@ public sealed partial class MainWindow : Window
     }
 
     private static void AddPartyMemberValue(
-        TextBox textBox,
+        ComboBox comboBox,
         int slotIndex,
         List<SaveEditCommand> edits,
         List<SaveDiagnostic> diagnostics)
     {
-        if (byte.TryParse(textBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out byte memberValue))
+        if (comboBox.SelectedItem is PartyConfigurationChoiceViewState selectedMember)
         {
-            edits.Add(new SetPartyMemberEdit(slotIndex, memberValue));
+            edits.Add(new SetPartyMemberEdit(slotIndex, selectedMember.MemberValue));
             return;
         }
 
         diagnostics.Add(CreateUiDiagnostic(
             "P4GWINUI007",
-            $"Party slot {slotIndex + 1} must be a whole number from 0 to 255.",
+            $"Select a party member for slot {slotIndex + 1}.",
             $"PartyMembers[{slotIndex}]"));
     }
 
@@ -768,7 +721,6 @@ public sealed partial class MainWindow : Window
             selectedSocialLinkIndex,
             SocialLinkLevelTextBox.Text ?? string.Empty,
             SocialLinkProgressTextBox.Text ?? string.Empty,
-            SocialLinkFlagTextBox.Text ?? string.Empty,
             edits,
             diagnostics);
     }
@@ -846,8 +798,7 @@ public sealed partial class MainWindow : Window
             selectedLink.SlotIndex,
             selectedLink.LinkId,
             SocialLinkLevelTextBox.Text ?? string.Empty,
-            SocialLinkProgressTextBox.Text ?? string.Empty,
-            SocialLinkFlagTextBox.Text ?? string.Empty);
+            SocialLinkProgressTextBox.Text ?? string.Empty);
     }
 
     private SocialLinkViewState? GetSelectedSocialLinkViewState() =>
@@ -862,7 +813,6 @@ public sealed partial class MainWindow : Window
 
         SocialLinkLevelTextBox.Text = socialLinkDraft.LevelText;
         SocialLinkProgressTextBox.Text = socialLinkDraft.ProgressText;
-        SocialLinkFlagTextBox.Text = socialLinkDraft.FlagText;
     }
 
     internal static bool ShouldRestoreSelectedSocialLinkDraft(
@@ -948,7 +898,6 @@ public sealed partial class MainWindow : Window
         int? selectedSocialLinkIndex,
         string levelText,
         string progressText,
-        string flagText,
         List<SaveEditCommand> edits,
         List<SaveDiagnostic> diagnostics)
     {
@@ -962,15 +911,13 @@ public sealed partial class MainWindow : Window
 
         bool levelIsValid = TryReadSocialLinkField(levelText, "Level", "SocialLinks.Level", diagnostics, out byte level);
         bool progressIsValid = TryReadSocialLinkField(progressText, "Progress", "SocialLinks.Progress", diagnostics, out byte progress);
-        bool flagIsValid = TryReadSocialLinkField(flagText, "Flag", "SocialLinks.Flag", diagnostics, out byte flag);
-        if (!levelIsValid || !progressIsValid || !flagIsValid)
+        if (!levelIsValid || !progressIsValid)
         {
             return false;
         }
 
         edits.Add(new SetSocialLinkLevelEdit(selectedSocialLinkIndex.Value, level));
         edits.Add(new SetSocialLinkProgressEdit(selectedSocialLinkIndex.Value, progress));
-        edits.Add(new SetSocialLinkFlagEdit(selectedSocialLinkIndex.Value, flag));
         return true;
     }
 
@@ -1463,9 +1410,7 @@ public sealed partial class MainWindow : Window
         TraceStartup("RefreshRemainingEditableFields after compendium");
         RefreshInventoryState();
         TraceStartup("RefreshRemainingEditableFields after inventory");
-        PartySlot0TextBox.Text = GetPartyMemberValue(0);
-        PartySlot1TextBox.Text = GetPartyMemberValue(1);
-        PartySlot2TextBox.Text = GetPartyMemberValue(2);
+        RefreshPartyConfigurationState();
         TraceStartup("RefreshRemainingEditableFields after party");
         RefreshEquipmentState();
         TraceStartup("RefreshRemainingEditableFields after equipment");
@@ -1502,7 +1447,7 @@ public sealed partial class MainWindow : Window
         bool startupRefreshPending = refreshEditableFieldsAfterStartupOpen;
         bool canEdit = viewModel.HasSave && !isBusy && !startupRefreshPending;
         bool canSave = canEdit && viewModel.CanWrite;
-        bool canSaveAs = !isBusy && !startupRefreshPending;
+        bool canSaveAs = canSave;
 
         FileOpenMenuItem.IsEnabled = !isBusy && !startupRefreshPending;
         OpenButton.IsEnabled = !isBusy && !startupRefreshPending;
@@ -1530,16 +1475,15 @@ public sealed partial class MainWindow : Window
         SocialLinkAddComboBox.IsEnabled = canEdit;
         SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
-        SocialLinkFlagTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         SocialLinkApplyButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         CompendiumListView.IsEnabled = canEdit;
         CompendiumAddComboBox.IsEnabled = canEdit;
         CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumSlotIndex.HasValue;
         CompendiumClearButton.IsEnabled = canEdit;
-        PartySlot0TextBox.IsEnabled = canEdit;
-        PartySlot1TextBox.IsEnabled = canEdit;
-        PartySlot2TextBox.IsEnabled = canEdit;
+        PartySlot0ComboBox.IsEnabled = canEdit;
+        PartySlot1ComboBox.IsEnabled = canEdit;
+        PartySlot2ComboBox.IsEnabled = canEdit;
         PersonaMemberComboBox.IsEnabled = canEdit;
         PersonaSlotComboBox.IsEnabled = canEdit && selectedPersonaMemberId == 0 && !selectedCompendiumSlotIndex.HasValue;
         PersonaChoiceComboBox.IsEnabled = canEdit;
@@ -1693,7 +1637,6 @@ public sealed partial class MainWindow : Window
                 TraceStartup("RefreshSocialLinksState empty branch after add selection");
                 SocialLinkLevelTextBox.Text = string.Empty;
                 SocialLinkProgressTextBox.Text = string.Empty;
-                SocialLinkFlagTextBox.Text = string.Empty;
                 TraceStartup("RefreshSocialLinksState empty branch exit");
                 return;
             }
@@ -1713,7 +1656,6 @@ public sealed partial class MainWindow : Window
             TraceStartup("RefreshSocialLinksState selected add choice");
             SocialLinkLevelTextBox.Text = selectedLink.Level.ToString(CultureInfo.InvariantCulture);
             SocialLinkProgressTextBox.Text = selectedLink.Progress.ToString(CultureInfo.InvariantCulture);
-            SocialLinkFlagTextBox.Text = selectedLink.Flag.ToString(CultureInfo.InvariantCulture);
             TraceStartup("RefreshSocialLinksState assigned selection");
         }
         finally
@@ -2183,6 +2125,36 @@ public sealed partial class MainWindow : Window
             SetUiDiagnostics(result.Diagnostics);
             _ = ShowMessageAsync("Compendium clear failed", FormatDiagnostics(result.Diagnostics));
         }
+    }
+
+    private void RefreshPartyConfigurationState()
+    {
+        SetPartyConfigurationChoices(partySlot0Choices, PartySlot0ComboBox, 0);
+        SetPartyConfigurationChoices(partySlot1Choices, PartySlot1ComboBox, 1);
+        SetPartyConfigurationChoices(partySlot2Choices, PartySlot2ComboBox, 2);
+    }
+
+    private void SetPartyConfigurationChoices(
+        ObservableCollection<PartyConfigurationChoiceViewState> targetCollection,
+        ComboBox comboBox,
+        int slotIndex)
+    {
+        targetCollection.Clear();
+        if (!viewModel.HasSave || viewModel.PartyMembers.Count <= slotIndex)
+        {
+            comboBox.SelectedItem = null;
+            return;
+        }
+
+        byte currentMemberValue = viewModel.PartyMembers[slotIndex].MemberValue;
+        IReadOnlyList<PartyConfigurationChoiceViewState> choices =
+            SaveEditorViewModel.GetPartyConfigurationChoices(currentMemberValue, out PartyConfigurationChoiceViewState selectedChoice);
+        foreach (PartyConfigurationChoiceViewState choice in choices)
+        {
+            targetCollection.Add(choice);
+        }
+
+        comboBox.SelectedItem = selectedChoice;
     }
 
     private void RefreshEquipmentState()
@@ -2805,11 +2777,6 @@ public sealed partial class MainWindow : Window
         return false;
     }
 
-    private string GetPartyMemberValue(int slotIndex) =>
-        viewModel.PartyMembers.Count > slotIndex
-            ? viewModel.PartyMembers[slotIndex].MemberValue.ToString(CultureInfo.InvariantCulture)
-            : string.Empty;
-
     private string BuildPersonaSummary()
     {
         if (!viewModel.HasSave)
@@ -2979,23 +2946,6 @@ public sealed partial class MainWindow : Window
     internal static void EndBusyOperation(ref bool isBusy) =>
         isBusy = false;
 
-    internal static void RestoreNoSaveStateAfterFailedBlankSaveCore(
-        SaveEditorRefreshCoordinator refreshCoordinator,
-        SaveEditorViewModel viewModel,
-        IReadOnlyList<SaveDiagnostic> diagnostics,
-        Action refreshFromViewModel,
-        ref IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride)
-    {
-        ArgumentNullException.ThrowIfNull(refreshCoordinator);
-        ArgumentNullException.ThrowIfNull(viewModel);
-        ArgumentNullException.ThrowIfNull(diagnostics);
-        ArgumentNullException.ThrowIfNull(refreshFromViewModel);
-
-        uiDiagnosticsOverride = diagnostics;
-        refreshCoordinator.RunWithFullRefreshSuppressed(() => viewModel.ClearSave());
-        refreshFromViewModel();
-    }
-
     private static SaveDiagnostic CreateUiDiagnostic(string code, string message, string target) =>
         new(DiagnosticSeverity.Error, code, message, target);
 
@@ -3038,4 +2988,3 @@ public sealed partial class MainWindow : Window
     private static string FormatBoolean(bool value) =>
         value ? "yes" : "no";
 }
-

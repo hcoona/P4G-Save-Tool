@@ -349,7 +349,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("refreshEditableFieldsAfterStartupOpen = false;", refreshBody, StringComparison.Ordinal);
         Assert.Contains("bool startupRefreshPending = refreshEditableFieldsAfterStartupOpen;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("!startupRefreshPending", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("bool canSaveAs = !isBusy && !startupRefreshPending;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("bool canSaveAs = canSave;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("FileOpenMenuItem.IsEnabled = !isBusy && !startupRefreshPending;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("OpenButton.IsEnabled = !isBusy && !startupRefreshPending;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SaveAsButton.IsEnabled = canSaveAs;", updateShellStateBody, StringComparison.Ordinal);
@@ -397,7 +397,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("SelectionChanged=\"SocialLinkAddComboBox_SelectionChanged\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinkLevelTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinkProgressTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"SocialLinkFlagTextBox\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"SocialLinkFlagTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinkApplyButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Click=\"SocialLinkApplyButton_Click\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinkDeleteButton\"", content, StringComparison.Ordinal);
@@ -524,7 +524,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("SocialLinkAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SocialLinkFlagTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SocialLinkFlagTextBox", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkApplyButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
@@ -651,11 +651,9 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("ShouldPreserveSelectedCompendiumDraftAfterApply(edits)", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
-        Assert.Contains("if (forcePicker && !viewModel.HasSave)", saveBody, StringComparison.Ordinal);
-        Assert.Contains("SaveEditorOperationResult blankSaveResult = viewModel.CreateBlankSave();", saveBody, StringComparison.Ordinal);
-        Assert.Contains("if (!blankSaveResult.Succeeded)", saveBody, StringComparison.Ordinal);
-        Assert.Contains("RestoreNoSaveStateAfterFailedBlankSave(", saveBody, StringComparison.Ordinal);
         Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateBlankSave", saveBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RestoreNoSaveStateAfterFailedBlankSave", saveBody, StringComparison.Ordinal);
         Assert.Contains("if (string.IsNullOrWhiteSpace(targetPath))", saveBody, StringComparison.Ordinal);
         Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft();", saveBody, StringComparison.Ordinal);
         Assert.Contains("currentFilePath = targetPath;", saveBody, StringComparison.Ordinal);
@@ -671,21 +669,6 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("RestoreSelectedSocialLinkDraft(socialLinkDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("if (compendiumDraft is not null)", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("RestoreSelectedCompendiumDraft(compendiumDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainWindowBlankSaveRollbackHelperClearsLoadedSaveBeforeRefreshingShellState()
-    {
-        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
-        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
-        string helperBody = GetSection(
-            content,
-            "private void RestoreNoSaveStateAfterFailedBlankSave(IReadOnlyList<SaveDiagnostic> diagnostics)",
-            "private async Task<string?> PickSavePathAsync()");
-
-        Assert.Contains("uiDiagnosticsOverride = diagnostics;", helperBody, StringComparison.Ordinal);
-        Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(() => viewModel.ClearSave());", helperBody, StringComparison.Ordinal);
-        Assert.Contains("RefreshFromViewModel();", helperBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -819,6 +802,10 @@ public sealed class WinUIArchitectureTests
     {
         string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
 
+        Assert.Contains("x:Name=\"PartySlot0ComboBox\"", xaml);
+        Assert.Contains("x:Name=\"PartySlot1ComboBox\"", xaml);
+        Assert.Contains("x:Name=\"PartySlot2ComboBox\"", xaml);
+        Assert.DoesNotContain("PartySlot0TextBox", xaml);
         Assert.Contains("x:Name=\"PersonaMemberComboBox\"", xaml);
         Assert.Contains("x:Name=\"PersonaSlotComboBox\"", xaml);
         Assert.Contains("x:Name=\"PersonaChoiceComboBox\"", xaml);
@@ -877,7 +864,7 @@ public sealed class WinUIArchitectureTests
         string tryReadSocialLinkFieldBody = GetSection(
             content,
             "internal static bool TryReadSocialLinkField(",
-            "private string GetPartyMemberValue(int slotIndex)");
+            "private string BuildPersonaSummary()");
 
         Assert.Contains("Group4EditBatchBuilder.TryBuild(", content, StringComparison.Ordinal);
         Assert.Contains("CreateGroup4EditInputs(", tryBuildEditBatchBody, StringComparison.Ordinal);
@@ -887,8 +874,8 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("new Group4EditInputs(", tryBuildEditBatchBody, StringComparison.Ordinal);
         Assert.Contains("bool levelIsValid = TryReadSocialLinkField(levelText, \"Level\", \"SocialLinks.Level\", diagnostics, out byte level);", content, StringComparison.Ordinal);
         Assert.Contains("bool progressIsValid = TryReadSocialLinkField(progressText, \"Progress\", \"SocialLinks.Progress\", diagnostics, out byte progress);", content, StringComparison.Ordinal);
-        Assert.Contains("bool flagIsValid = TryReadSocialLinkField(flagText, \"Flag\", \"SocialLinks.Flag\", diagnostics, out byte flag);", content, StringComparison.Ordinal);
-        Assert.Contains("if (!levelIsValid || !progressIsValid || !flagIsValid)", tryBuildSocialLinkEditsBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("flagIsValid", tryBuildSocialLinkEditsBody, StringComparison.Ordinal);
+        Assert.Contains("if (!levelIsValid || !progressIsValid)", tryBuildSocialLinkEditsBody, StringComparison.Ordinal);
         Assert.Contains("diagnostics.Add(CreateUiDiagnostic(\"P4GWINUI024\",", tryReadSocialLinkFieldBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SetUiDiagnostics(", tryReadSocialLinkFieldBody, StringComparison.Ordinal);
         Assert.Contains("CourageComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
@@ -1015,7 +1002,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("new MainWindow(openPath)", appContent, StringComparison.Ordinal);
         Assert.Contains("private async void OpenButton_Click(object sender, RoutedEventArgs e) =>", mainWindowContent, StringComparison.Ordinal);
         Assert.Contains("private async void SaveAsButton_Click(object sender, RoutedEventArgs e) =>", mainWindowContent, StringComparison.Ordinal);
-        Assert.Contains("bool canSaveAs = !isBusy && !startupRefreshPending;", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("bool canSaveAs = canSave;", mainWindowContent, StringComparison.Ordinal);
         Assert.Contains("SaveAsButton.IsEnabled = canSaveAs;", mainWindowContent, StringComparison.Ordinal);
         Assert.Contains("FileSaveMenuItem.IsEnabled = canSave;", mainWindowContent, StringComparison.Ordinal);
         Assert.Contains("FileSaveAsMenuItem.IsEnabled = canSaveAs;", mainWindowContent, StringComparison.Ordinal);
@@ -1051,8 +1038,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("<MenuFlyoutItem x:Name=\"FileSaveAsMenuItem\" Text=\"Save as...\" Click=\"SaveAsButton_Click\" IsEnabled=\"False\" />", content, StringComparison.Ordinal);
         Assert.Contains("<MenuFlyoutItem Text=\"About\" Click=\"About_Click\" />", content, StringComparison.Ordinal);
         Assert.Contains("<Button x:Name=\"OpenButton\" Content=\"Open save...\" Click=\"OpenButton_Click\" />", content, StringComparison.Ordinal);
-        Assert.Contains("<Button x:Name=\"SaveButton\" Content=\"Save\" Click=\"SaveButton_Click\" />", content, StringComparison.Ordinal);
-        Assert.Contains("<Button x:Name=\"SaveAsButton\" Content=\"Save as...\" Click=\"SaveAsButton_Click\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<Button x:Name=\"SaveButton\" Content=\"Save\" Click=\"SaveButton_Click\" IsEnabled=\"False\" />", content, StringComparison.Ordinal);
+        Assert.Contains("<Button x:Name=\"SaveAsButton\" Content=\"Save as...\" Click=\"SaveAsButton_Click\" IsEnabled=\"False\" />", content, StringComparison.Ordinal);
         Assert.Contains("<Button x:Name=\"AboutButton\" Content=\"About\" Click=\"About_Click\" />", content, StringComparison.Ordinal);
     }
 

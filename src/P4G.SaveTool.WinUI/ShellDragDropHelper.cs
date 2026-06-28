@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace P4G.SaveTool.WinUI;
@@ -24,7 +26,8 @@ internal static class ShellDragDropHelper
 
     internal static bool TryGetOpenablePath(string? path, out string openablePath)
     {
-        if (!string.IsNullOrWhiteSpace(path))
+        if (!string.IsNullOrWhiteSpace(path) &&
+            string.Equals(Path.GetExtension(path), ".bin", StringComparison.OrdinalIgnoreCase))
         {
             openablePath = path;
             return true;

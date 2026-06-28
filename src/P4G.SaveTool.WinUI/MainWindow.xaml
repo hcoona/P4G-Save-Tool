@@ -32,9 +32,9 @@
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Button x:Name="OpenButton" Content="Open save..." Click="OpenButton_Click" />
-            <Button x:Name="ApplyButton" Content="Apply edits" Click="ApplyButton_Click" />
-            <Button x:Name="SaveButton" Content="Save" Click="SaveButton_Click" />
-            <Button x:Name="SaveAsButton" Content="Save as..." Click="SaveAsButton_Click" />
+            <Button x:Name="ApplyButton" Content="Apply edits" Click="ApplyButton_Click" IsEnabled="False" />
+            <Button x:Name="SaveButton" Content="Save" Click="SaveButton_Click" IsEnabled="False" />
+            <Button x:Name="SaveAsButton" Content="Save as..." Click="SaveAsButton_Click" IsEnabled="False" />
             <Button x:Name="AboutButton" Content="About" Click="About_Click" />
           </StackPanel>
         </ScrollViewer>
@@ -174,12 +174,10 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
               <TextBox x:Name="SocialLinkLevelTextBox" Header="Level" InputScope="Number" IsEnabled="False" Width="100" />
               <TextBox Grid.Column="1" x:Name="SocialLinkProgressTextBox" Header="Progress" InputScope="Number" IsEnabled="False" Width="100" />
-              <TextBox Grid.Column="2" x:Name="SocialLinkFlagTextBox" Header="Flag" InputScope="Number" IsEnabled="False" Width="100" />
-              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <Button x:Name="SocialLinkApplyButton" Content="Apply" Click="SocialLinkApplyButton_Click" IsEnabled="False" />
                 <Button x:Name="SocialLinkDeleteButton" Content="Delete" Click="SocialLinkDeleteButton_Click" IsEnabled="False" />
               </StackPanel>
@@ -190,9 +188,15 @@
               Style="{ThemeResource BodyStrongTextBlockStyle}"
               Margin="0,4,0,0"
               />
-            <TextBox x:Name="PartySlot0TextBox" Header="Slot 1" InputScope="Number" IsEnabled="False" />
-            <TextBox x:Name="PartySlot1TextBox" Header="Slot 2" InputScope="Number" IsEnabled="False" />
-            <TextBox x:Name="PartySlot2TextBox" Header="Slot 3" InputScope="Number" IsEnabled="False" />
+            <ComboBox x:Name="PartySlot0ComboBox" Header="Party slot 1" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox x:Name="PartySlot1ComboBox" Header="Party slot 2" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox x:Name="PartySlot2ComboBox" Header="Party slot 3" IsEnabled="False" IsTextSearchEnabled="True">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
             <TextBlock Text="Persona editing" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
             <ComboBox
               x:Name="PersonaMemberComboBox"

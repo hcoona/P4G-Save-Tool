@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 
 namespace P4G.SaveTool.Presentation;
 
@@ -55,4 +56,7 @@ public sealed class PersonaSlotViewState
     public byte Agility { get; }
 
     public byte Luck { get; }
+
+    public override string ToString() =>
+        SlotIndex.ToString(CultureInfo.InvariantCulture);
 }

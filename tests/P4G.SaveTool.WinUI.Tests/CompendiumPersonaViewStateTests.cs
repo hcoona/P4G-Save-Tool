@@ -14,4 +14,12 @@ public sealed class CompendiumPersonaViewStateTests
 
         Assert.Equal(expectedDisplayName, viewState.DisplayName);
     }
+
+    [Fact]
+    public void ToStringIncludesNativeAotTemplateDisplayText()
+    {
+        CompendiumPersonaViewState viewState = new(0, 0x0101, "Izanagi", 12, 1234);
+
+        Assert.Equal("#1 Izanagi  Lv 12  XP 1234", viewState.ToString());
+    }
 }

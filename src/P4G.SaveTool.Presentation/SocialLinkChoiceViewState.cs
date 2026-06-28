@@ -5,4 +5,7 @@ public sealed record SocialLinkChoiceViewState(
     string Name,
     string ArcanaName,
     bool IsPlaceholder = false,
-    bool IsUnknown = false);
+    bool IsUnknown = false)
+{
+    public override string ToString() => Name;
+}

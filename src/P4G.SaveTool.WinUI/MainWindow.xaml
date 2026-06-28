@@ -109,19 +109,19 @@
               Margin="0,4,0,0"
               />
             <ComboBox x:Name="CourageComboBox" Header="Courage" IsEnabled="False" IsTextSearchEnabled="True">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <ComboBox x:Name="KnowledgeComboBox" Header="Knowledge" IsEnabled="False" IsTextSearchEnabled="True">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <ComboBox x:Name="ExpressionComboBox" Header="Expression" IsEnabled="False" IsTextSearchEnabled="True">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <ComboBox x:Name="UnderstandingComboBox" Header="Understanding" IsEnabled="False" IsTextSearchEnabled="True">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <ComboBox x:Name="DiligenceComboBox" Header="Diligence" IsEnabled="False" IsTextSearchEnabled="True">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <TextBlock Text="Calendar" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
             <Grid ColumnSpacing="8">
@@ -131,7 +131,7 @@
               </Grid.ColumnDefinitions>
               <TextBox x:Name="DayTextBox" Header="Day" InputScope="Number" IsEnabled="False" Width="120" />
               <ComboBox x:Name="PhaseComboBox" Grid.Column="1" Header="Phase" IsEnabled="False" IsTextSearchEnabled="True">
-                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
               </ComboBox>
             </Grid>
             <Grid ColumnSpacing="8">
@@ -141,7 +141,7 @@
               </Grid.ColumnDefinitions>
               <TextBox x:Name="NextDayTextBox" Header="Next day" InputScope="Number" IsEnabled="False" Width="120" />
               <ComboBox x:Name="NextPhaseComboBox" Grid.Column="1" Header="Next phase" IsEnabled="False" IsTextSearchEnabled="True">
-                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
               </ComboBox>
             </Grid>
             <TextBlock
@@ -153,21 +153,7 @@
             <ListView x:Name="SocialLinkListView" MinHeight="140" MaxHeight="240" SelectionChanged="SocialLinkListView_SelectionChanged">
               <ListView.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                      <TextBlock Text="{Binding DisplayName}" />
-                      <TextBlock Text="{Binding Name}" Opacity="0.7" FontSize="12" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{Binding Level}" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="{Binding Progress}" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="3" Text="{Binding Flag}" VerticalAlignment="Center" />
-                  </Grid>
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
                 </DataTemplate>
               </ListView.ItemTemplate>
             </ListView>
@@ -179,7 +165,7 @@
               SelectionChanged="SocialLinkAddComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -216,7 +202,7 @@
               SelectionChanged="PersonaMemberComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -227,7 +213,7 @@
               SelectionChanged="PersonaSlotComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding SlotIndex}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -239,7 +225,7 @@
               SelectionChanged="PersonaChoiceComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -301,30 +287,30 @@
               </Grid.ColumnDefinitions>
               <StackPanel Spacing="8">
                 <ComboBox x:Name="PersonaSkillBox1" Header="Skill 1" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
                 <ComboBox x:Name="PersonaSkillBox2" Header="Skill 2" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
                 <ComboBox x:Name="PersonaSkillBox3" Header="Skill 3" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
                 <ComboBox x:Name="PersonaSkillBox4" Header="Skill 4" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
               </StackPanel>
               <StackPanel Grid.Column="1" Spacing="8">
                 <ComboBox x:Name="PersonaSkillBox5" Header="Skill 5" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
                 <ComboBox x:Name="PersonaSkillBox6" Header="Skill 6" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
                 <ComboBox x:Name="PersonaSkillBox7" Header="Skill 7" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
                 <ComboBox x:Name="PersonaSkillBox8" Header="Skill 8" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PersonaSkillBox_SelectionChanged">
-                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                  <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
               </StackPanel>
             </Grid>
@@ -342,7 +328,7 @@
               SelectionChanged="EquipmentCharacterComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -354,7 +340,7 @@
               SelectionChanged="EquipmentWeaponComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -366,7 +352,7 @@
               SelectionChanged="EquipmentArmorComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -378,7 +364,7 @@
               SelectionChanged="EquipmentAccessoryComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -390,7 +376,7 @@
               SelectionChanged="EquipmentCostumeComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -426,19 +412,7 @@
             <ListView x:Name="CompendiumListView" MinHeight="140" MaxHeight="220" SelectionChanged="CompendiumListView_SelectionChanged">
               <ListView.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                      <TextBlock Text="{Binding DisplayName}" />
-                      <TextBlock Text="{Binding Name}" Opacity="0.7" FontSize="12" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{Binding Level}" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="{Binding TotalExperience}" VerticalAlignment="Center" />
-                  </Grid>
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
                 </DataTemplate>
               </ListView.ItemTemplate>
             </ListView>
@@ -450,7 +424,7 @@
               SelectionChanged="CompendiumAddComboBox_SelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
@@ -474,17 +448,7 @@
             <ListView x:Name="InventoryListView" MinHeight="180" MaxHeight="260" SelectionChanged="InventoryListView_SelectionChanged" automation:AutomationProperties.AutomationId="InventoryListView" automation:AutomationProperties.Name="Inventory">
               <ListView.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                      <TextBlock Text="{Binding DisplayName}" />
-                      <TextBlock Text="{Binding Quantity}" Opacity="0.7" FontSize="12" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{Binding Quantity}" VerticalAlignment="Center" />
-                  </Grid>
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
                 </DataTemplate>
               </ListView.ItemTemplate>
             </ListView>
@@ -501,7 +465,7 @@
                 SelectionChanged="InventoryCategoryComboBox_SelectionChanged">
                 <ComboBox.ItemTemplate>
                   <DataTemplate>
-                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding}" />
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
@@ -514,7 +478,7 @@
                 SelectionChanged="InventoryItemComboBox_SelectionChanged">
                 <ComboBox.ItemTemplate>
                   <DataTemplate>
-                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding}" />
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>

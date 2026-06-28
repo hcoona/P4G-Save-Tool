@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace P4G.SaveTool.Presentation;
 
 public sealed record SocialLinkViewState(
@@ -13,4 +15,9 @@ public sealed record SocialLinkViewState(
     public string DisplayName => string.IsNullOrEmpty(ArcanaName)
         ? Name
         : $"{Name} [{ArcanaName}]";
+
+    public override string ToString() =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DisplayName}  Lv {Level}  Progress {Progress}  Flag {Flag}");
 }

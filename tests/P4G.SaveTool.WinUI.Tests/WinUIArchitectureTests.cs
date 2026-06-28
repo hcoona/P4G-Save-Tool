@@ -477,7 +477,7 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
-    public void MainWindowXamlBindsCompendiumListItemDisplayNameInCompendiumSection()
+    public void MainWindowXamlBindsCompendiumListItemsWithoutPropertyReflection()
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -486,7 +486,8 @@ public sealed class WinUIArchitectureTests
             "              x:Name=\"CompendiumSectionHeader\"",
             "              x:Name=\"InventorySectionHeader\"");
 
-        Assert.Contains("Text=\"{Binding DisplayName}\"", compendiumSection, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding}\"", compendiumSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding DisplayName}\"", compendiumSection, StringComparison.Ordinal);
         Assert.DoesNotContain("{x:Bind", compendiumSection, StringComparison.Ordinal);
         Assert.Contains("<DataTemplate>", compendiumSection, StringComparison.Ordinal);
     }
@@ -501,8 +502,9 @@ public sealed class WinUIArchitectureTests
             .ToArray();
 
         Assert.NotEmpty(dataTemplateLines);
-        Assert.Contains("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding Quantity}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding Quantity}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("{x:Bind", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:DataType=", xaml, StringComparison.Ordinal);
         Assert.Contains("XamlBindingPreservation.PreserveXamlBindingProperties();", File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "App.xaml.cs")), StringComparison.Ordinal);
@@ -774,7 +776,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"InventoryQuantityTextBox\"", xaml);
         Assert.Contains("x:Name=\"InventoryAddUpdateButton\"", xaml);
         Assert.Contains("x:Name=\"InventoryDeleteButton\"", xaml);
-        Assert.Contains("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"EquipmentCharacterComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentWeaponComboBox\"", xaml);
         Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", xaml);
@@ -1277,10 +1280,12 @@ public sealed class WinUIArchitectureTests
         AssertProperty(project, "SelfContained", "true");
         AssertProperty(project, "WindowsAppSDKSelfContained", "true");
         AssertProperty(project, "PublishAot", "true");
+        AssertProperty(project, "PublishSingleFile", "true");
+        AssertProperty(project, "IncludeAllContentForSelfExtract", "true");
+        AssertProperty(project, "IncludeNativeLibrariesForSelfExtract", "true");
         AssertProperty(project, "WindowsSdkPackageVersion", RequiredWindowsSdkPackageVersion);
         AssertProperty(project, "CsWinRTWindowsMetadataPackageVersion", RequiredCsWinRTWindowsMetadataPackageVersion);
         AssertProperty(project, "CsWinRTWindowsMetadata", CsWinRTWindowsMetadataPath);
-        AssertNoTrueProperty(project, "PublishSingleFile");
         Assert.DoesNotContain(project.Descendants(), static element => element.Name.LocalName == "RuntimeIdentifiers");
     }
 
@@ -1317,10 +1322,14 @@ public sealed class WinUIArchitectureTests
         AssertProperty(profile, "Configuration", "Release");
         AssertProperty(profile, "Platform", "x64");
         AssertProperty(profile, "RuntimeIdentifier", "win-x64");
+        AssertProperty(profile, "WindowsPackageType", "None");
+        AssertProperty(profile, "EnableMsixTooling", "true");
         AssertProperty(profile, "PublishAot", "true");
+        AssertProperty(profile, "PublishSingleFile", "true");
+        AssertProperty(profile, "IncludeAllContentForSelfExtract", "true");
+        AssertProperty(profile, "IncludeNativeLibrariesForSelfExtract", "true");
         AssertProperty(profile, "SelfContained", "true");
         AssertProperty(profile, "WindowsAppSDKSelfContained", "true");
-        AssertNoTrueProperty(profile, "PublishSingleFile");
 
         string expectedPublishDirectory = NormalizeDirectoryPath(Path.Combine(
             winUIProjectDirectory,
@@ -1371,6 +1380,8 @@ public sealed class WinUIArchitectureTests
                 "WindowsAppSDKSelfContained",
                 "PublishAot",
                 "PublishSingleFile",
+                "IncludeAllContentForSelfExtract",
+                "IncludeNativeLibrariesForSelfExtract",
                 "PublishDir",
                 "WindowsSdkPackageVersion",
                 "CsWinRTWindowsMetadataPackageVersion",
@@ -1385,7 +1396,9 @@ public sealed class WinUIArchitectureTests
         AssertEvaluatedProperty(properties, "SelfContained", "true");
         AssertEvaluatedProperty(properties, "WindowsAppSDKSelfContained", "true");
         AssertEvaluatedProperty(properties, "PublishAot", "true");
-        AssertEvaluatedFalseOrEmptyProperty(properties, "PublishSingleFile");
+        AssertEvaluatedProperty(properties, "PublishSingleFile", "true");
+        AssertEvaluatedProperty(properties, "IncludeAllContentForSelfExtract", "true");
+        AssertEvaluatedProperty(properties, "IncludeNativeLibrariesForSelfExtract", "true");
         AssertEvaluatedWindowsSdkMetadataProperties(properties);
 
         string expectedPublishDirectory = NormalizeDirectoryPath(Path.Combine(
@@ -1419,6 +1432,8 @@ public sealed class WinUIArchitectureTests
                 "WindowsAppSDKSelfContained",
                 "PublishAot",
                 "PublishSingleFile",
+                "IncludeAllContentForSelfExtract",
+                "IncludeNativeLibrariesForSelfExtract",
                 "RuntimeIdentifier",
                 "Platform",
                 "PublishDir",
@@ -1432,7 +1447,9 @@ public sealed class WinUIArchitectureTests
         AssertEvaluatedProperty(properties, "SelfContained", "true");
         AssertEvaluatedProperty(properties, "WindowsAppSDKSelfContained", "true");
         AssertEvaluatedProperty(properties, "PublishAot", "true");
-        AssertEvaluatedFalseOrEmptyProperty(properties, "PublishSingleFile");
+        AssertEvaluatedProperty(properties, "PublishSingleFile", "true");
+        AssertEvaluatedProperty(properties, "IncludeAllContentForSelfExtract", "true");
+        AssertEvaluatedProperty(properties, "IncludeNativeLibrariesForSelfExtract", "true");
         AssertEvaluatedProperty(properties, "RuntimeIdentifier", "win-x64");
         AssertEvaluatedProperty(properties, "Platform", "x64");
         AssertEvaluatedWindowsSdkMetadataProperties(properties);

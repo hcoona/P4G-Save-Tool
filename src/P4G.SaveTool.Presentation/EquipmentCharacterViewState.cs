@@ -6,4 +6,7 @@ public sealed record EquipmentCharacterViewState(
     ushort WeaponItemId,
     ushort ArmorItemId,
     ushort AccessoryItemId,
-    ushort CostumeItemId);
+    ushort CostumeItemId)
+{
+    public override string ToString() => Name;
+}

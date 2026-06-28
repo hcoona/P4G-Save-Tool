@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace P4G.SaveTool.Presentation;
 
 public sealed class InventoryStackViewState
@@ -35,4 +37,7 @@ public sealed class InventoryStackViewState
     public bool IsPlaceholder { get; }
 
     public string DisplayName => $"{ItemName} [{CategoryName}]";
+
+    public override string ToString() =>
+        string.Create(CultureInfo.InvariantCulture, $"{DisplayName}  Qty {Quantity}");
 }

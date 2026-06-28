@@ -105,6 +105,22 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
+    public void ViewStatesExposeNativeAotTemplateTextThroughToString()
+    {
+        Assert.Equal("Average", new SocialStatRankChoiceViewState(1, "Average").ToString());
+        Assert.Equal("Morning", new CalendarPhaseChoiceViewState(0, "Morning").ToString());
+        Assert.Equal("Yosuke", new PartyMemberChoiceViewState(2, "Yosuke").ToString());
+        Assert.Equal("Izanagi", new PersonaChoiceViewState(1, "Izanagi").ToString());
+        Assert.Equal("Cleave", new SkillChoiceViewState(1, "Cleave").ToString());
+        Assert.Equal("Weapons", new ItemCategoryViewState(0, "Weapons").ToString());
+        Assert.Equal("Long Sword", new InventoryItemChoiceViewState(1, 0, "Long Sword").ToString());
+        Assert.Equal("Hero", new EquipmentCharacterViewState(0, "Hero", 1, 2, 3, 4).ToString());
+        Assert.Equal("Yosuke [Magician]  Lv 5  Progress 3  Flag 2", new SocialLinkViewState(0, 1, "Yosuke", "Magician", 5, 3, 2).ToString());
+        Assert.Equal("Long Sword [Weapons]  Qty 2", new InventoryStackViewState(0, 1, "Long Sword", 0, "Weapons", 2).ToString());
+        Assert.Equal("3", new PersonaSlotViewState(3, true, 1, 12, 1234, [0, 0, 0, 0, 0, 0, 0, 0], 1, 2, 3, 4, 5).ToString());
+    }
+
+    [Fact]
     public void OpenSaveProjectsInventoryEntriesAndCatalogSelectors()
     {
         FakeSaveApplicationService service = new()
@@ -2605,4 +2621,3 @@ public sealed class SaveEditorViewModelTests
         }
     }
 }
-

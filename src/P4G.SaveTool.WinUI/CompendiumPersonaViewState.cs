@@ -24,4 +24,7 @@ internal sealed class CompendiumPersonaViewState
     public uint TotalExperience { get; }
 
     public string DisplayName => string.Create(CultureInfo.InvariantCulture, $"#{SlotIndex + 1} {Name}");
+
+    public override string ToString() =>
+        string.Create(CultureInfo.InvariantCulture, $"{DisplayName}  Lv {Level}  XP {TotalExperience}");
 }

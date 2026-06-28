@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Automation;
 using P4G.SaveTool.Application;
+using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Presentation;
 using Xunit;
 using Xunit.Sdk;
@@ -150,6 +151,56 @@ public sealed class NativeAotUiSmokeTests
         }
     }
 
+    [NativeAotUiSmokeFact]
+    public async Task NativeAotStartupFileDisplaysBoundListAndComboBoxText()
+    {
+        string exePath = ResolvePublishedExePath();
+        string savePath = ResolveSyntheticSavePath(out bool deleteAfterUse);
+
+        SaveEditorViewModel.GetPersonaChoices(1, out PersonaChoiceViewState expectedPersona);
+        SaveEditorViewModel.GetSocialStatChoices(0, 0, out SocialStatRankChoiceViewState expectedCourageRank);
+
+        try
+        {
+            CreatePopulatedSave(savePath);
+            using Process process = StartNativeAotProcess(exePath, savePath);
+
+            try
+            {
+                _ = await RunOnMtaThreadAsync(() =>
+                    WaitForWindowSnapshot(
+                        process,
+                        ExpectedState.CreateLoadedSave(
+                            savePath,
+                            $"{ShellStateFormatter.ShellTitle} - {Path.GetFileName(savePath)}")));
+
+                AutomationElement? window = FindMainWindow(process.Id);
+                Assert.NotNull(window);
+                _ = WaitForEnabledElement(window!, "ApplyButton");
+
+                InvokeByAutomationId(window!, "JumpCompendiumButton");
+                List<string> compendiumItems = await RunOnMtaThreadAsync(() =>
+                    WaitForListItemTexts(window!, "CompendiumListView", minimumItemCount: 1));
+                Assert.Contains(compendiumItems, item => item.Contains(expectedPersona.Name, StringComparison.Ordinal));
+
+                List<string> courageItems = await RunOnMtaThreadAsync(() =>
+                    WaitForComboBoxItemTexts(window!, "CourageComboBox", minimumItemCount: 5));
+                Assert.Contains(courageItems, item => string.Equals(item, expectedCourageRank.Name, StringComparison.Ordinal));
+            }
+            finally
+            {
+                StopProcess(process);
+            }
+        }
+        finally
+        {
+            if (deleteAfterUse && File.Exists(savePath))
+            {
+                File.Delete(savePath);
+            }
+        }
+    }
+
     private static void CreateSyntheticSave(string savePath)
     {
         SaveEditorViewModel viewModel = new(new SaveApplicationService());
@@ -157,6 +208,27 @@ public sealed class NativeAotUiSmokeTests
 
         SaveEditorWriteResult writeResult = viewModel.WriteSave();
         Assert.True(writeResult.Succeeded);
+        Assert.NotNull(writeResult.Bytes);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(savePath)!);
+        File.WriteAllBytes(savePath, writeResult.Bytes!);
+    }
+
+    private static void CreatePopulatedSave(string savePath)
+    {
+        SaveEditorViewModel viewModel = new(new SaveApplicationService());
+        Assert.True(viewModel.CreateBlankSave().Succeeded);
+
+        SaveEditorOperationResult editResult = viewModel.ApplyEdits(
+            [
+                new SetCompendiumPersonaSlotEdit(
+                    0,
+                    new PersonaSlotEdit(1, 12, 1234, [0, 0, 0, 0, 0, 0, 0, 0], 11, 12, 13, 14, 15)),
+            ]);
+        Assert.True(editResult.Succeeded, DescribeDiagnostics(editResult.Diagnostics));
+
+        SaveEditorWriteResult writeResult = viewModel.WriteSave();
+        Assert.True(writeResult.Succeeded, DescribeDiagnostics(writeResult.Diagnostics));
         Assert.NotNull(writeResult.Bytes);
 
         Directory.CreateDirectory(Path.GetDirectoryName(savePath)!);
@@ -315,7 +387,73 @@ public sealed class NativeAotUiSmokeTests
             Thread.Sleep(PollInterval);
         }
 
-        throw new TimeoutException($"Timed out waiting for at least {minimumItemCount} diagnostics items.");
+        throw new TimeoutException($"Timed out waiting for at least {minimumItemCount} list items in '{automationId}'.");
+    }
+
+    private static List<string> WaitForComboBoxItemTexts(AutomationElement root, string automationId, int minimumItemCount)
+    {
+        AutomationElement comboBox = WaitForEnabledElement(root, automationId);
+        if (!comboBox.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out object? expandCollapsePatternObject) ||
+            expandCollapsePatternObject is not ExpandCollapsePattern expandCollapsePattern)
+        {
+            throw new XunitException($"Could not expand combo box automation id '{automationId}'.");
+        }
+
+        expandCollapsePattern.Expand();
+        try
+        {
+            int processId = root.Current.ProcessId;
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            while (stopwatch.Elapsed < StartupTimeout)
+            {
+                try
+                {
+                    List<string> itemTexts = GetProcessListItemTexts(processId);
+                    if (itemTexts.Count >= minimumItemCount)
+                    {
+                        return itemTexts;
+                    }
+                }
+                catch (ElementNotAvailableException)
+                {
+                    // The popup can briefly recycle while the combo box is opening.
+                }
+
+                Thread.Sleep(PollInterval);
+            }
+
+            throw new TimeoutException($"Timed out waiting for at least {minimumItemCount} combo box items.");
+        }
+        finally
+        {
+            try
+            {
+                expandCollapsePattern.Collapse();
+            }
+            catch (ElementNotAvailableException)
+            {
+            }
+        }
+    }
+
+    private static List<string> GetProcessListItemTexts(int processId)
+    {
+        Condition condition = new AndCondition(
+            new PropertyCondition(AutomationElement.ProcessIdProperty, processId),
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
+        AutomationElementCollection listItems = AutomationElement.RootElement.FindAll(TreeScope.Descendants, condition);
+
+        List<string> itemTexts = [];
+        foreach (AutomationElement listItem in listItems)
+        {
+            string itemText = listItem.Current.Name ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(itemText))
+            {
+                itemTexts.Add(itemText);
+            }
+        }
+
+        return itemTexts;
     }
 
     private static void SetTextByAutomationId(AutomationElement root, string automationId, string value)
@@ -504,6 +642,11 @@ public sealed class NativeAotUiSmokeTests
         throw new DirectoryNotFoundException($"Could not find P4G.SaveTool.sln from {AppContext.BaseDirectory}.");
     }
 
+    private static string DescribeDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics) =>
+        diagnostics.Count == 0
+            ? "No diagnostics were reported."
+            : string.Join(Environment.NewLine, diagnostics.Select(static diagnostic => $"{diagnostic.Code}: {diagnostic.Message}"));
+
     private sealed record ExpectedState(
         string FilePathText,
         string FamilyNameText,
@@ -594,6 +737,3 @@ public sealed class NativeAotUiSmokeFactAttribute : FactAttribute
         }
     }
 }
-
-
-

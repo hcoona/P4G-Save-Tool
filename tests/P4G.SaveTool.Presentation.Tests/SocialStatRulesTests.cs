@@ -95,7 +95,7 @@ public sealed class SocialStatRulesTests
         Assert.Equal(expectedRank, projectedStat.Rank);
         Assert.Equal(expectedRankName, projectedStat.RankName);
 
-        IReadOnlyList<SocialStatRankChoiceViewState> rankChoices = viewModel.GetSocialStatChoices(
+        IReadOnlyList<SocialStatRankChoiceViewState> rankChoices = SaveEditorViewModel.GetSocialStatChoices(
             statIndex,
             points,
             out SocialStatRankChoiceViewState selectedRank);
@@ -104,6 +104,9 @@ public sealed class SocialStatRulesTests
         Assert.Same(rankChoices[expectedRank - 1], selectedRank);
         Assert.Equal(expectedRank, selectedRank.Rank);
         Assert.Equal(expectedRankName, selectedRank.Name);
+        IList<SocialStatRankChoiceViewState> mutableChoices = Assert.IsAssignableFrom<IList<SocialStatRankChoiceViewState>>(rankChoices);
+        Assert.True(mutableChoices.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => mutableChoices[0] = new SocialStatRankChoiceViewState(99, "Test"));
     }
 
     [Theory]

@@ -12,7 +12,7 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        string? openPath = LaunchArgumentParser.GetOpenPath(args.Arguments);
+        string? openPath = LaunchArgumentParser.GetOpenPath(args.Arguments, Environment.GetCommandLineArgs());
         window = new MainWindow(openPath);
         window.Activate();
     }

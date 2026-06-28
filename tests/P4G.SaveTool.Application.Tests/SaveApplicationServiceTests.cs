@@ -15,6 +15,9 @@ public sealed class SaveApplicationServiceTests
     private const int LegacyYenOffset = 88;
     private const int LegacyYenLength = 4;
     private const int LegacyPartyMembersOffset = 92;
+    private const int LegacyMainCharacterLevelOffset = 3290;
+    private const int LegacyMainCharacterTotalExperienceOffset = 3348;
+    private const int LegacyMainCharacterTotalExperienceLength = 4;
     private const int LegacyFamilyNamePStringOffset = 100;
     private const int LegacyGivenNamePStringOffset = 118;
     private const int LegacyInventoryOffset = 136;
@@ -54,6 +57,8 @@ public sealed class SaveApplicationServiceTests
         WorkingSave save = Assert.IsAssignableFrom<WorkingSave>(result.Snapshot);
         Assert.Equal(new SaveNames("Sato", "Yu"), save.State.Names);
         Assert.Equal(123456u, save.State.Yen);
+        Assert.Equal((byte)99, save.State.MainCharacterLevel);
+        Assert.Equal(0x0f0e0d0cu, save.State.MainCharacterTotalExperience);
         Assert.Collection(
             save.State.PartyMembers,
             static member => Assert.Equal((byte)0x01, member.Value),
@@ -135,6 +140,8 @@ public sealed class SaveApplicationServiceTests
         WorkingSave save = Assert.IsAssignableFrom<WorkingSave>(result.Snapshot);
         Assert.Equal(new SaveNames(string.Empty, string.Empty), save.State.Names);
         Assert.Equal(0u, save.State.Yen);
+        Assert.Equal((byte)0, save.State.MainCharacterLevel);
+        Assert.Equal(0u, save.State.MainCharacterTotalExperience);
         Assert.All(save.State.PartyMembers, static member => Assert.Equal((byte)0, member.Value));
         Assert.All(save.State.EquippedWeapons, static item => Assert.Equal((ushort)0, item));
         Assert.All(save.State.SocialStats, static stat => Assert.Equal((ushort)0, stat));
@@ -159,6 +166,8 @@ public sealed class SaveApplicationServiceTests
         WorkingSave reopenedSave = OpenOrThrow(service, output);
         Assert.Equal(new SaveNames(string.Empty, string.Empty), reopenedSave.State.Names);
         Assert.Equal(0u, reopenedSave.State.Yen);
+        Assert.Equal((byte)0, reopenedSave.State.MainCharacterLevel);
+        Assert.Equal(0u, reopenedSave.State.MainCharacterTotalExperience);
         Assert.All(reopenedSave.State.PartyMembers, static member => Assert.Equal((byte)0, member.Value));
         Assert.All(reopenedSave.State.EquippedWeapons, static item => Assert.Equal((ushort)0, item));
         Assert.All(reopenedSave.State.EquippedArmors, static item => Assert.Equal((ushort)0, item));
@@ -179,6 +188,8 @@ public sealed class SaveApplicationServiceTests
         [
             new SetSaveNamesEdit("Amagi", "Chie"),
             new SetYenEdit(7654321),
+            new SetMainCharacterLevelEdit(88),
+            new SetMainCharacterTotalExperienceEdit(0x12345678),
             new SetPartyMemberEdit(1, 0x07),
             new SetEquippedWeaponEdit(1, 2435),
             new SetEquippedArmorEdit(0, 257),
@@ -204,6 +215,8 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal("Amagi", SaveStringCodec.DecodePString(output.AsMemory(LegacyFamilyNamePStringOffset, LegacyNameByteLength)));
         Assert.Equal("Chie", SaveStringCodec.DecodePString(output.AsMemory(LegacyGivenNamePStringOffset, LegacyNameByteLength)));
         Assert.Equal(7654321u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(LegacyYenOffset, LegacyYenLength)));
+        Assert.Equal((byte)88, output[LegacyMainCharacterLevelOffset]);
+        Assert.Equal(0x12345678u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(LegacyMainCharacterTotalExperienceOffset, LegacyMainCharacterTotalExperienceLength)));
         Assert.Equal((byte)0x01, output[LegacyPartyMembersOffset]);
         Assert.Equal((byte)0x07, output[LegacyPartyMembersOffset + 2]);
         Assert.Equal((byte)0x80, output[LegacyPartyMembersOffset + 4]);
@@ -223,6 +236,8 @@ public sealed class SaveApplicationServiceTests
             (LegacyFamilyNameJStringOffset, LegacyNameByteLength),
             (LegacyGivenNameJStringOffset, LegacyNameByteLength),
             (LegacyYenOffset, LegacyYenLength),
+            (LegacyMainCharacterLevelOffset, 1),
+            (LegacyMainCharacterTotalExperienceOffset, LegacyMainCharacterTotalExperienceLength),
             (LegacyPartyMembersOffset + 2, 1),
             (LegacyProtagonistEquipmentOffset, 8),
             (LegacyPartyEquipmentOffset, 8),
@@ -237,6 +252,8 @@ public sealed class SaveApplicationServiceTests
         WorkingSave reopenedSave = OpenOrThrow(service, output);
         Assert.Equal(new SaveNames("Amagi", "Chie"), reopenedSave.State.Names);
         Assert.Equal(7654321u, reopenedSave.State.Yen);
+        Assert.Equal((byte)88, reopenedSave.State.MainCharacterLevel);
+        Assert.Equal(0x12345678u, reopenedSave.State.MainCharacterTotalExperience);
         Assert.Equal(new PartyMemberId(0x07), reopenedSave.State.PartyMembers[1]);
         Assert.Equal(new InventoryStack(257, 9), reopenedSave.State.InventoryStacks.Single(stack => stack.ItemId == 257));
     }
@@ -1239,6 +1256,8 @@ public sealed class SaveApplicationServiceTests
         SaveStringCodec.EncodePString("Sato", bytes.AsMemory(LegacyFamilyNamePStringOffset, LegacyNameByteLength));
         SaveStringCodec.EncodePString("Yu", bytes.AsMemory(LegacyGivenNamePStringOffset, LegacyNameByteLength));
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(LegacyYenOffset, LegacyYenLength), 123456);
+        bytes[LegacyMainCharacterLevelOffset] = 99;
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(LegacyMainCharacterTotalExperienceOffset, LegacyMainCharacterTotalExperienceLength), 0x0f0e0d0c);
         bytes[LegacyPartyMembersOffset] = 0x01;
         bytes[LegacyPartyMembersOffset + 2] = 0xfe;
         bytes[LegacyPartyMembersOffset + 4] = 0x80;

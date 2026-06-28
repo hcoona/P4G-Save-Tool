@@ -17,4 +17,24 @@ public sealed class LaunchArgumentParserTests
 
         Assert.Equal(expectedPath, actualPath);
     }
+
+    [Fact]
+    public void GetOpenPathFallsBackToCommandLineArguments()
+    {
+        string? actualPath = LaunchArgumentParser.GetOpenPath(
+            null,
+            [@"P4G.SaveTool.WinUI.exe", @"Q:\saves\direct-launch.bin"]);
+
+        Assert.Equal(@"Q:\saves\direct-launch.bin", actualPath);
+    }
+
+    [Fact]
+    public void GetOpenPathPrefersLaunchActivatedArgumentsOverCommandLineArguments()
+    {
+        string? actualPath = LaunchArgumentParser.GetOpenPath(
+            @"""Q:\saves\activated-launch.bin""",
+            [@"P4G.SaveTool.WinUI.exe", @"Q:\saves\direct-launch.bin"]);
+
+        Assert.Equal(@"Q:\saves\activated-launch.bin", actualPath);
+    }
 }

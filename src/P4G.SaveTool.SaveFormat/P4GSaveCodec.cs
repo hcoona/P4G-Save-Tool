@@ -47,6 +47,8 @@ public static class P4GSaveCodec
             ReadInventory(span, layout.Inventory),
             ReadSocialStats(span, layout.SocialStats),
             ReadSocialLinks(span, layout.SocialLinks),
+            span[layout.MainCharacterLevel.Offset],
+            BinaryPrimitives.ReadUInt32LittleEndian(span.Slice(layout.MainCharacterTotalExperience.Offset, layout.MainCharacterTotalExperience.Length)),
             calendar.Day,
             calendar.DayPhase,
             calendar.NextDay,
@@ -114,7 +116,7 @@ public static class P4GSaveCodec
             {
                 if (TryGetPersonaSlotPatch(layout, patch.FieldName, out PersonaBlockDescriptor? block, out int slotIndex))
                 {
-                    ApplyPersonaSlotPatch(output, patch, block, slotIndex, diagnostics);
+                    ApplyPersonaSlotPatch(output, patch, block!, slotIndex, diagnostics);
                     continue;
                 }
 
@@ -208,7 +210,7 @@ public static class P4GSaveCodec
         ];
     }
 
-    private static IReadOnlyList<ushort> ReadSocialStats(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
+    private static ushort[] ReadSocialStats(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
     {
         ushort[] socialStats = new ushort[SocialStatRules.StatCount];
         for (int index = 0; index < socialStats.Length; index++)
@@ -220,7 +222,7 @@ public static class P4GSaveCodec
         return socialStats;
     }
 
-    private static IReadOnlyList<SocialLinkState> ReadSocialLinks(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
+    private static List<SocialLinkState> ReadSocialLinks(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
     {
         List<SocialLinkState> socialLinks = [];
         for (int offset = 0; offset < field.Length; offset += 16)
@@ -277,7 +279,7 @@ public static class P4GSaveCodec
         IReadOnlyList<ushort> Accessories,
         IReadOnlyList<ushort> Costumes);
 
-    private static IReadOnlyList<InventoryStack> ReadInventory(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
+    private static List<InventoryStack> ReadInventory(ReadOnlySpan<byte> source, SaveFieldDescriptor field)
     {
         List<InventoryStack> stacks = [];
         for (int index = 0; index < field.Length; index++)

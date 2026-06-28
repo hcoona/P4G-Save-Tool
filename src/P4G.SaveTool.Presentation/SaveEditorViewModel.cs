@@ -57,6 +57,8 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private string familyName = string.Empty;
     private string givenName = string.Empty;
     private uint yen;
+    private byte mainCharacterLevel;
+    private uint mainCharacterTotalExperience;
     private IReadOnlyList<PartyMemberSlotViewState> partyMembers = EmptyPartyMembers;
     private IReadOnlyList<PartyMemberChoiceViewState> partyMemberChoices = EmptyPartyMemberChoices;
     private IReadOnlyList<PersonaSlotViewState> protagonistPersonaSlots = EmptyPersonaSlots;
@@ -103,6 +105,18 @@ public sealed class SaveEditorViewModel : ViewModelBase
     {
         get => yen;
         private set => SetProperty(ref yen, value);
+    }
+
+    public byte MainCharacterLevel
+    {
+        get => mainCharacterLevel;
+        private set => SetProperty(ref mainCharacterLevel, value);
+    }
+
+    public uint MainCharacterTotalExperience
+    {
+        get => mainCharacterTotalExperience;
+        private set => SetProperty(ref mainCharacterTotalExperience, value);
     }
 
     public IReadOnlyList<PartyMemberSlotViewState> PartyMembers
@@ -165,9 +179,9 @@ public sealed class SaveEditorViewModel : ViewModelBase
         private set => SetProperty(ref calendar, value);
     }
 
-    public IReadOnlyList<CalendarPhaseChoiceViewState> CalendarPhaseChoices => CalendarProjection.PhaseChoices;
+    public static IReadOnlyList<CalendarPhaseChoiceViewState> CalendarPhaseChoices => CalendarProjection.PhaseChoices;
 
-    public IReadOnlyList<ItemCategoryViewState> InventoryCategories => InventoryCatalogProjection.Categories;
+    public static IReadOnlyList<ItemCategoryViewState> InventoryCategories => InventoryCatalogProjection.Categories;
 
     public IReadOnlyList<SaveDiagnostic> Diagnostics
     {
@@ -186,34 +200,34 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public bool HasErrors => Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
-    public IReadOnlyList<InventoryItemChoiceViewState> GetInventoryItemsForCategory(byte categoryId) =>
+    public static IReadOnlyList<InventoryItemChoiceViewState> GetInventoryItemsForCategory(byte categoryId) =>
         InventoryCatalogProjection.GetItems(categoryId);
 
-    public IReadOnlyList<InventoryItemChoiceViewState> GetWeaponChoices(byte characterId) =>
+    public static IReadOnlyList<InventoryItemChoiceViewState> GetWeaponChoices(byte characterId) =>
         InventoryCatalogProjection.GetWeaponChoices(characterId);
 
-    public IReadOnlyList<InventoryItemChoiceViewState> GetArmorChoices() =>
+    public static IReadOnlyList<InventoryItemChoiceViewState> GetArmorChoices() =>
         InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Armor);
 
-    public IReadOnlyList<InventoryItemChoiceViewState> GetAccessoryChoices() =>
+    public static IReadOnlyList<InventoryItemChoiceViewState> GetAccessoryChoices() =>
         InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Accessories);
 
-    public IReadOnlyList<InventoryItemChoiceViewState> GetCostumeChoices() =>
+    public static IReadOnlyList<InventoryItemChoiceViewState> GetCostumeChoices() =>
         InventoryCatalogProjection.GetItems((byte)ItemCategoryId.Costumes);
 
-    public IReadOnlyList<SocialStatRankChoiceViewState> GetSocialStatChoices(int statIndex, ushort currentPoints, out SocialStatRankChoiceViewState selectedChoice) =>
+    public static IReadOnlyList<SocialStatRankChoiceViewState> GetSocialStatChoices(int statIndex, ushort currentPoints, out SocialStatRankChoiceViewState selectedChoice) =>
         SocialStatProjection.GetRankChoices(statIndex, currentPoints, out selectedChoice);
 
-    public IReadOnlyList<SocialLinkChoiceViewState> GetSocialLinkChoices(byte currentLinkId, out SocialLinkChoiceViewState selectedChoice) =>
+    public static IReadOnlyList<SocialLinkChoiceViewState> GetSocialLinkChoices(byte currentLinkId, out SocialLinkChoiceViewState selectedChoice) =>
         SocialLinkProjection.GetChoices(currentLinkId, out selectedChoice);
 
-    public IReadOnlyList<CalendarPhaseChoiceViewState> GetCalendarPhaseChoices(int currentPhaseId, out CalendarPhaseChoiceViewState selectedChoice) =>
+    public static IReadOnlyList<CalendarPhaseChoiceViewState> GetCalendarPhaseChoices(int currentPhaseId, out CalendarPhaseChoiceViewState selectedChoice) =>
         CalendarProjection.GetPhaseChoices(currentPhaseId, out selectedChoice);
 
-    public IReadOnlyList<PersonaChoiceViewState> GetPersonaChoices(ushort currentPersonaId, out PersonaChoiceViewState selectedChoice) =>
+    public static IReadOnlyList<PersonaChoiceViewState> GetPersonaChoices(ushort currentPersonaId, out PersonaChoiceViewState selectedChoice) =>
         PersonaSelectionProjection.GetPersonaChoices(currentPersonaId, out selectedChoice);
 
-    public IReadOnlyList<SkillChoiceViewState> GetSkillChoices(ushort currentSkillId, out SkillChoiceViewState selectedChoice) =>
+    public static IReadOnlyList<SkillChoiceViewState> GetSkillChoices(ushort currentSkillId, out SkillChoiceViewState selectedChoice) =>
         PersonaSelectionProjection.GetSkillChoices(currentSkillId, out selectedChoice);
 
     public SaveEditorOperationResult OpenSave(ReadOnlyMemory<byte> bytes)
@@ -239,6 +253,8 @@ public sealed class SaveEditorViewModel : ViewModelBase
         familyName = string.Empty;
         givenName = string.Empty;
         yen = 0;
+        mainCharacterLevel = 0;
+        mainCharacterTotalExperience = 0;
         partyMembers = EmptyPartyMembers;
         partyMemberChoices = EmptyPartyMemberChoices;
         protagonistPersonaSlots = EmptyPersonaSlots;
@@ -259,6 +275,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
             ProjectionChange.FamilyName |
             ProjectionChange.GivenName |
             ProjectionChange.Yen |
+            ProjectionChange.MainCharacter |
             ProjectionChange.PartyMembers |
             ProjectionChange.PartyMemberChoices |
             ProjectionChange.EquipmentCharacters |
@@ -443,6 +460,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
         return ApplyEdits([new SetNextDayPhaseEdit(phaseId)]);
     }
+
+    public SaveEditorOperationResult SetMainCharacterLevel(byte level) =>
+        ApplyEdits([new SetMainCharacterLevelEdit(level)]);
+
+    public SaveEditorOperationResult SetMainCharacterTotalExperience(uint totalExperience) =>
+        ApplyEdits([new SetMainCharacterTotalExperienceEdit(totalExperience)]);
 
     public SaveEditorOperationResult SetProtagonistPersonaSlot(int slotIndex, PersonaSlotEdit personaSlot) =>
         ApplyEdits([new SetProtagonistPersonaSlotEdit(slotIndex, personaSlot)]);
@@ -706,6 +729,13 @@ public sealed class SaveEditorViewModel : ViewModelBase
             changes |= ProjectionChange.Yen;
         }
 
+        bool mainCharacterChanged = SetBacking(ref mainCharacterLevel, state.MainCharacterLevel);
+        mainCharacterChanged = SetBacking(ref mainCharacterTotalExperience, state.MainCharacterTotalExperience) || mainCharacterChanged;
+        if (mainCharacterChanged)
+        {
+            changes |= ProjectionChange.MainCharacter;
+        }
+
         if (SetBacking(ref partyMembers, nextPartyMembers))
         {
             changes |= ProjectionChange.PartyMembers;
@@ -818,6 +848,12 @@ public sealed class SaveEditorViewModel : ViewModelBase
         if ((changes & ProjectionChange.Yen) != 0)
         {
             OnPropertyChanged(nameof(Yen));
+        }
+
+        if ((changes & ProjectionChange.MainCharacter) != 0)
+        {
+            OnPropertyChanged(nameof(MainCharacterLevel));
+            OnPropertyChanged(nameof(MainCharacterTotalExperience));
         }
 
         if ((changes & ProjectionChange.PartyMembers) != 0)
@@ -1032,6 +1068,8 @@ public sealed class SaveEditorViewModel : ViewModelBase
     private static bool StatesEqual(WorkingSaveState left, WorkingSaveState right) =>
         left.Names == right.Names &&
         left.Yen == right.Yen &&
+        left.MainCharacterLevel == right.MainCharacterLevel &&
+        left.MainCharacterTotalExperience == right.MainCharacterTotalExperience &&
         left.PartyMembers.SequenceEqual(right.PartyMembers) &&
         left.SocialStats.SequenceEqual(right.SocialStats) &&
         left.SocialLinks.SequenceEqual(right.SocialLinks) &&
@@ -1083,16 +1121,17 @@ public sealed class SaveEditorViewModel : ViewModelBase
         FamilyName = 1,
         GivenName = 2,
         Yen = 4,
-        PartyMembers = 8,
-        PartyMemberChoices = 16,
-        EquipmentCharacters = 32,
-        SocialStats = 64,
-        Calendar = 128,
-        ProtagonistPersonaSlots = 256,
-        PartyPersonaSlots = 512,
-        CompendiumPersonaSlots = 1024,
-        InventoryEntries = 2048,
-        SocialLinks = 4096,
+        MainCharacter = 8,
+        PartyMembers = 16,
+        PartyMemberChoices = 32,
+        EquipmentCharacters = 64,
+        SocialStats = 128,
+        Calendar = 256,
+        ProtagonistPersonaSlots = 512,
+        PartyPersonaSlots = 1024,
+        CompendiumPersonaSlots = 2048,
+        InventoryEntries = 4096,
+        SocialLinks = 8192,
     }
 
     private sealed record PendingSerializedSave(SaveEditorWriteToken OperationToken, WorkingSaveState State);

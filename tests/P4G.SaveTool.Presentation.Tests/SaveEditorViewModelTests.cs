@@ -34,6 +34,8 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal("Sato", viewModel.FamilyName);
         Assert.Equal("Yu", viewModel.GivenName);
         Assert.Equal(123456u, viewModel.Yen);
+        Assert.Equal((byte)99, viewModel.MainCharacterLevel);
+        Assert.Equal(0x0f0e0d0cu, viewModel.MainCharacterTotalExperience);
         Assert.Equal(5, viewModel.SocialStats.Count);
         Assert.Equal("Average", viewModel.SocialStats[0].RankName);
         Assert.Equal(18, viewModel.Calendar.Day);
@@ -92,6 +94,14 @@ public sealed class SaveEditorViewModelTests
         AssertReadOnlyListDoesNotAllowMutation(viewModel.ProtagonistPersonaSlots, protagonistPersona);
         AssertReadOnlyListDoesNotAllowMutation(viewModel.PartyPersonaSlots, partyPersona);
         AssertReadOnlyListDoesNotAllowMutation(viewModel.CompendiumPersonaSlots, compendiumPersona);
+    }
+
+    [Fact]
+    public void LevelExperienceProjectionUsesLegacyFormula()
+    {
+        Assert.Equal(0u, LevelExperienceProjection.CalculateTotalExperienceFromLevel(1));
+        Assert.Equal(216u, LevelExperienceProjection.CalculateTotalExperienceFromLevel(5));
+        Assert.Equal(687960u, LevelExperienceProjection.CalculateTotalExperienceFromLevel(50));
     }
 
     [Fact]
@@ -162,11 +172,11 @@ public sealed class SaveEditorViewModelTests
                 Assert.Equal("Emerald", entry.ItemName);
                 Assert.Equal("Other", entry.CategoryName);
             });
-        Assert.Contains(viewModel.InventoryCategories, static category => category.Name == "Weapons");
-        Assert.Contains(viewModel.InventoryCategories, static category => category.Name == "Armor");
-        Assert.Contains(viewModel.InventoryCategories, static category => category.Name == "Other");
+        Assert.Contains(SaveEditorViewModel.InventoryCategories, static category => category.Name == "Weapons");
+        Assert.Contains(SaveEditorViewModel.InventoryCategories, static category => category.Name == "Armor");
+        Assert.Contains(SaveEditorViewModel.InventoryCategories, static category => category.Name == "Other");
 
-        IReadOnlyList<InventoryItemChoiceViewState> weapons = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Weapons);
+        IReadOnlyList<InventoryItemChoiceViewState> weapons = SaveEditorViewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Weapons);
         Assert.True(weapons[0].IsPlaceholder);
         Assert.Equal((ushort)0, weapons[0].ItemId);
         Assert.Equal((ushort)1, weapons[1].ItemId);
@@ -177,7 +187,7 @@ public sealed class SaveEditorViewModelTests
         Assert.DoesNotContain(weapons, static item => item.ItemId == 2388);
         Assert.DoesNotContain(weapons, static item => item.ItemId == 2433);
 
-        IReadOnlyList<InventoryItemChoiceViewState> other = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Other);
+        IReadOnlyList<InventoryItemChoiceViewState> other = SaveEditorViewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Other);
         Assert.NotEmpty(other);
         Assert.True(other[0].IsPlaceholder);
         Assert.Equal((ushort)1024, other[0].ItemId);
@@ -213,7 +223,7 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal("Other", entry.CategoryName);
         Assert.NotEqual("Blank", entry.ItemName);
         Assert.EndsWith(" [Other]", entry.DisplayName);
-        IReadOnlyList<InventoryItemChoiceViewState> otherChoices = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Other);
+        IReadOnlyList<InventoryItemChoiceViewState> otherChoices = SaveEditorViewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Other);
         Assert.NotEmpty(otherChoices);
         Assert.True(otherChoices[0].IsPlaceholder);
         Assert.Equal((ushort)1024, otherChoices[0].ItemId);
@@ -265,7 +275,7 @@ public sealed class SaveEditorViewModelTests
         SaveEditorViewModel viewModel = new(service);
         viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
 
-        IReadOnlyList<InventoryItemChoiceViewState> costumes = viewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Costumes);
+        IReadOnlyList<InventoryItemChoiceViewState> costumes = SaveEditorViewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Costumes);
 
         Assert.NotEmpty(costumes);
         InventoryItemChoiceViewState legacyCostumeBlank = Assert.Single(costumes, static item => item.ItemId == 1792);
@@ -301,7 +311,7 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal((ushort)266, firstPartyMember.ArmorItemId);
         Assert.DoesNotContain(viewModel.EquipmentCharacters, static character => character.CharacterId == 4);
 
-        IReadOnlyList<InventoryItemChoiceViewState> protagonistWeapons = viewModel.GetWeaponChoices(protagonist.CharacterId);
+        IReadOnlyList<InventoryItemChoiceViewState> protagonistWeapons = SaveEditorViewModel.GetWeaponChoices(protagonist.CharacterId);
         Assert.True(protagonistWeapons[0].IsPlaceholder);
         Assert.Equal((ushort)0, protagonistWeapons[0].ItemId);
         Assert.Contains(protagonistWeapons, static item => item.ItemId == 1);
@@ -310,7 +320,7 @@ public sealed class SaveEditorViewModelTests
         Assert.DoesNotContain(protagonistWeapons, static item => item.ItemId == 39);
         Assert.DoesNotContain(protagonistWeapons, static item => item.ItemId == 2435);
 
-        IReadOnlyList<InventoryItemChoiceViewState> yosukeWeapons = viewModel.GetWeaponChoices(firstPartyMember.CharacterId);
+        IReadOnlyList<InventoryItemChoiceViewState> yosukeWeapons = SaveEditorViewModel.GetWeaponChoices(firstPartyMember.CharacterId);
         Assert.True(yosukeWeapons[0].IsPlaceholder);
         Assert.Equal((ushort)0, yosukeWeapons[0].ItemId);
         Assert.Contains(yosukeWeapons, static item => item.ItemId == 39);
@@ -319,7 +329,7 @@ public sealed class SaveEditorViewModelTests
         Assert.DoesNotContain(yosukeWeapons, static item => item.ItemId == 1);
         Assert.DoesNotContain(yosukeWeapons, static item => item.ItemId == 2434);
 
-        IReadOnlyList<InventoryItemChoiceViewState> chieWeapons = viewModel.GetWeaponChoices(2);
+        IReadOnlyList<InventoryItemChoiceViewState> chieWeapons = SaveEditorViewModel.GetWeaponChoices(2);
         Assert.True(chieWeapons[0].IsPlaceholder);
         Assert.Equal((ushort)0, chieWeapons[0].ItemId);
         Assert.Contains(chieWeapons, static item => item.ItemId == 112);
@@ -330,7 +340,7 @@ public sealed class SaveEditorViewModelTests
         Assert.DoesNotContain(chieWeapons, static item => item.ItemId == 77);
         Assert.DoesNotContain(chieWeapons, static item => item.ItemId == 2437);
 
-        IReadOnlyList<InventoryItemChoiceViewState> yukikoWeapons = viewModel.GetWeaponChoices(3);
+        IReadOnlyList<InventoryItemChoiceViewState> yukikoWeapons = SaveEditorViewModel.GetWeaponChoices(3);
         Assert.True(yukikoWeapons[0].IsPlaceholder);
         Assert.Equal((ushort)0, yukikoWeapons[0].ItemId);
         Assert.Contains(yukikoWeapons, static item => item.ItemId == 77);
@@ -341,7 +351,7 @@ public sealed class SaveEditorViewModelTests
         Assert.DoesNotContain(yukikoWeapons, static item => item.ItemId == 112);
         Assert.DoesNotContain(yukikoWeapons, static item => item.ItemId == 2436);
 
-        IReadOnlyList<InventoryItemChoiceViewState> kanjiWeapons = viewModel.GetWeaponChoices(5);
+        IReadOnlyList<InventoryItemChoiceViewState> kanjiWeapons = SaveEditorViewModel.GetWeaponChoices(5);
         Assert.True(kanjiWeapons[0].IsPlaceholder);
         Assert.Equal((ushort)0, kanjiWeapons[0].ItemId);
         Assert.Contains(kanjiWeapons, static item => item.ItemId == 150);
@@ -351,10 +361,10 @@ public sealed class SaveEditorViewModelTests
         Assert.Contains(kanjiWeapons, static item => item.ItemId == 2438);
         Assert.DoesNotContain(kanjiWeapons, static item => item.ItemId == 2388);
 
-        Assert.Contains(viewModel.GetArmorChoices(), static item => item.ItemId == 334);
-        Assert.Contains(viewModel.GetArmorChoices(), static item => item.ItemId == 264);
-        Assert.Contains(viewModel.GetAccessoryChoices(), static item => item.ItemId == 754);
-        Assert.Contains(viewModel.GetCostumeChoices(), static item => item.ItemId == 2040);
+        Assert.Contains(SaveEditorViewModel.GetArmorChoices(), static item => item.ItemId == 334);
+        Assert.Contains(SaveEditorViewModel.GetArmorChoices(), static item => item.ItemId == 264);
+        Assert.Contains(SaveEditorViewModel.GetAccessoryChoices(), static item => item.ItemId == 754);
+        Assert.Contains(SaveEditorViewModel.GetCostumeChoices(), static item => item.ItemId == 2040);
     }
 
     [Fact]
@@ -387,7 +397,7 @@ public sealed class SaveEditorViewModelTests
         Assert.Contains(viewModel.PartyMemberChoices, static member => member.MemberId == 4 && member.Name == "Rise Kujikawa");
 
         ushort knownPersonaId = P4GCatalog.Personas[1].Id;
-        IReadOnlyList<PersonaChoiceViewState> personaChoices = viewModel.GetPersonaChoices(knownPersonaId, out PersonaChoiceViewState selectedPersona);
+        IReadOnlyList<PersonaChoiceViewState> personaChoices = SaveEditorViewModel.GetPersonaChoices(knownPersonaId, out PersonaChoiceViewState selectedPersona);
         Assert.Contains(personaChoices, static choice => choice.PersonaId == 0 && choice.Name == "Blank" && !choice.IsUnknown);
         Assert.DoesNotContain(personaChoices, static choice => choice.PersonaId == 43);
         Assert.DoesNotContain(personaChoices, static choice => choice.PersonaId == 52);
@@ -395,20 +405,20 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal(knownPersonaId, selectedPersona.PersonaId);
         Assert.False(selectedPersona.IsUnknown);
 
-        IReadOnlyList<PersonaChoiceViewState> unknownPersonaChoices = viewModel.GetPersonaChoices(0xDEAD, out PersonaChoiceViewState unknownPersona);
+        IReadOnlyList<PersonaChoiceViewState> unknownPersonaChoices = SaveEditorViewModel.GetPersonaChoices(0xDEAD, out PersonaChoiceViewState unknownPersona);
         Assert.True(unknownPersona.IsUnknown);
         Assert.Equal((ushort)0xDEAD, unknownPersona.PersonaId);
         Assert.Contains(unknownPersonaChoices, static choice => choice.PersonaId == 0xDEAD && choice.IsUnknown);
 
         ushort knownSkillId = P4GCatalog.Skills[1].Id;
-        IReadOnlyList<SkillChoiceViewState> skillChoices = viewModel.GetSkillChoices(0xBEEF, out SkillChoiceViewState unknownSkill);
+        IReadOnlyList<SkillChoiceViewState> skillChoices = SaveEditorViewModel.GetSkillChoices(0xBEEF, out SkillChoiceViewState unknownSkill);
         Assert.DoesNotContain(skillChoices, static choice => choice.SkillId == 255);
         Assert.DoesNotContain(skillChoices, static choice => choice.SkillId == 301);
         Assert.True(unknownSkill.IsUnknown);
         Assert.Equal((ushort)0xBEEF, unknownSkill.SkillId);
         Assert.Contains(skillChoices, static choice => choice.SkillId == 0xBEEF && choice.IsUnknown);
 
-        IReadOnlyList<SkillChoiceViewState> knownSkillChoices = viewModel.GetSkillChoices(knownSkillId, out SkillChoiceViewState selectedSkill);
+        IReadOnlyList<SkillChoiceViewState> knownSkillChoices = SaveEditorViewModel.GetSkillChoices(knownSkillId, out SkillChoiceViewState selectedSkill);
         Assert.Equal(knownSkillId, selectedSkill.SkillId);
         Assert.False(selectedSkill.IsUnknown);
         Assert.Contains(knownSkillChoices, choice => choice.SkillId == knownSkillId);
@@ -452,14 +462,14 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal(19, viewModel.Calendar.NextDay);
         Assert.Equal(5, viewModel.Calendar.NextDayPhaseId);
 
-        IReadOnlyList<SocialStatRankChoiceViewState> courageChoices = viewModel.GetSocialStatChoices(
+        IReadOnlyList<SocialStatRankChoiceViewState> courageChoices = SaveEditorViewModel.GetSocialStatChoices(
             0,
             viewModel.SocialStats[0].Points,
             out SocialStatRankChoiceViewState selectedCourageRank);
         Assert.Equal(1, selectedCourageRank.Rank);
         Assert.Same(courageChoices[0], selectedCourageRank);
 
-        IReadOnlyList<SocialStatRankChoiceViewState> diligenceChoices = viewModel.GetSocialStatChoices(
+        IReadOnlyList<SocialStatRankChoiceViewState> diligenceChoices = SaveEditorViewModel.GetSocialStatChoices(
             2,
             viewModel.SocialStats[2].Points,
             out SocialStatRankChoiceViewState selectedDiligenceRank);
@@ -467,7 +477,7 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal("Thorough", selectedDiligenceRank.Name);
         Assert.Same(diligenceChoices[3], selectedDiligenceRank);
 
-        IReadOnlyList<SocialStatRankChoiceViewState> understandingChoices = viewModel.GetSocialStatChoices(
+        IReadOnlyList<SocialStatRankChoiceViewState> understandingChoices = SaveEditorViewModel.GetSocialStatChoices(
             3,
             viewModel.SocialStats[3].Points,
             out SocialStatRankChoiceViewState selectedUnderstandingRank);
@@ -475,9 +485,9 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal("Saintly", selectedUnderstandingRank.Name);
         Assert.Same(understandingChoices[4], selectedUnderstandingRank);
 
-        IReadOnlyList<CalendarPhaseChoiceViewState> calendarChoices = viewModel.GetCalendarPhaseChoices(
+        CalendarPhaseChoiceViewState[] calendarChoices = [.. SaveEditorViewModel.GetCalendarPhaseChoices(
             viewModel.Calendar.DayPhaseId,
-            out CalendarPhaseChoiceViewState selectedPhase);
+            out CalendarPhaseChoiceViewState selectedPhase)];
         Assert.Equal(4, selectedPhase.PhaseId);
         Assert.Same(calendarChoices[4], selectedPhase);
     }
@@ -492,7 +502,7 @@ public sealed class SaveEditorViewModelTests
         SaveEditorViewModel viewModel = new(service);
         viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
 
-        IReadOnlyList<SocialLinkChoiceViewState> linkChoices = viewModel.GetSocialLinkChoices(0, out SocialLinkChoiceViewState selectedChoice);
+        IReadOnlyList<SocialLinkChoiceViewState> linkChoices = SaveEditorViewModel.GetSocialLinkChoices(0, out SocialLinkChoiceViewState selectedChoice);
 
         Assert.Equal(P4GCatalog.SocialLinks.Count, linkChoices.Count);
         Assert.Same(linkChoices[0], selectedChoice);
@@ -524,7 +534,7 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal("Unknown (99)", viewModel.SocialLinks[1].Name);
         Assert.Equal("Unknown (99)", viewModel.SocialLinks[1].DisplayName);
 
-        IReadOnlyList<SocialLinkChoiceViewState> linkChoices = viewModel.GetSocialLinkChoices(99, out SocialLinkChoiceViewState selectedChoice);
+        IReadOnlyList<SocialLinkChoiceViewState> linkChoices = SaveEditorViewModel.GetSocialLinkChoices(99, out SocialLinkChoiceViewState selectedChoice);
 
         Assert.Equal(P4GCatalog.SocialLinks.Count + 1, linkChoices.Count);
         Assert.Same(linkChoices[^1], selectedChoice);
@@ -680,10 +690,10 @@ public sealed class SaveEditorViewModelTests
         SaveEditorViewModel viewModel = new(service);
         viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
 
-        IReadOnlyList<CalendarPhaseChoiceViewState> dayPhaseChoices = viewModel.GetCalendarPhaseChoices(
+        IReadOnlyList<CalendarPhaseChoiceViewState> dayPhaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(
             viewModel.Calendar.DayPhaseId,
             out CalendarPhaseChoiceViewState selectedDayPhase);
-        IReadOnlyList<CalendarPhaseChoiceViewState> nextDayPhaseChoices = viewModel.GetCalendarPhaseChoices(
+        IReadOnlyList<CalendarPhaseChoiceViewState> nextDayPhaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(
             viewModel.Calendar.NextDayPhaseId,
             out CalendarPhaseChoiceViewState selectedNextDayPhase);
 
@@ -1232,7 +1242,7 @@ public sealed class SaveEditorViewModelTests
     {
         FakeSaveApplicationService service = new()
         {
-            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0, mainCharacterLevel: 0)), []),
         };
         SaveEditorViewModel viewModel = new(service);
 
@@ -1245,6 +1255,7 @@ public sealed class SaveEditorViewModelTests
         Assert.Equal(string.Empty, viewModel.FamilyName);
         Assert.Equal(string.Empty, viewModel.GivenName);
         Assert.Equal(0u, viewModel.Yen);
+        Assert.Equal((byte)0, viewModel.MainCharacterLevel);
         Assert.Equal(1, service.CreateBlankSaveCalls);
         Assert.Empty(viewModel.Diagnostics);
     }
@@ -1254,7 +1265,7 @@ public sealed class SaveEditorViewModelTests
     {
         FakeSaveApplicationService service = new()
         {
-            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0, mainCharacterLevel: 0)), []),
         };
         SaveEditorViewModel viewModel = new(service);
 
@@ -1285,7 +1296,7 @@ public sealed class SaveEditorViewModelTests
     {
         FakeSaveApplicationService service = new()
         {
-            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0, mainCharacterLevel: 0)), []),
             WriteHandler = _ => SaveWriteResult.Success([0x1, 0x2, 0x3]),
         };
         SaveEditorViewModel viewModel = new(service);
@@ -1312,7 +1323,7 @@ public sealed class SaveEditorViewModelTests
     {
         FakeSaveApplicationService service = new()
         {
-            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0)), []),
+            CreateBlankSaveHandler = static () => new SaveOpenResult<WorkingSave>(new FakeWorkingSave(CreateState("", "", 0, mainCharacterLevel: 0)), []),
         };
         SaveEditorViewModel viewModel = new(service);
         viewModel.CreateBlankSave();
@@ -1460,6 +1471,8 @@ public sealed class SaveEditorViewModelTests
             Assert.Equal(string.Empty, viewModel.FamilyName);
             Assert.Equal(string.Empty, viewModel.GivenName);
             Assert.Equal(0u, viewModel.Yen);
+            Assert.Equal((byte)0, viewModel.MainCharacterLevel);
+            Assert.Equal(0u, viewModel.MainCharacterTotalExperience);
             Assert.Empty(viewModel.PartyMembers);
             Assert.Empty(viewModel.ProtagonistPersonaSlots);
             Assert.Empty(viewModel.PartyPersonaSlots);
@@ -2381,6 +2394,8 @@ public sealed class SaveEditorViewModelTests
         IReadOnlyList<InventoryStack>? inventoryStacks = null,
         IReadOnlyList<ushort>? socialStats = null,
         IReadOnlyList<SocialLinkState>? socialLinks = null,
+        byte mainCharacterLevel = 99,
+        uint mainCharacterTotalExperience = 0x0f0e0d0c,
         byte day = 18,
         byte dayPhase = 4,
         byte nextDay = 19,
@@ -2399,6 +2414,8 @@ public sealed class SaveEditorViewModelTests
             inventoryStacks ?? [],
             socialStats ?? [15, 30, 80, 140, 85],
             socialLinks ?? [new SocialLinkState(1, 5, 3, 2), new SocialLinkState(8, 2, 1, 0), new SocialLinkState(10, 1, 0, 1)],
+            mainCharacterLevel,
+            mainCharacterTotalExperience,
             day,
             dayPhase,
             nextDay,
@@ -2588,3 +2605,4 @@ public sealed class SaveEditorViewModelTests
         }
     }
 }
+

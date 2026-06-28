@@ -29,4 +29,29 @@ internal static class LaunchArgumentParser
             ? trimmedArguments
             : trimmedArguments[..separatorIndex];
     }
+
+    internal static string? GetOpenPath(string? arguments, string[]? commandLineArguments)
+    {
+        string? openPath = GetOpenPath(arguments);
+        if (openPath is not null)
+        {
+            return openPath;
+        }
+
+        if (commandLineArguments is null || commandLineArguments.Length < 2)
+        {
+            return null;
+        }
+
+        for (int index = 1; index < commandLineArguments.Length; index++)
+        {
+            string commandLineArgument = commandLineArguments[index];
+            if (!string.IsNullOrWhiteSpace(commandLineArgument))
+            {
+                return commandLineArgument.Trim();
+            }
+        }
+
+        return null;
+    }
 }

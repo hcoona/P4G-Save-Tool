@@ -124,6 +124,12 @@ public sealed class SaveApplicationService : ISaveApplicationService
             case SetYenEdit setYen:
                 return state.WithYen(setYen.Yen);
 
+            case SetMainCharacterLevelEdit setMainCharacterLevel:
+                return state.WithMainCharacterLevel(setMainCharacterLevel.Level);
+
+            case SetMainCharacterTotalExperienceEdit setMainCharacterTotalExperience:
+                return state.WithMainCharacterTotalExperience(setMainCharacterTotalExperience.TotalExperience);
+
             case SetPartyMemberEdit setPartyMember:
                 if ((uint)setPartyMember.SlotIndex >= PartyMemberCount)
                 {
@@ -466,6 +472,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
             snapshot.InventoryStacks,
             snapshot.SocialStats,
             snapshot.SocialLinks,
+            snapshot.MainCharacterLevel,
+            snapshot.MainCharacterTotalExperience,
             snapshot.Day,
             snapshot.DayPhase,
             snapshot.NextDay,
@@ -497,6 +505,16 @@ public sealed class SaveApplicationService : ISaveApplicationService
         if (state.Yen != snapshot.Yen)
         {
             patches.Add(CreateUInt32Patch(layout.Yen, state.Yen));
+        }
+
+        if (state.MainCharacterLevel != snapshot.MainCharacterLevel)
+        {
+            patches.Add(CreateBytePatch(layout.MainCharacterLevel, state.MainCharacterLevel));
+        }
+
+        if (state.MainCharacterTotalExperience != snapshot.MainCharacterTotalExperience)
+        {
+            patches.Add(CreateUInt32Patch(layout.MainCharacterTotalExperience, state.MainCharacterTotalExperience));
         }
 
         if (!PartyMembersEqual(state.PartyMembers, snapshot.PartyMembers))
@@ -551,6 +569,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
         return new SaveFieldPatch(field.Name, bytes);
     }
+
+    private static SaveFieldPatch CreateBytePatch(SaveFieldDescriptor field, byte value) =>
+        new(field.Name, new[] { value });
 
     private static SaveFieldPatch CreateJStringPatch(SaveFieldDescriptor field, string value)
     {

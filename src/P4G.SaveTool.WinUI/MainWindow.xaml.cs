@@ -1,8 +1,10 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using P4G.SaveTool.Application;
 using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Presentation;
@@ -22,6 +24,30 @@ public sealed partial class MainWindow : Window
     }
 
     private readonly SaveEditorViewModel viewModel;
+    private readonly ObservableCollection<string> diagnosticsItems = new();
+    private readonly ObservableCollection<SocialLinkViewState> socialLinkItems = new();
+    private readonly ObservableCollection<SocialLinkChoiceViewState> socialLinkChoices = new();
+    private readonly ObservableCollection<CompendiumPersonaViewState> compendiumItems = new();
+    private readonly ObservableCollection<PersonaChoiceViewState> compendiumAddChoices = new();
+    private readonly ObservableCollection<InventoryStackViewState> inventoryItems = new();
+    private readonly ObservableCollection<ItemCategoryViewState> inventoryCategories = new();
+    private readonly ObservableCollection<InventoryItemChoiceViewState> inventoryItemChoices = new();
+    private readonly ObservableCollection<EquipmentCharacterViewState> equipmentCharacters = new();
+    private readonly ObservableCollection<InventoryItemChoiceViewState> equipmentWeaponChoices = new();
+    private readonly ObservableCollection<InventoryItemChoiceViewState> equipmentArmorChoices = new();
+    private readonly ObservableCollection<InventoryItemChoiceViewState> equipmentAccessoryChoices = new();
+    private readonly ObservableCollection<InventoryItemChoiceViewState> equipmentCostumeChoices = new();
+    private readonly ObservableCollection<PartyMemberChoiceViewState> personaMemberChoices = new();
+    private readonly ObservableCollection<PersonaSlotViewState> personaSlotChoices = new();
+    private readonly ObservableCollection<PersonaChoiceViewState> personaChoices = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices1 = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices2 = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices3 = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices4 = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices5 = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices6 = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices7 = new();
+    private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices8 = new();
     private readonly InventorySelectionState inventorySelectionState = new();
     private readonly SaveEditorRefreshCoordinator saveEditorRefreshCoordinator = new();
     private string? startupOpenPath;
@@ -37,6 +63,7 @@ public sealed partial class MainWindow : Window
     private bool preservePersonaEditorStateDuringEquipmentRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
+    private bool refreshEditableFieldsAfterStartupOpen;
     private byte? selectedInventoryCategoryId;
     private ushort? selectedInventoryItemId;
     private ushort? selectedInventoryEntryId;
@@ -51,6 +78,30 @@ public sealed partial class MainWindow : Window
     {
         this.startupOpenPath = startupOpenPath;
         InitializeComponent();
+        DiagnosticsListView.ItemsSource = diagnosticsItems;
+        SocialLinkListView.ItemsSource = socialLinkItems;
+        SocialLinkAddComboBox.ItemsSource = socialLinkChoices;
+        CompendiumListView.ItemsSource = compendiumItems;
+        CompendiumAddComboBox.ItemsSource = compendiumAddChoices;
+        InventoryListView.ItemsSource = inventoryItems;
+        InventoryCategoryComboBox.ItemsSource = inventoryCategories;
+        InventoryItemComboBox.ItemsSource = inventoryItemChoices;
+        EquipmentCharacterComboBox.ItemsSource = equipmentCharacters;
+        EquipmentWeaponComboBox.ItemsSource = equipmentWeaponChoices;
+        EquipmentArmorComboBox.ItemsSource = equipmentArmorChoices;
+        EquipmentAccessoryComboBox.ItemsSource = equipmentAccessoryChoices;
+        EquipmentCostumeComboBox.ItemsSource = equipmentCostumeChoices;
+        PersonaMemberComboBox.ItemsSource = personaMemberChoices;
+        PersonaSlotComboBox.ItemsSource = personaSlotChoices;
+        PersonaChoiceComboBox.ItemsSource = personaChoices;
+        PersonaSkillBox1.ItemsSource = personaSkillChoices1;
+        PersonaSkillBox2.ItemsSource = personaSkillChoices2;
+        PersonaSkillBox3.ItemsSource = personaSkillChoices3;
+        PersonaSkillBox4.ItemsSource = personaSkillChoices4;
+        PersonaSkillBox5.ItemsSource = personaSkillChoices5;
+        PersonaSkillBox6.ItemsSource = personaSkillChoices6;
+        PersonaSkillBox7.ItemsSource = personaSkillChoices7;
+        PersonaSkillBox8.ItemsSource = personaSkillChoices8;
 
         viewModel = new SaveEditorViewModel(new SaveApplicationService());
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -72,6 +123,46 @@ public sealed partial class MainWindow : Window
 
     private async void About_Click(object sender, RoutedEventArgs e) =>
         await ShowAboutDialogAsync();
+
+    private void MainCharacterLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
+        MainCharacterLevelValueTextBlock.Text = viewModel.HasSave
+            ? ((byte)e.NewValue).ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
+
+    private void JumpBasicStats_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(BasicStatsSectionHeader);
+
+    private void JumpCalendarSocialStats_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(CalendarSocialStatsSectionHeader);
+
+    private void JumpSocialLinks_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(SocialLinksSectionHeader);
+
+    private void JumpPartyPersona_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(PartyPersonaSectionHeader);
+
+    private void JumpEquipment_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(EquipmentSectionHeader);
+
+    private void JumpCompendium_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(CompendiumSectionHeader);
+
+    private void JumpInventory_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(InventorySectionHeader);
+
+    private void JumpDiagnosticsState_Click(object sender, RoutedEventArgs e) =>
+        NavigateToSection(DiagnosticsStateSectionHeader);
+
+    private void PersonaCalculateFromLevelButton_Click(object sender, RoutedEventArgs e) =>
+        PersonaXpTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)PersonaLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
+
+    private void PersonaLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
+        PersonaLevelValueTextBlock.Text = viewModel.HasSave
+            ? ((byte)e.NewValue).ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
+
+    private void MainCharacterCalculateFromLevelButton_Click(object sender, RoutedEventArgs e) =>
+        MainCharacterTotalExperienceTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)MainCharacterLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
 
     internal readonly record struct SocialLinkDraftState(
         int SlotIndex,
@@ -101,6 +192,11 @@ public sealed partial class MainWindow : Window
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (isBusy)
+        {
+            return;
+        }
+
         if (preserveEditorTextDuringInventoryRefresh)
         {
             RefreshInventoryState();
@@ -213,18 +309,34 @@ public sealed partial class MainWindow : Window
                     autoSelectInventoryEntryAfterOpen = true;
                     autoSelectCompendiumEntryAfterOpen = true;
                     InventoryQuantityTextBox.Text = string.Empty;
-                    RefreshFromViewModel();
+                    UpdateShellState();
                 },
                 UpdateShellState);
 
             if (!result.Succeeded)
             {
                 await ShowMessageAsync("Open failed", FormatDiagnostics(result.Diagnostics));
+                refreshEditableFieldsAfterStartupOpen = false;
+                return BusyOperationCompletion.PreserveEditorState;
             }
+
+            if (string.Equals(source, "Launch", StringComparison.Ordinal))
+            {
+                refreshEditableFieldsAfterStartupOpen = true;
+                return BusyOperationCompletion.PreserveEditorState;
+            }
+
+            return BusyOperationCompletion.RefreshViewModel;
         }
         catch (Exception ex) when (IsPersistenceException(ex))
         {
+            refreshEditableFieldsAfterStartupOpen = false;
             await ReportOpenFailureAsync(source, $"Could not read the selected file: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            refreshEditableFieldsAfterStartupOpen = false;
+            await ReportOpenFailureAsync(source, $"Could not open the selected file: {ex.Message}");
         }
 
         return BusyOperationCompletion.PreserveEditorState;
@@ -409,16 +521,30 @@ public sealed partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        TraceStartup("MainWindow_Loaded enter");
         UpdateWindowTitle();
-        RefreshFromViewModel();
-
-        string? openPath = ConsumeStartupOpenPath(ref startupOpenPath);
-        if (openPath is null)
+        if (string.IsNullOrWhiteSpace(startupOpenPath))
         {
+            _ = DispatcherQueue.TryEnqueue(RefreshBasicFieldsFromViewModel);
             return;
         }
 
-        await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, "Launch"));
+        await RunBusyAsync(
+            async () =>
+            {
+                string? startupOpenPath = ConsumeStartupOpenPath(ref this.startupOpenPath);
+                if (startupOpenPath is null)
+                {
+                    return BusyOperationCompletion.PreserveEditorState;
+                }
+
+                return await OpenSaveFileFromPathAsync(startupOpenPath, "Launch");
+            });
+
+        if (refreshEditableFieldsAfterStartupOpen)
+        {
+            RefreshEditableFields();
+        }
     }
 
     private async void MainWindow_DragOver(object sender, DragEventArgs e)
@@ -481,7 +607,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task<DataPackageOperation> EvaluateDragOverAcceptanceAsync(DataPackageView dataView)
+    private static async Task<DataPackageOperation> EvaluateDragOverAcceptanceAsync(DataPackageView dataView)
     {
         try
         {
@@ -514,6 +640,18 @@ public sealed partial class MainWindow : Window
         }
 
         batch.Add(new SetSaveNamesEdit(familyName, givenName));
+        batch.Add(new SetMainCharacterLevelEdit((byte)MainCharacterLevelSlider.Value));
+        if (uint.TryParse(MainCharacterTotalExperienceTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsedMainCharacterTotalExperience))
+        {
+            batch.Add(new SetMainCharacterTotalExperienceEdit(parsedMainCharacterTotalExperience));
+        }
+        else
+        {
+            validationDiagnostics.Add(CreateUiDiagnostic(
+                "P4GWINUI028",
+                "Main character total experience must be an unsigned whole number.",
+                "MainCharacter.TotalExperience"));
+        }
         AddPartyMemberValue(PartySlot0TextBox, 0, batch, validationDiagnostics);
         AddPartyMemberValue(PartySlot1TextBox, 1, batch, validationDiagnostics);
         AddPartyMemberValue(PartySlot2TextBox, 2, batch, validationDiagnostics);
@@ -775,7 +913,7 @@ public sealed partial class MainWindow : Window
         try
         {
             selectedCompendiumSlotIndex = compendiumDraft.SlotIndex;
-            PersonaChoiceComboBox.ItemsSource = viewModel.GetPersonaChoices(compendiumDraft.PersonaId, out PersonaChoiceViewState selectedCompendiumChoice);
+            PersonaChoiceComboBox.ItemsSource = SaveEditorViewModel.GetPersonaChoices(compendiumDraft.PersonaId, out PersonaChoiceViewState selectedCompendiumChoice);
             PersonaChoiceComboBox.SelectedItem = selectedCompendiumChoice;
             PersonaXpTextBox.Text = compendiumDraft.ExperienceText;
             PersonaLevelSlider.Value = compendiumDraft.Level;
@@ -1189,10 +1327,13 @@ public sealed partial class MainWindow : Window
 
     private void RefreshFromViewModel()
     {
+        if (refreshEditableFieldsAfterStartupOpen)
+        {
+            RefreshBasicFieldsFromViewModel();
+            return;
+        }
+
         RefreshEditableFields();
-        RefreshInventoryState();
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        UpdateShellState();
     }
 
     private void RefreshFromViewModelPreservingInventoryQuantityDraft(
@@ -1295,28 +1436,76 @@ public sealed partial class MainWindow : Window
 
     private void RefreshEditableFields()
     {
-        FamilyNameTextBox.Text = viewModel.FamilyName;
-        GivenNameTextBox.Text = viewModel.GivenName;
-        YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        TraceStartup("RefreshEditableFields enter");
+        RefreshBasicStatsState();
         RefreshSocialStatsState();
         RefreshCalendarState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        if (refreshEditableFieldsAfterStartupOpen)
+        {
+            if (!DispatcherQueue.TryEnqueue(RefreshRemainingEditableFields))
+            {
+                RefreshRemainingEditableFields();
+            }
+            return;
+        }
+
+        RefreshRemainingEditableFields();
+        TraceStartup("RefreshEditableFields exit");
+    }
+
+    private void RefreshRemainingEditableFields()
+    {
+        TraceStartup("RefreshRemainingEditableFields enter");
         RefreshSocialLinksState();
+        TraceStartup("RefreshRemainingEditableFields after social links");
         RefreshCompendiumState();
+        TraceStartup("RefreshRemainingEditableFields after compendium");
+        RefreshInventoryState();
+        TraceStartup("RefreshRemainingEditableFields after inventory");
         PartySlot0TextBox.Text = GetPartyMemberValue(0);
         PartySlot1TextBox.Text = GetPartyMemberValue(1);
         PartySlot2TextBox.Text = GetPartyMemberValue(2);
+        TraceStartup("RefreshRemainingEditableFields after party");
         RefreshEquipmentState();
+        TraceStartup("RefreshRemainingEditableFields after equipment");
         RefreshPersonaState();
+        TraceStartup("RefreshRemainingEditableFields after persona");
+        refreshEditableFieldsAfterStartupOpen = false;
+        UpdateShellState();
+        TraceStartup("RefreshRemainingEditableFields exit");
+    }
+
+    private void RefreshBasicFieldsFromViewModel()
+    {
+        RefreshBasicStatsState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+    }
+
+    private void RefreshBasicStatsState()
+    {
+        FamilyNameTextBox.Text = viewModel.FamilyName;
+        GivenNameTextBox.Text = viewModel.GivenName;
+        YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        MainCharacterLevelSlider.Value = viewModel.HasSave ? viewModel.MainCharacterLevel : 0;
+        MainCharacterLevelValueTextBlock.Text = viewModel.HasSave
+            ? MainCharacterLevelSlider.Value.ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
+        MainCharacterTotalExperienceTextBox.Text = viewModel.HasSave
+            ? viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
     }
 
     private void UpdateShellState()
     {
-        bool canEdit = viewModel.HasSave && !isBusy;
+        bool startupRefreshPending = refreshEditableFieldsAfterStartupOpen;
+        bool canEdit = viewModel.HasSave && !isBusy && !startupRefreshPending;
         bool canSave = canEdit && viewModel.CanWrite;
-        bool canSaveAs = !isBusy;
+        bool canSaveAs = !isBusy && !startupRefreshPending;
 
-        FileOpenMenuItem.IsEnabled = !isBusy;
-        OpenButton.IsEnabled = !isBusy;
+        FileOpenMenuItem.IsEnabled = !isBusy && !startupRefreshPending;
+        OpenButton.IsEnabled = !isBusy && !startupRefreshPending;
         ApplyButton.IsEnabled = canEdit;
         SaveButton.IsEnabled = canSave;
         SaveAsButton.IsEnabled = canSaveAs;
@@ -1325,6 +1514,9 @@ public sealed partial class MainWindow : Window
         FamilyNameTextBox.IsEnabled = canEdit;
         GivenNameTextBox.IsEnabled = canEdit;
         YenTextBox.IsEnabled = canEdit;
+        MainCharacterLevelSlider.IsEnabled = canEdit;
+        MainCharacterTotalExperienceTextBox.IsEnabled = canEdit;
+        MainCharacterCalculateFromLevelButton.IsEnabled = canEdit;
         CourageComboBox.IsEnabled = canEdit;
         KnowledgeComboBox.IsEnabled = canEdit;
         ExpressionComboBox.IsEnabled = canEdit;
@@ -1353,6 +1545,7 @@ public sealed partial class MainWindow : Window
         PersonaChoiceComboBox.IsEnabled = canEdit;
         PersonaXpTextBox.IsEnabled = canEdit;
         PersonaLevelSlider.IsEnabled = canEdit;
+        PersonaCalculateFromLevelButton.IsEnabled = canEdit;
         PersonaStrengthSlider.IsEnabled = canEdit;
         PersonaMagicSlider.IsEnabled = canEdit;
         PersonaEnduranceSlider.IsEnabled = canEdit;
@@ -1385,13 +1578,14 @@ public sealed partial class MainWindow : Window
 
     private void RefreshSocialStatsState()
     {
+        TraceStartup("RefreshSocialStatsState enter");
         if (!viewModel.HasSave || viewModel.SocialStats.Count == 0)
         {
-            CourageComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
-            KnowledgeComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
-            ExpressionComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
-            UnderstandingComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
-            DiligenceComboBox.ItemsSource = Array.Empty<SocialStatRankChoiceViewState>();
+            ClearSocialStatChoices(CourageComboBox);
+            ClearSocialStatChoices(KnowledgeComboBox);
+            ClearSocialStatChoices(ExpressionComboBox);
+            ClearSocialStatChoices(UnderstandingComboBox);
+            ClearSocialStatChoices(DiligenceComboBox);
             CourageComboBox.SelectedItem = null;
             KnowledgeComboBox.SelectedItem = null;
             ExpressionComboBox.SelectedItem = null;
@@ -1405,21 +1599,34 @@ public sealed partial class MainWindow : Window
         SetSocialStatSelection(ExpressionComboBox, 4);
         SetSocialStatSelection(UnderstandingComboBox, 3);
         SetSocialStatSelection(DiligenceComboBox, 2);
+        TraceStartup("RefreshSocialStatsState exit");
     }
 
     private void SetSocialStatSelection(ComboBox comboBox, int statIndex)
     {
+        TraceStartup($"SetSocialStatSelection enter {statIndex}");
         SocialStatViewState stat = viewModel.SocialStats[statIndex];
-        comboBox.ItemsSource = viewModel.GetSocialStatChoices(statIndex, stat.Points, out SocialStatRankChoiceViewState selectedChoice);
+        comboBox.Items.Clear();
+        IReadOnlyList<SocialStatRankChoiceViewState> choices = SaveEditorViewModel.GetSocialStatChoices(statIndex, stat.Points, out SocialStatRankChoiceViewState selectedChoice);
+        foreach (SocialStatRankChoiceViewState choice in choices)
+        {
+            comboBox.Items.Add(choice);
+        }
+
         comboBox.SelectedItem = selectedChoice;
+        TraceStartup($"SetSocialStatSelection exit {statIndex}");
     }
+
+    private static void ClearSocialStatChoices(ComboBox comboBox) =>
+        comboBox.Items.Clear();
 
     private void RefreshCalendarState()
     {
+        TraceStartup("RefreshCalendarState enter");
         if (!viewModel.HasSave)
         {
-            PhaseComboBox.ItemsSource = Array.Empty<CalendarPhaseChoiceViewState>();
-            NextPhaseComboBox.ItemsSource = Array.Empty<CalendarPhaseChoiceViewState>();
+            PhaseComboBox.Items.Clear();
+            NextPhaseComboBox.Items.Clear();
             PhaseComboBox.SelectedItem = null;
             NextPhaseComboBox.SelectedItem = null;
             DayTextBox.Text = string.Empty;
@@ -1429,52 +1636,91 @@ public sealed partial class MainWindow : Window
 
         DayTextBox.Text = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);
         NextDayTextBox.Text = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);
-        PhaseComboBox.ItemsSource = viewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase);
+        PhaseComboBox.Items.Clear();
+        IReadOnlyList<CalendarPhaseChoiceViewState> phaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase);
+        foreach (CalendarPhaseChoiceViewState choice in phaseChoices)
+        {
+            PhaseComboBox.Items.Add(choice);
+        }
         PhaseComboBox.SelectedItem = selectedPhase;
-        NextPhaseComboBox.ItemsSource = viewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);
+        NextPhaseComboBox.Items.Clear();
+        IReadOnlyList<CalendarPhaseChoiceViewState> nextPhaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);
+        foreach (CalendarPhaseChoiceViewState choice in nextPhaseChoices)
+        {
+            NextPhaseComboBox.Items.Add(choice);
+        }
         NextPhaseComboBox.SelectedItem = selectedNextPhase;
+        TraceStartup("RefreshCalendarState exit");
     }
 
     private void RefreshSocialLinksState()
     {
+        TraceStartup("RefreshSocialLinksState enter");
         suppressSocialLinkEvents = true;
         try
         {
-            SocialLinkListView.ItemsSource = viewModel.HasSave
-                ? viewModel.SocialLinks
-                : Array.Empty<SocialLinkViewState>();
+            socialLinkItems.Clear();
+            TraceStartup("RefreshSocialLinksState cleared list");
+            if (viewModel.HasSave)
+            {
+                foreach (SocialLinkViewState socialLink in viewModel.SocialLinks)
+                {
+                    socialLinkItems.Add(socialLink);
+                }
+            }
+            TraceStartup("RefreshSocialLinksState populated list");
 
-            IReadOnlyList<SocialLinkChoiceViewState> linkChoices = viewModel.GetSocialLinkChoices(0, out SocialLinkChoiceViewState blankChoice);
-            SocialLinkAddComboBox.ItemsSource = viewModel.HasSave
-                ? linkChoices
-                : Array.Empty<SocialLinkChoiceViewState>();
+            IReadOnlyList<SocialLinkChoiceViewState> linkChoices = SaveEditorViewModel.GetSocialLinkChoices(0, out SocialLinkChoiceViewState blankChoice);
+            socialLinkChoices.Clear();
+            TraceStartup("RefreshSocialLinksState cleared add choices");
+            if (viewModel.HasSave)
+            {
+                foreach (SocialLinkChoiceViewState linkChoice in linkChoices)
+                {
+                    socialLinkChoices.Add(linkChoice);
+                }
+            }
+            TraceStartup("RefreshSocialLinksState populated add choices");
 
+            TraceStartup("RefreshSocialLinksState before selection-state check");
             if (!viewModel.HasSave || viewModel.SocialLinks.Count == 0)
             {
                 ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
+                TraceStartup("RefreshSocialLinksState empty branch before list selection");
                 SocialLinkListView.SelectedItem = null;
+                TraceStartup("RefreshSocialLinksState empty branch after list selection");
                 SocialLinkAddComboBox.SelectedItem = viewModel.HasSave ? blankChoice : null;
+                TraceStartup("RefreshSocialLinksState empty branch after add selection");
                 SocialLinkLevelTextBox.Text = string.Empty;
                 SocialLinkProgressTextBox.Text = string.Empty;
                 SocialLinkFlagTextBox.Text = string.Empty;
+                TraceStartup("RefreshSocialLinksState empty branch exit");
                 return;
             }
+            TraceStartup("RefreshSocialLinksState after selection-state check");
 
+            TraceStartup("RefreshSocialLinksState resolving selection");
             SocialLinkViewState selectedLink = ResolveSelectedSocialLinkViewState(viewModel.SocialLinks, selectedSocialLinkIndex, selectedSocialLinkLinkId)
                 ?? viewModel.SocialLinks[0];
+            TraceStartup("RefreshSocialLinksState resolved selection");
             selectedSocialLinkIndex = selectedLink.SlotIndex;
             selectedSocialLinkLinkId = selectedLink.LinkId;
 
+            TraceStartup("RefreshSocialLinksState selecting list item");
             SocialLinkListView.SelectedItem = selectedLink;
+            TraceStartup("RefreshSocialLinksState selected list item");
             SocialLinkAddComboBox.SelectedItem = blankChoice;
+            TraceStartup("RefreshSocialLinksState selected add choice");
             SocialLinkLevelTextBox.Text = selectedLink.Level.ToString(CultureInfo.InvariantCulture);
             SocialLinkProgressTextBox.Text = selectedLink.Progress.ToString(CultureInfo.InvariantCulture);
             SocialLinkFlagTextBox.Text = selectedLink.Flag.ToString(CultureInfo.InvariantCulture);
+            TraceStartup("RefreshSocialLinksState assigned selection");
         }
         finally
         {
             suppressSocialLinkEvents = false;
         }
+        TraceStartup("RefreshSocialLinksState exit");
     }
 
     private void RefreshCompendiumState()
@@ -1482,29 +1728,37 @@ public sealed partial class MainWindow : Window
         suppressCompendiumEvents = true;
         try
         {
-            IReadOnlyList<CompendiumPersonaViewState> compendiumEntries = [];
+            compendiumItems.Clear();
             PersonaChoiceViewState? blankChoice = null;
             if (viewModel.HasSave)
             {
-                compendiumEntries = viewModel.CompendiumPersonaSlots
+                foreach (CompendiumPersonaViewState compendiumEntry in viewModel.CompendiumPersonaSlots
                     .Where(static slot => slot.Exists)
                     .Select(slot =>
                     {
-                        viewModel.GetPersonaChoices(slot.PersonaId, out PersonaChoiceViewState choice);
+                        SaveEditorViewModel.GetPersonaChoices(slot.PersonaId, out PersonaChoiceViewState choice);
                         return new CompendiumPersonaViewState(slot.SlotIndex, slot.PersonaId, choice.Name, slot.Level, slot.TotalExperience);
                     })
-                    .ToArray();
-                viewModel.GetPersonaChoices(0, out blankChoice);
+                )
+                {
+                    compendiumItems.Add(compendiumEntry);
+                }
+                SaveEditorViewModel.GetPersonaChoices(0, out blankChoice);
             }
 
-            CompendiumListView.ItemsSource = compendiumEntries;
-            IReadOnlyList<PersonaChoiceViewState> addChoices = viewModel.HasSave
-                ? viewModel.GetPersonaChoices(0, out blankChoice)
-                : [];
-            CompendiumAddComboBox.ItemsSource = addChoices;
+            compendiumAddChoices.Clear();
+            if (viewModel.HasSave)
+            {
+                IReadOnlyList<PersonaChoiceViewState> addChoices = SaveEditorViewModel.GetPersonaChoices(0, out blankChoice);
+                foreach (PersonaChoiceViewState addChoice in addChoices)
+                {
+                    compendiumAddChoices.Add(addChoice);
+                }
+            }
+
             CompendiumAddComboBox.SelectedItem = viewModel.HasSave ? blankChoice : null;
 
-            if (!viewModel.HasSave || compendiumEntries.Count == 0)
+            if (!viewModel.HasSave || compendiumItems.Count == 0)
             {
                 selectedCompendiumSlotIndex = null;
                 CompendiumListView.SelectedItem = null;
@@ -1513,7 +1767,7 @@ public sealed partial class MainWindow : Window
             }
 
             CompendiumPersonaViewState? selectedEntry = ResolveSelectedCompendiumViewState(
-                compendiumEntries,
+                compendiumItems.ToArray(),
                 selectedCompendiumSlotIndex,
                 autoSelectCompendiumEntryAfterOpen);
 
@@ -1527,7 +1781,7 @@ public sealed partial class MainWindow : Window
                 selectedCompendiumSlotIndex = null;
                 CompendiumListView.SelectedItem = null;
             }
-
+            autoSelectCompendiumEntryAfterOpen = false;
             autoSelectCompendiumEntryAfterOpen = false;
         }
         finally
@@ -1541,19 +1795,28 @@ public sealed partial class MainWindow : Window
         suppressInventoryEvents = true;
         try
         {
-            InventoryListView.ItemsSource = viewModel.HasSave
+            inventoryItems.Clear();
+            foreach (InventoryStackViewState inventoryEntry in viewModel.HasSave
                 ? viewModel.InventoryEntries
-                : Array.Empty<InventoryStackViewState>();
-            InventoryCategoryComboBox.ItemsSource = viewModel.InventoryCategories;
+                : Array.Empty<InventoryStackViewState>())
+            {
+                inventoryItems.Add(inventoryEntry);
+            }
 
-            if (!viewModel.HasSave || viewModel.InventoryCategories.Count == 0)
+            inventoryCategories.Clear();
+            foreach (ItemCategoryViewState category in SaveEditorViewModel.InventoryCategories)
+            {
+                inventoryCategories.Add(category);
+            }
+
+            if (!viewModel.HasSave || SaveEditorViewModel.InventoryCategories.Count == 0)
             {
                 autoSelectInventoryEntryAfterOpen = false;
                 selectedInventoryCategoryId = null;
                 selectedInventoryItemId = null;
                 selectedInventoryEntryId = null;
                 InventoryCategoryComboBox.SelectedItem = null;
-                InventoryItemComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                inventoryItemChoices.Clear();
                 InventoryItemComboBox.SelectedItem = null;
                 InventoryListView.SelectedItem = null;
                 if (inventorySelectionState.ShouldHydrateQuantityText(null, null, null, string.Empty))
@@ -1595,17 +1858,17 @@ public sealed partial class MainWindow : Window
             }
 
             ItemCategoryViewState? selectedCategory = selectedInventoryCategoryId.HasValue
-                ? viewModel.InventoryCategories.FirstOrDefault(category => category.CategoryId == selectedInventoryCategoryId.Value)
+                ? SaveEditorViewModel.InventoryCategories.FirstOrDefault(category => category.CategoryId == selectedInventoryCategoryId.Value)
                 : null;
             if (selectedCategory is null && selectedEntry is not null)
             {
-                selectedCategory = viewModel.InventoryCategories.FirstOrDefault(category => category.CategoryId == selectedEntry.CategoryId);
+                selectedCategory = SaveEditorViewModel.InventoryCategories.FirstOrDefault(category => category.CategoryId == selectedEntry.CategoryId);
             }
 
             if (selectedCategory is null && selectedEntry is null && selectedInventoryCategoryId is null && selectedInventoryItemId is null)
             {
                 InventoryCategoryComboBox.SelectedItem = null;
-                InventoryItemComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                inventoryItemChoices.Clear();
                 InventoryItemComboBox.SelectedItem = null;
                 InventoryListView.SelectedItem = null;
                 if (inventorySelectionState.ShouldHydrateQuantityText(null, null, null, string.Empty))
@@ -1620,7 +1883,7 @@ public sealed partial class MainWindow : Window
             InventoryCategoryComboBox.SelectedItem = selectedCategory;
 
             IReadOnlyList<InventoryItemChoiceViewState> itemChoices = selectedCategory is not null
-                ? viewModel.GetInventoryItemsForCategory(selectedCategory.CategoryId)
+                ? SaveEditorViewModel.GetInventoryItemsForCategory(selectedCategory.CategoryId)
                 : Array.Empty<InventoryItemChoiceViewState>();
             itemChoices = InventorySelectionProjection.ResolveItemChoices(
                 itemChoices,
@@ -1628,7 +1891,11 @@ public sealed partial class MainWindow : Window
                 selectedInventoryItemId,
                 out InventoryItemChoiceViewState? selectedItem);
 
-            InventoryItemComboBox.ItemsSource = itemChoices;
+            inventoryItemChoices.Clear();
+            foreach (InventoryItemChoiceViewState itemChoice in itemChoices)
+            {
+                inventoryItemChoices.Add(itemChoice);
+            }
             InventoryItemComboBox.SelectedItem = selectedItem;
             selectedInventoryItemId = selectedItem is { IsPlaceholder: false } ? selectedItem.ItemId : null;
 
@@ -1699,7 +1966,7 @@ public sealed partial class MainWindow : Window
                     () => viewModel.AddSocialLink(selectedChoice.LinkId));
                 if (mutationResult.Succeeded && viewModel.SocialLinks.Count > 0)
                 {
-                    SocialLinkViewState selectedLink = viewModel.SocialLinks.Last();
+                    SocialLinkViewState selectedLink = viewModel.SocialLinks[viewModel.SocialLinks.Count - 1];
                     selectedSocialLinkIndex = selectedLink.SlotIndex;
                     selectedSocialLinkLinkId = selectedLink.LinkId;
                 }
@@ -1923,18 +2190,22 @@ public sealed partial class MainWindow : Window
         suppressEquipmentEvents = true;
         try
         {
-            EquipmentCharacterComboBox.ItemsSource = viewModel.HasSave
+            equipmentCharacters.Clear();
+            foreach (EquipmentCharacterViewState character in viewModel.HasSave
                 ? viewModel.EquipmentCharacters
-                : Array.Empty<EquipmentCharacterViewState>();
+                : Array.Empty<EquipmentCharacterViewState>())
+            {
+                equipmentCharacters.Add(character);
+            }
 
-            if (!viewModel.HasSave || viewModel.EquipmentCharacters.Count == 0)
+            if (!viewModel.HasSave || equipmentCharacters.Count == 0)
             {
                 selectedEquipmentCharacterId = null;
                 EquipmentCharacterComboBox.SelectedItem = null;
-                EquipmentWeaponComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
-                EquipmentArmorComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
-                EquipmentAccessoryComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
-                EquipmentCostumeComboBox.ItemsSource = Array.Empty<InventoryItemChoiceViewState>();
+                equipmentWeaponChoices.Clear();
+                equipmentArmorChoices.Clear();
+                equipmentAccessoryChoices.Clear();
+                equipmentCostumeChoices.Clear();
                 EquipmentWeaponComboBox.SelectedItem = null;
                 EquipmentArmorComboBox.SelectedItem = null;
                 EquipmentAccessoryComboBox.SelectedItem = null;
@@ -1945,18 +2216,18 @@ public sealed partial class MainWindow : Window
             EquipmentCharacterViewState? selectedCharacter = null;
             if (selectedEquipmentCharacterId.HasValue)
             {
-                selectedCharacter = viewModel.EquipmentCharacters.FirstOrDefault(
+                selectedCharacter = equipmentCharacters.FirstOrDefault(
                     character => character.CharacterId == selectedEquipmentCharacterId.Value);
             }
 
-            selectedCharacter ??= viewModel.EquipmentCharacters[0];
+            selectedCharacter ??= equipmentCharacters[0];
             EquipmentCharacterComboBox.SelectedItem = selectedCharacter;
             selectedEquipmentCharacterId = selectedCharacter.CharacterId;
 
-            SetEquipmentChoices(EquipmentWeaponComboBox, viewModel.GetWeaponChoices(selectedCharacter.CharacterId), selectedCharacter.WeaponItemId);
-            SetEquipmentChoices(EquipmentArmorComboBox, viewModel.GetArmorChoices(), selectedCharacter.ArmorItemId);
-            SetEquipmentChoices(EquipmentAccessoryComboBox, viewModel.GetAccessoryChoices(), selectedCharacter.AccessoryItemId);
-            SetEquipmentChoices(EquipmentCostumeComboBox, viewModel.GetCostumeChoices(), selectedCharacter.CostumeItemId);
+            SetEquipmentChoices(equipmentWeaponChoices, EquipmentWeaponComboBox, SaveEditorViewModel.GetWeaponChoices(selectedCharacter.CharacterId), selectedCharacter.WeaponItemId);
+            SetEquipmentChoices(equipmentArmorChoices, EquipmentArmorComboBox, SaveEditorViewModel.GetArmorChoices(), selectedCharacter.ArmorItemId);
+            SetEquipmentChoices(equipmentAccessoryChoices, EquipmentAccessoryComboBox, SaveEditorViewModel.GetAccessoryChoices(), selectedCharacter.AccessoryItemId);
+            SetEquipmentChoices(equipmentCostumeChoices, EquipmentCostumeComboBox, SaveEditorViewModel.GetCostumeChoices(), selectedCharacter.CostumeItemId);
         }
         finally
         {
@@ -1969,18 +2240,22 @@ public sealed partial class MainWindow : Window
         suppressPersonaEvents = true;
         try
         {
-            PersonaMemberComboBox.ItemsSource = viewModel.HasSave
+            personaMemberChoices.Clear();
+            foreach (PartyMemberChoiceViewState memberChoice in viewModel.HasSave
                 ? viewModel.PartyMemberChoices
-                : Array.Empty<PartyMemberChoiceViewState>();
+                : Array.Empty<PartyMemberChoiceViewState>())
+            {
+                personaMemberChoices.Add(memberChoice);
+            }
 
-            if (!viewModel.HasSave || viewModel.PartyMemberChoices.Count == 0)
+            if (!viewModel.HasSave || personaMemberChoices.Count == 0)
             {
                 selectedPersonaMemberId = null;
                 selectedPersonaSlotIndex = 0;
                 PersonaMemberComboBox.SelectedItem = null;
-                PersonaSlotComboBox.ItemsSource = Array.Empty<PersonaSlotViewState>();
+                personaSlotChoices.Clear();
                 PersonaSlotComboBox.SelectedItem = null;
-                PersonaChoiceComboBox.ItemsSource = Array.Empty<PersonaChoiceViewState>();
+                personaChoices.Clear();
                 PersonaChoiceComboBox.SelectedItem = null;
                 PersonaXpTextBox.Text = string.Empty;
                 PersonaLevelSlider.Value = 0;
@@ -1989,21 +2264,13 @@ public sealed partial class MainWindow : Window
                 PersonaEnduranceSlider.Value = 0;
                 PersonaAgilitySlider.Value = 0;
                 PersonaLuckSlider.Value = 0;
-                PersonaSkillBox1.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox1.SelectedItem = null;
-                PersonaSkillBox2.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox2.SelectedItem = null;
-                PersonaSkillBox3.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox3.SelectedItem = null;
-                PersonaSkillBox4.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox4.SelectedItem = null;
-                PersonaSkillBox5.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox5.SelectedItem = null;
-                PersonaSkillBox6.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox6.SelectedItem = null;
-                PersonaSkillBox7.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox7.SelectedItem = null;
-                PersonaSkillBox8.ItemsSource = Array.Empty<SkillChoiceViewState>();
                 PersonaSkillBox8.SelectedItem = null;
                 return;
             }
@@ -2014,11 +2281,16 @@ public sealed partial class MainWindow : Window
                 (selectedPersonaMemberId, selectedPersonaSlotIndex) =
                     PreserveSelectedPersonaSelectionDuringCompendiumRefresh(selectedPersonaMemberId, selectedPersonaSlotIndex);
                 PersonaMemberComboBox.SelectedItem = null;
-                PersonaSlotComboBox.ItemsSource = Array.Empty<PersonaSlotViewState>();
+                personaSlotChoices.Clear();
                 PersonaSlotComboBox.SelectedItem = null;
-                PersonaChoiceComboBox.ItemsSource = viewModel.GetPersonaChoices(
+                personaChoices.Clear();
+                PersonaChoiceViewState selectedCompendiumChoice = default!;
+                foreach (PersonaChoiceViewState choice in SaveEditorViewModel.GetPersonaChoices(
                     currentCompendiumSlot.PersonaId,
-                    out PersonaChoiceViewState selectedCompendiumChoice);
+                    out selectedCompendiumChoice))
+                {
+                    personaChoices.Add(choice);
+                }
                 PersonaChoiceComboBox.SelectedItem = selectedCompendiumChoice;
                 PersonaXpTextBox.Text = currentCompendiumSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
                 PersonaLevelSlider.Value = currentCompendiumSlot.Level;
@@ -2050,7 +2322,7 @@ public sealed partial class MainWindow : Window
 
             if (personaSlots.Count == 0)
             {
-                PersonaSlotComboBox.ItemsSource = Array.Empty<PersonaSlotViewState>();
+                personaSlotChoices.Clear();
                 PersonaSlotComboBox.SelectedItem = null;
                 return;
             }
@@ -2060,15 +2332,19 @@ public sealed partial class MainWindow : Window
                 selectedPersonaSlotIndex = ResolveSelectedPersonaSlotIndexForProtagonistView(
                     selectedPersonaSlotIndex,
                     personaSlots);
-                PersonaSlotComboBox.ItemsSource = personaSlots;
+                personaSlotChoices.Clear();
+                foreach (PersonaSlotViewState slot in personaSlots)
+                {
+                    personaSlotChoices.Add(slot);
+                }
                 PersonaSlotComboBox.SelectedItem = personaSlots[selectedPersonaSlotIndex];
             }
             else
             {
                 int partyPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1, 0, personaSlots.Count - 1);
-                PersonaSlotComboBox.ItemsSource = Array.Empty<PersonaSlotViewState>();
+                personaSlotChoices.Clear();
                 PersonaSlotComboBox.SelectedItem = null;
-                PersonaChoiceComboBox.ItemsSource = Array.Empty<PersonaChoiceViewState>();
+                personaChoices.Clear();
                 PersonaChoiceComboBox.SelectedItem = null;
                 PersonaXpTextBox.Text = string.Empty;
                 PersonaLevelSlider.Value = 0;
@@ -2077,26 +2353,31 @@ public sealed partial class MainWindow : Window
                 PersonaEnduranceSlider.Value = 0;
                 PersonaAgilitySlider.Value = 0;
                 PersonaLuckSlider.Value = 0;
-                PersonaSkillBox1.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices1.Clear();
                 PersonaSkillBox1.SelectedItem = null;
-                PersonaSkillBox2.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices2.Clear();
                 PersonaSkillBox2.SelectedItem = null;
-                PersonaSkillBox3.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices3.Clear();
                 PersonaSkillBox3.SelectedItem = null;
-                PersonaSkillBox4.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices4.Clear();
                 PersonaSkillBox4.SelectedItem = null;
-                PersonaSkillBox5.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices5.Clear();
                 PersonaSkillBox5.SelectedItem = null;
-                PersonaSkillBox6.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices6.Clear();
                 PersonaSkillBox6.SelectedItem = null;
-                PersonaSkillBox7.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices7.Clear();
                 PersonaSkillBox7.SelectedItem = null;
-                PersonaSkillBox8.ItemsSource = Array.Empty<SkillChoiceViewState>();
+                personaSkillChoices8.Clear();
                 PersonaSkillBox8.SelectedItem = null;
                 PersonaSlotViewState partyCurrentSlot = personaSlots[partyPersonaSlotIndex];
-                PersonaChoiceComboBox.ItemsSource = viewModel.GetPersonaChoices(
+                personaChoices.Clear();
+                PersonaChoiceViewState partySelectedPersonaChoice = default!;
+                foreach (PersonaChoiceViewState choice in SaveEditorViewModel.GetPersonaChoices(
                     partyCurrentSlot.PersonaId,
-                    out PersonaChoiceViewState partySelectedPersonaChoice);
+                    out partySelectedPersonaChoice))
+                {
+                    personaChoices.Add(choice);
+                }
                 PersonaChoiceComboBox.SelectedItem = partySelectedPersonaChoice;
                 PersonaXpTextBox.Text = partyCurrentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
                 PersonaLevelSlider.Value = partyCurrentSlot.Level;
@@ -2111,7 +2392,12 @@ public sealed partial class MainWindow : Window
             }
 
             PersonaSlotViewState currentSlot = personaSlots[selectedPersonaSlotIndex];
-            PersonaChoiceComboBox.ItemsSource = viewModel.GetPersonaChoices(currentSlot.PersonaId, out PersonaChoiceViewState selectedPersonaChoice);
+            personaChoices.Clear();
+            PersonaChoiceViewState selectedPersonaChoice = default!;
+            foreach (PersonaChoiceViewState choice in SaveEditorViewModel.GetPersonaChoices(currentSlot.PersonaId, out selectedPersonaChoice))
+            {
+                personaChoices.Add(choice);
+            }
             PersonaChoiceComboBox.SelectedItem = selectedPersonaChoice;
             PersonaXpTextBox.Text = currentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
             PersonaLevelSlider.Value = currentSlot.Level;
@@ -2127,47 +2413,67 @@ public sealed partial class MainWindow : Window
         {
             suppressPersonaEvents = false;
             RefreshPersonaSummary();
+            PersonaLevelValueTextBlock.Text = viewModel.HasSave
+                ? PersonaLevelSlider.Value.ToString(CultureInfo.InvariantCulture)
+                : string.Empty;
         }
     }
 
     private static void SetEquipmentChoices(
+        ObservableCollection<InventoryItemChoiceViewState> targetCollection,
         ComboBox comboBox,
         IReadOnlyList<InventoryItemChoiceViewState> itemChoices,
         ushort selectedItemId)
     {
-        comboBox.ItemsSource = InventorySelectionProjection.ResolveEquipmentChoices(
+        targetCollection.Clear();
+        IReadOnlyList<InventoryItemChoiceViewState> choices = InventorySelectionProjection.ResolveEquipmentChoices(
             itemChoices,
             selectedItemId,
             out InventoryItemChoiceViewState? selectedItem);
+        foreach (InventoryItemChoiceViewState choice in choices)
+        {
+            targetCollection.Add(choice);
+        }
         comboBox.SelectedItem = selectedItem;
+    }
+
+    private static void SetSkillChoices(
+        ObservableCollection<SkillChoiceViewState> targetCollection,
+        IReadOnlyList<SkillChoiceViewState> skillChoices)
+    {
+        targetCollection.Clear();
+        foreach (SkillChoiceViewState skillChoice in skillChoices)
+        {
+            targetCollection.Add(skillChoice);
+        }
     }
 
     private void SetPersonaSkillChoices(IReadOnlyList<ushort> skillIds)
     {
-        IReadOnlyList<SkillChoiceViewState> skill1Choices = viewModel.GetSkillChoices(skillIds[0], out SkillChoiceViewState skill1);
-        IReadOnlyList<SkillChoiceViewState> skill2Choices = viewModel.GetSkillChoices(skillIds[1], out SkillChoiceViewState skill2);
-        IReadOnlyList<SkillChoiceViewState> skill3Choices = viewModel.GetSkillChoices(skillIds[2], out SkillChoiceViewState skill3);
-        IReadOnlyList<SkillChoiceViewState> skill4Choices = viewModel.GetSkillChoices(skillIds[3], out SkillChoiceViewState skill4);
-        IReadOnlyList<SkillChoiceViewState> skill5Choices = viewModel.GetSkillChoices(skillIds[4], out SkillChoiceViewState skill5);
-        IReadOnlyList<SkillChoiceViewState> skill6Choices = viewModel.GetSkillChoices(skillIds[5], out SkillChoiceViewState skill6);
-        IReadOnlyList<SkillChoiceViewState> skill7Choices = viewModel.GetSkillChoices(skillIds[6], out SkillChoiceViewState skill7);
-        IReadOnlyList<SkillChoiceViewState> skill8Choices = viewModel.GetSkillChoices(skillIds[7], out SkillChoiceViewState skill8);
+        IReadOnlyList<SkillChoiceViewState> skill1Choices = SaveEditorViewModel.GetSkillChoices(skillIds[0], out SkillChoiceViewState skill1);
+        IReadOnlyList<SkillChoiceViewState> skill2Choices = SaveEditorViewModel.GetSkillChoices(skillIds[1], out SkillChoiceViewState skill2);
+        IReadOnlyList<SkillChoiceViewState> skill3Choices = SaveEditorViewModel.GetSkillChoices(skillIds[2], out SkillChoiceViewState skill3);
+        IReadOnlyList<SkillChoiceViewState> skill4Choices = SaveEditorViewModel.GetSkillChoices(skillIds[3], out SkillChoiceViewState skill4);
+        IReadOnlyList<SkillChoiceViewState> skill5Choices = SaveEditorViewModel.GetSkillChoices(skillIds[4], out SkillChoiceViewState skill5);
+        IReadOnlyList<SkillChoiceViewState> skill6Choices = SaveEditorViewModel.GetSkillChoices(skillIds[5], out SkillChoiceViewState skill6);
+        IReadOnlyList<SkillChoiceViewState> skill7Choices = SaveEditorViewModel.GetSkillChoices(skillIds[6], out SkillChoiceViewState skill7);
+        IReadOnlyList<SkillChoiceViewState> skill8Choices = SaveEditorViewModel.GetSkillChoices(skillIds[7], out SkillChoiceViewState skill8);
 
-        PersonaSkillBox1.ItemsSource = skill1Choices;
+        SetSkillChoices(personaSkillChoices1, skill1Choices);
         PersonaSkillBox1.SelectedItem = skill1;
-        PersonaSkillBox2.ItemsSource = skill2Choices;
+        SetSkillChoices(personaSkillChoices2, skill2Choices);
         PersonaSkillBox2.SelectedItem = skill2;
-        PersonaSkillBox3.ItemsSource = skill3Choices;
+        SetSkillChoices(personaSkillChoices3, skill3Choices);
         PersonaSkillBox3.SelectedItem = skill3;
-        PersonaSkillBox4.ItemsSource = skill4Choices;
+        SetSkillChoices(personaSkillChoices4, skill4Choices);
         PersonaSkillBox4.SelectedItem = skill4;
-        PersonaSkillBox5.ItemsSource = skill5Choices;
+        SetSkillChoices(personaSkillChoices5, skill5Choices);
         PersonaSkillBox5.SelectedItem = skill5;
-        PersonaSkillBox6.ItemsSource = skill6Choices;
+        SetSkillChoices(personaSkillChoices6, skill6Choices);
         PersonaSkillBox6.SelectedItem = skill6;
-        PersonaSkillBox7.ItemsSource = skill7Choices;
+        SetSkillChoices(personaSkillChoices7, skill7Choices);
         PersonaSkillBox7.SelectedItem = skill7;
-        PersonaSkillBox8.ItemsSource = skill8Choices;
+        SetSkillChoices(personaSkillChoices8, skill8Choices);
         PersonaSkillBox8.SelectedItem = skill8;
     }
 
@@ -2514,7 +2820,7 @@ public sealed partial class MainWindow : Window
         if (selectedCompendiumSlotIndex.HasValue)
         {
             PersonaSlotViewState compendiumSlot = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value];
-            viewModel.GetPersonaChoices(compendiumSlot.PersonaId, out PersonaChoiceViewState compendiumPersona);
+            SaveEditorViewModel.GetPersonaChoices(compendiumSlot.PersonaId, out PersonaChoiceViewState compendiumPersona);
 
             return string.Join(
                 Environment.NewLine,
@@ -2546,7 +2852,7 @@ public sealed partial class MainWindow : Window
             ? Math.Clamp(selectedPersonaSlotIndex, 0, personaSlots.Count - 1)
             : Math.Clamp(selectedMember.MemberId - 1, 0, personaSlots.Count - 1);
         PersonaSlotViewState slot = personaSlots[slotIndex];
-        viewModel.GetPersonaChoices(slot.PersonaId, out PersonaChoiceViewState selectedPersona);
+        SaveEditorViewModel.GetPersonaChoices(slot.PersonaId, out PersonaChoiceViewState selectedPersona);
 
         return string.Join(
             Environment.NewLine,
@@ -2564,9 +2870,28 @@ public sealed partial class MainWindow : Window
         PersonaSummaryTextBox.Text = BuildPersonaSummary();
     }
 
+    private static void NavigateToSection(FrameworkElement target) =>
+        target.StartBringIntoView();
+
     private void DisplayDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)
     {
-        DiagnosticsListView.ItemsSource = ShellStateFormatter.GetDiagnosticsText(diagnostics);
+        IReadOnlyList<string> diagnosticsText = ShellStateFormatter.GetDiagnosticsText(diagnostics);
+        void UpdateDiagnostics()
+        {
+            diagnosticsItems.Clear();
+            foreach (string diagnosticText in diagnosticsText)
+            {
+                diagnosticsItems.Add(diagnosticText);
+            }
+        }
+
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            UpdateDiagnostics();
+            return;
+        }
+
+        _ = DispatcherQueue.TryEnqueue(UpdateDiagnostics);
     }
 
     private void SetUiDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)
@@ -2682,6 +3007,24 @@ public sealed partial class MainWindow : Window
             CultureInfo.InvariantCulture,
             $"Slot {slot.SlotIndex}: exists={slot.Exists}, id={slot.PersonaId}, level={slot.Level}, exp={slot.TotalExperience}");
 
+    private static void TraceStartup(string message)
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("P4G_TRACE_STARTUP"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(
+                Path.Combine(AppContext.BaseDirectory, "startup-trace.log"),
+                $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+        }
+    }
+
     private static string FormatDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics) =>
         diagnostics.Count == 0
             ? "No diagnostics were reported."
@@ -2695,3 +3038,4 @@ public sealed partial class MainWindow : Window
     private static string FormatBoolean(bool value) =>
         value ? "yes" : "no";
 }
+

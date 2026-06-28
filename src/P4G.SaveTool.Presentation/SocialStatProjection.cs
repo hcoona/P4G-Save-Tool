@@ -61,10 +61,11 @@ internal static class SocialStatProjection
 
     private static ReadOnlyCollection<SocialStatRankChoiceViewState>[] CreateRankChoices() =>
         Definitions
-            .Select(static definition => Array.AsReadOnly(
-                definition.RankNames
-                    .Select((rankName, index) => new SocialStatRankChoiceViewState(index + 1, rankName))
-                    .ToArray()))
+            .Select(static definition =>
+                Array.AsReadOnly(
+                    definition.RankNames
+                        .Select((rankName, index) => new SocialStatRankChoiceViewState(index + 1, rankName))
+                        .ToArray()))
             .ToArray();
 
     private sealed record SocialStatDefinition(int StatIndex, string Name, string[] RankNames);

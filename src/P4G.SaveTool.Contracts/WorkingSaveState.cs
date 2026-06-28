@@ -35,6 +35,8 @@ public sealed class WorkingSaveState
         IReadOnlyList<InventoryStack>? inventoryStacks = null,
         IReadOnlyList<ushort>? socialStats = null,
         IReadOnlyList<SocialLinkState>? socialLinks = null,
+        byte mainCharacterLevel = 0,
+        uint mainCharacterTotalExperience = 0,
         byte day = 0,
         byte dayPhase = 0,
         byte nextDay = 0,
@@ -55,7 +57,14 @@ public sealed class WorkingSaveState
         this.compendiumPersonaSlots = CopyReadOnly(compendiumPersonaSlots, nameof(compendiumPersonaSlots));
         this.inventoryStacks = CopyReadOnly(inventoryStacks ?? Array.Empty<InventoryStack>(), nameof(inventoryStacks));
         this.socialLinks = CopyReadOnly(socialLinks ?? Array.Empty<SocialLinkState>(), nameof(socialLinks));
-        ValidateMaximumLength(this.socialLinks, SocialLinkSlotCount, nameof(socialLinks));
+        if (this.socialLinks.Count > SocialLinkSlotCount)
+        {
+            throw new ArgumentException(
+                $"Field must contain at most {SocialLinkSlotCount} values.",
+                nameof(socialLinks));
+        }
+        MainCharacterLevel = mainCharacterLevel;
+        MainCharacterTotalExperience = mainCharacterTotalExperience;
         Day = day;
         DayPhase = dayPhase;
         NextDay = nextDay;
@@ -88,6 +97,10 @@ public sealed class WorkingSaveState
 
     public IReadOnlyList<SocialLinkState> SocialLinks => socialLinks;
 
+    public byte MainCharacterLevel { get; }
+
+    public uint MainCharacterTotalExperience { get; }
+
     public byte Day { get; }
 
     public byte DayPhase { get; }
@@ -114,6 +127,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -135,6 +150,52 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
+
+    public WorkingSaveState WithMainCharacterLevel(byte mainCharacterLevel) =>
+        CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            socialLinks,
+            mainCharacterLevel,
+            MainCharacterTotalExperience,
+            Day,
+            DayPhase,
+            NextDay,
+            NextDayPhase);
+
+    public WorkingSaveState WithMainCharacterTotalExperience(uint mainCharacterTotalExperience) =>
+        CreateState(
+            Names,
+            Yen,
+            partyMembers,
+            equippedWeapons,
+            equippedArmors,
+            equippedAccessories,
+            equippedCostumes,
+            socialStats,
+            protagonistPersonaSlots,
+            partyPersonaSlots,
+            compendiumPersonaSlots,
+            inventoryStacks,
+            socialLinks,
+            MainCharacterLevel,
+            mainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -163,6 +224,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -197,6 +260,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -218,6 +283,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             day,
             DayPhase,
             NextDay,
@@ -238,6 +305,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             dayPhase,
             NextDay,
@@ -258,6 +327,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             nextDay,
@@ -278,6 +349,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -298,6 +371,8 @@ public sealed class WorkingSaveState
             state.compendiumPersonaSlots,
             state.inventoryStacks,
             state.socialLinks,
+            state.MainCharacterLevel,
+            state.MainCharacterTotalExperience,
             state.Day,
             state.DayPhase,
             state.NextDay,
@@ -318,6 +393,8 @@ public sealed class WorkingSaveState
             state.compendiumPersonaSlots,
             state.inventoryStacks,
             state.socialLinks,
+            state.MainCharacterLevel,
+            state.MainCharacterTotalExperience,
             state.Day,
             state.DayPhase,
             state.NextDay,
@@ -338,6 +415,8 @@ public sealed class WorkingSaveState
             slots,
             state.inventoryStacks,
             state.socialLinks,
+            state.MainCharacterLevel,
+            state.MainCharacterTotalExperience,
             state.Day,
             state.DayPhase,
             state.NextDay,
@@ -386,7 +465,9 @@ public sealed class WorkingSaveState
                 partyPersonaSlots,
                 compendiumPersonaSlots,
                 updatedInventory,
-            socialLinks,
+                socialLinks,
+                MainCharacterLevel,
+                MainCharacterTotalExperience,
                 Day,
                 DayPhase,
                 NextDay,
@@ -409,6 +490,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             insertedInventory,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -449,6 +532,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             updatedSocialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -478,6 +563,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             updatedSocialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -507,6 +594,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             updatedSocialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -533,17 +622,6 @@ public sealed class WorkingSaveState
         return Array.AsReadOnly(values.ToArray());
     }
 
-    private static void ValidateMaximumLength<T>(IReadOnlyCollection<T> values, int maximumLength, string parameterName)
-    {
-        ArgumentNullException.ThrowIfNull(values, parameterName);
-        if (values.Count > maximumLength)
-        {
-            throw new ArgumentException(
-                $"Field must contain at most {maximumLength} values.",
-                parameterName);
-        }
-    }
-
     private WorkingSaveState WithInventoryItemRemoved(int itemIndex)
     {
         List<InventoryStack> updatedInventory = inventoryStacks.ToList();
@@ -562,6 +640,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             updatedInventory,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -569,11 +649,11 @@ public sealed class WorkingSaveState
     }
 
     private WorkingSaveState WithPersonaSlot(
-        IReadOnlyList<PersonaSlot> slots,
+        ReadOnlyCollection<PersonaSlot> slots,
         int slotIndex,
         PersonaSlot personaSlot,
         string parameterName,
-        Func<WorkingSaveState, IReadOnlyList<PersonaSlot>, WorkingSaveState> createState)
+        Func<WorkingSaveState, ReadOnlyCollection<PersonaSlot>, WorkingSaveState> createState)
     {
         ArgumentNullException.ThrowIfNull(slots);
         ArgumentNullException.ThrowIfNull(personaSlot);
@@ -590,7 +670,7 @@ public sealed class WorkingSaveState
 
         PersonaSlot[] updatedSlots = slots.ToArray();
         updatedSlots[slotIndex] = personaSlot;
-        return createState(this, updatedSlots);
+        return createState(this, Array.AsReadOnly(updatedSlots));
     }
 
     private WorkingSaveState WithEquipment(int characterId, ushort itemId, EquipmentKind kind)
@@ -649,6 +729,8 @@ public sealed class WorkingSaveState
             compendiumPersonaSlots,
             inventoryStacks,
             socialLinks,
+            MainCharacterLevel,
+            MainCharacterTotalExperience,
             Day,
             DayPhase,
             NextDay,
@@ -669,6 +751,8 @@ public sealed class WorkingSaveState
         IReadOnlyList<PersonaSlot> compendiumPersonaSlots,
         IReadOnlyList<InventoryStack> inventoryStacks,
         IReadOnlyList<SocialLinkState> socialLinks,
+        byte mainCharacterLevel,
+        uint mainCharacterTotalExperience,
         byte day,
         byte dayPhase,
         byte nextDay,
@@ -687,6 +771,8 @@ public sealed class WorkingSaveState
             inventoryStacks,
             socialStats,
             socialLinks,
+            mainCharacterLevel,
+            mainCharacterTotalExperience,
             day,
             dayPhase,
             nextDay,

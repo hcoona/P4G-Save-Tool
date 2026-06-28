@@ -71,7 +71,13 @@ public sealed class ContractDtoStabilityTests
             protagonistSlots,
             partySlots,
             compendiumSlots,
-            inventoryStacks);
+            inventoryStacks,
+            null,
+            null,
+            0,
+            0,
+            0,
+            0);
 
         partyMembers[0] = new PartyMemberId(0xfe);
         partyMembers.Add(new PartyMemberId(0xfd));

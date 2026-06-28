@@ -38,6 +38,8 @@ public sealed class SaveSnapshot
         IReadOnlyList<InventoryStack>? inventoryStacks = null,
         IReadOnlyList<ushort>? socialStats = null,
         IReadOnlyList<SocialLinkState>? socialLinks = null,
+        byte mainCharacterLevel = 0,
+        uint mainCharacterTotalExperience = 0,
         byte day = 0,
         byte dayPhase = 0,
         byte nextDay = 0,
@@ -58,6 +60,8 @@ public sealed class SaveSnapshot
         this.partyPersonaSlots = Array.AsReadOnly(partyPersonaSlots.ToArray());
         this.compendiumPersonaSlots = Array.AsReadOnly(compendiumPersonaSlots.ToArray());
         this.inventoryStacks = Array.AsReadOnly((inventoryStacks ?? Array.Empty<InventoryStack>()).ToArray());
+        MainCharacterLevel = mainCharacterLevel;
+        MainCharacterTotalExperience = mainCharacterTotalExperience;
         Day = day;
         DayPhase = dayPhase;
         NextDay = nextDay;
@@ -93,6 +97,10 @@ public sealed class SaveSnapshot
     public IReadOnlyList<PersonaSlot> CompendiumPersonaSlots => compendiumPersonaSlots;
 
     public IReadOnlyList<InventoryStack> InventoryStacks => inventoryStacks;
+
+    public byte MainCharacterLevel { get; }
+
+    public uint MainCharacterTotalExperience { get; }
 
     public byte Day { get; }
 

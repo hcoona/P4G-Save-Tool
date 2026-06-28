@@ -6,6 +6,10 @@ public sealed record SetSaveNamesEdit(string FamilyName, string GivenName) : Sav
 
 public sealed record SetYenEdit(uint Yen) : SaveEditCommand;
 
+public sealed record SetMainCharacterLevelEdit(byte Level) : SaveEditCommand;
+
+public sealed record SetMainCharacterTotalExperienceEdit(uint TotalExperience) : SaveEditCommand;
+
 public sealed record SetPartyMemberEdit(int SlotIndex, byte MemberValue) : SaveEditCommand;
 
 public sealed record SetSocialStatRankEdit(int StatIndex, int Rank) : SaveEditCommand;

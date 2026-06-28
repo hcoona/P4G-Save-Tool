@@ -87,7 +87,7 @@ internal static class PersonaSelectionProjection
         }
     }
 
-    private static IReadOnlyList<TChoice> ResolveChoices<TChoice>(
+    private static ReadOnlyCollection<TChoice> ResolveChoices<TChoice>(
         ReadOnlyCollection<TChoice> choices,
         ushort currentId,
         Func<ushort, TChoice> createUnknownChoice,

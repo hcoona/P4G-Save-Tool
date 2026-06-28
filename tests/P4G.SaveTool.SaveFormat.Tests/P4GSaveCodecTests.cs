@@ -181,6 +181,31 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
+    public void FieldPatchChangesOnlyMainCharacterRegions()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+
+        SaveWriteResult result = P4GSaveCodec.Write(
+            snapshot,
+            [
+                CreateBytePatch(layout.MainCharacterLevel, 44),
+                CreateUInt32Patch(layout.MainCharacterTotalExperience, 1234567),
+            ]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal((byte)44, output[layout.MainCharacterLevel.Offset]);
+        Assert.Equal(1234567u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(layout.MainCharacterTotalExperience.Offset, layout.MainCharacterTotalExperience.Length)));
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (layout.MainCharacterLevel.Offset, layout.MainCharacterLevel.Length),
+            (layout.MainCharacterTotalExperience.Offset, layout.MainCharacterTotalExperience.Length));
+    }
+
+    [Fact]
     public void FieldPatchChangesOnlyInventoryRegion()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
@@ -763,6 +788,8 @@ public sealed class P4GSaveCodecTests
         Assert.Equal(P4GSaveLayoutKind.P4GGoldenVitaFixed, snapshot.LayoutKind);
         Assert.Equal(new SaveNames("Sato", "Yu"), snapshot.Names);
         Assert.Equal(123456u, snapshot.Yen);
+        Assert.Equal((byte)99, snapshot.MainCharacterLevel);
+        Assert.Equal(0x0f0e0d0cu, snapshot.MainCharacterTotalExperience);
         Assert.Collection(
             snapshot.PartyMembers,
             static member => Assert.Equal((byte)0x01, member.Value),
@@ -889,6 +916,10 @@ public sealed class P4GSaveCodecTests
         SaveStringCodec.EncodePString("Sato", bytes.AsMemory(LegacyFamilyNamePStringOffset, LegacyNameByteLength));
         SaveStringCodec.EncodePString("Yu", bytes.AsMemory(LegacyGivenNamePStringOffset, LegacyNameByteLength));
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(LegacyYenOffset, LegacyYenLength), 123456);
+        bytes[LegacyMainCharacterLevelOffset] = 99;
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            bytes.AsSpan(LegacyMainCharacterTotalExperienceOffset, LegacyMainCharacterTotalExperienceLength),
+            0x0f0e0d0c);
         bytes[LegacyPartyMembersOffset] = 0x01;
         bytes[LegacyPartyMembersOffset + 2] = 0xfe;
         bytes[LegacyPartyMembersOffset + 4] = 0x80;
@@ -1061,6 +1092,9 @@ public sealed class P4GSaveCodecTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
         return new SaveFieldPatch(field.Name, bytes);
     }
+
+    private static SaveFieldPatch CreateBytePatch(SaveFieldDescriptor field, byte value) =>
+        new(field.Name, new[] { value });
 
     private static SaveFieldPatch CreateJStringPatch(SaveFieldDescriptor field, string value)
     {

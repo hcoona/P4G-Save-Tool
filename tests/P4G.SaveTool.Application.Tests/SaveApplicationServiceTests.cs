@@ -314,11 +314,15 @@ public sealed class SaveApplicationServiceTests
         input[LegacyInventoryOffset + 1024] = 7;
         input[LegacyInventoryOffset + 1792] = 8;
         input[LegacyInventoryOffset + 2048] = 9;
+        input[LegacyInventoryOffset + 1797] = 10;
+        input[LegacyInventoryOffset + 1984] = 11;
         SaveApplicationService service = new();
         WorkingSave save = OpenOrThrow(service, input);
         Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 1024);
         Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 1792);
         Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 2048);
+        Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 1797);
+        Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 1984);
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, [new SetInventoryItemQuantityEdit(257, 9)]);
 
@@ -332,18 +336,79 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)0, output[LegacyInventoryOffset + 1024]);
         Assert.Equal((byte)0, output[LegacyInventoryOffset + 1792]);
         Assert.Equal((byte)0, output[LegacyInventoryOffset + 2048]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1797]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1984]);
         AssertOnlyRangesChanged(
             input,
             output,
             (LegacyInventoryOffset + 257, 1),
             (LegacyInventoryOffset + 1024, 1),
             (LegacyInventoryOffset + 1792, 1),
-            (LegacyInventoryOffset + 2048, 1));
+            (LegacyInventoryOffset + 2048, 1),
+            (LegacyInventoryOffset + 1797, 1),
+            (LegacyInventoryOffset + 1984, 1));
 
         WorkingSave reopenedSave = OpenOrThrow(service, output);
         Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 1024);
         Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 1792);
         Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 2048);
+        Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 1797);
+        Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 1984);
+    }
+
+    [Fact]
+    public void WriteClearsPlaceholderInventoryBytesWhenNoInventoryEditWasApplied()
+    {
+        byte[] input = CreateSyntheticSave();
+        input[LegacyInventoryOffset + 1024] = 7;
+        input[LegacyInventoryOffset + 1792] = 8;
+        input[LegacyInventoryOffset + 1797] = 9;
+        input[LegacyInventoryOffset + 1984] = 10;
+        input[LegacyInventoryOffset + 2048] = 11;
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveWriteResult writeResult = service.Write(save);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1024]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1792]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1797]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1984]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 2048]);
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (LegacyInventoryOffset + 1024, 1),
+            (LegacyInventoryOffset + 1792, 1),
+            (LegacyInventoryOffset + 1797, 1),
+            (LegacyInventoryOffset + 1984, 1),
+            (LegacyInventoryOffset + 2048, 1));
+    }
+
+    [Fact]
+    public void WriteCanonicalizesLegacyNameCopiesEvenWhenLogicalNamesAreUnchanged()
+    {
+        byte[] input = CreateSyntheticSave();
+        SaveStringCodec.EncodeJString("Wrong", input.AsMemory(LegacyFamilyNameJStringOffset, LegacyNameByteLength));
+        SaveStringCodec.EncodeJString("Names", input.AsMemory(LegacyGivenNameJStringOffset, LegacyNameByteLength));
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveWriteResult writeResult = service.Write(save);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal("Sato", SaveStringCodec.DecodeJString(output.AsMemory(LegacyFamilyNameJStringOffset, LegacyNameByteLength)));
+        Assert.Equal("Yu", SaveStringCodec.DecodeJString(output.AsMemory(LegacyGivenNameJStringOffset, LegacyNameByteLength)));
+        Assert.Equal("Sato", SaveStringCodec.DecodePString(output.AsMemory(LegacyFamilyNamePStringOffset, LegacyNameByteLength)));
+        Assert.Equal("Yu", SaveStringCodec.DecodePString(output.AsMemory(LegacyGivenNamePStringOffset, LegacyNameByteLength)));
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (LegacyFamilyNameJStringOffset, LegacyNameByteLength),
+            (LegacyGivenNameJStringOffset, LegacyNameByteLength));
     }
 
     [Fact]
@@ -1290,6 +1355,33 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
+    public void ApplyEditsRejectsNonBlankProtagonistAndPartyPersonaLevelZero()
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> protagonistResult = service.ApplyEdits(
+            save,
+            [new SetProtagonistPersonaSlotEdit(0, CreatePersonaSlotEdit(0x0102, 0, 0x11111111, 0x1401))]);
+        SaveEditResult<WorkingSave> partyResult = service.ApplyEdits(
+            save,
+            [new SetPartyPersonaSlotEdit(0, CreatePersonaSlotEdit(0x0102, 0, 0x11111111, 0x1401))]);
+
+        Assert.False(protagonistResult.Succeeded);
+        Assert.Null(protagonistResult.Save);
+        SaveDiagnostic protagonistDiagnostic = Assert.Single(protagonistResult.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, protagonistDiagnostic.Severity);
+        Assert.Equal("P4GAPP019", protagonistDiagnostic.Code);
+        Assert.Equal("Persona", protagonistDiagnostic.Target);
+        Assert.False(partyResult.Succeeded);
+        Assert.Null(partyResult.Save);
+        SaveDiagnostic partyDiagnostic = Assert.Single(partyResult.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, partyDiagnostic.Severity);
+        Assert.Equal("P4GAPP019", partyDiagnostic.Code);
+        Assert.Equal("Persona", partyDiagnostic.Target);
+    }
+
+    [Fact]
     public void ApplyEditsAllowsUnchangedCompendiumPersonaExperienceAboveLegacyMaximum()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
@@ -1381,7 +1473,7 @@ public sealed class SaveApplicationServiceTests
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
             save,
-            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 0, 0x11111111, 0x1401))]);
+            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 1, 0x11111111, 0x1401))]);
 
         Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
         WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
@@ -1416,7 +1508,7 @@ public sealed class SaveApplicationServiceTests
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
             save,
-            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 0, 0x22222222, 0x1501))]);
+            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 1, 0x22222222, 0x1501))]);
 
         Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
         WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
@@ -1425,14 +1517,14 @@ public sealed class SaveApplicationServiceTests
         byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
         Assert.Equal((byte)0, output[protagonistOffset]);
         Assert.Equal((ushort)0x0102, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(protagonistOffset + 2, sizeof(ushort))));
-        Assert.Equal((byte)0, output[protagonistOffset + 4]);
+        Assert.Equal((byte)1, output[protagonistOffset + 4]);
         Assert.Equal(0x22222222u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(protagonistOffset + 8, sizeof(uint))));
 
         WorkingSave reopenedSave = OpenOrThrow(service, output);
         Assert.False(reopenedSave.State.ProtagonistPersonaSlots[2].Exists);
         Assert.Equal((byte)0, reopenedSave.State.ProtagonistPersonaSlots[2].ExistsRawByte);
         Assert.Equal((ushort)0x0102, reopenedSave.State.ProtagonistPersonaSlots[2].PersonaId);
-        Assert.Equal((byte)0, reopenedSave.State.ProtagonistPersonaSlots[2].Level);
+        Assert.Equal((byte)1, reopenedSave.State.ProtagonistPersonaSlots[2].Level);
     }
 
     [Fact]
@@ -1451,7 +1543,7 @@ public sealed class SaveApplicationServiceTests
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
             save,
-            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0203, 0, 0x22222222, 0x1501))]);
+            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0203, 1, 0x22222222, 0x1501))]);
 
         Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
         WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
@@ -1470,7 +1562,7 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
-    public void ApplyEditsAndWritePreservesActivePersonaLevelZero()
+    public void ApplyEditsRejectsActiveNonBlankPersonaLevelZero()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
         byte[] input = CreateSyntheticSave();
@@ -1486,15 +1578,12 @@ public sealed class SaveApplicationServiceTests
             save,
             [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 0, 0x22222222, 0x1501))]);
 
-        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
-        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
-        SaveWriteResult writeResult = service.Write(editedSave);
-        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
-        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
-        Assert.Equal((byte)0, output[protagonistOffset + 4]);
-
-        WorkingSave reopenedSave = OpenOrThrow(service, output);
-        Assert.Equal((byte)0, reopenedSave.State.ProtagonistPersonaSlots[2].Level);
+        Assert.False(editResult.Succeeded);
+        Assert.Null(editResult.Save);
+        SaveDiagnostic diagnostic = Assert.Single(editResult.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP019", diagnostic.Code);
+        Assert.Equal("Persona", diagnostic.Target);
     }
 
     [Fact]

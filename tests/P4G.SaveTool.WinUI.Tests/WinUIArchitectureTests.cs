@@ -202,6 +202,9 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("RestoreSocialLinkListSelection();", selectionBody, StringComparison.Ordinal);
         Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", addBody, StringComparison.Ordinal);
         Assert.Contains("ResetSocialLinkAddChoice();", addBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshSocialLinksState(allowFallbackSelection: selectedSocialLinkIndex.HasValue);", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("selectedSocialLinkIndex = selectedLink.SlotIndex;", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("selectedSocialLinkLinkId = selectedLink.LinkId;", addBody, StringComparison.Ordinal);
         Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", deleteBody, StringComparison.Ordinal);
         Assert.Contains("if (!TryAppendSelectedSocialLinkEdits(edits, validationDiagnostics))", autoApplyBody, StringComparison.Ordinal);
         Assert.Contains("SetUiDiagnostics(validationDiagnostics);", autoApplyBody, StringComparison.Ordinal);
@@ -610,7 +613,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("CompendiumListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumSlotIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("CompendiumClearButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("CompendiumClearButton.IsEnabled = canEdit && compendiumItems.Count > 0;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("MainCharacterLevelSlider.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("MainCharacterTotalExperienceTextBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("MainCharacterCalculateFromLevelButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
@@ -732,6 +735,9 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
+        Assert.True(
+            saveBody.IndexOf("targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)", StringComparison.Ordinal) <
+            saveBody.IndexOf("if (!ApplyEditorFields())", StringComparison.Ordinal));
         Assert.DoesNotContain("CreateBlankSave", saveBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RestoreNoSaveStateAfterFailedBlankSave", saveBody, StringComparison.Ordinal);
         Assert.Contains("if (string.IsNullOrWhiteSpace(targetPath))", saveBody, StringComparison.Ordinal);
@@ -785,6 +791,21 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowImmediateZeroQuantityInventoryEditSuppressesAutoSelectLikeDelete()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string methodBody = GetSection(
+            content,
+            "private void InventoryQuantityTextBox_TextChanged(",
+            "private void FamilyNameTextBox_TextChanged(");
+
+        Assert.Contains("if (quantity == 0)", methodBody, StringComparison.Ordinal);
+        Assert.Contains("inventorySelectionState.DisableAutoSelectAfterDelete();", methodBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshInventoryState();", methodBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowAutoSelectsInventoryEntryOnOpenAndSuppressesItAfterDelete()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
@@ -809,7 +830,7 @@ public sealed class WinUIArchitectureTests
             "private bool ApplyEditorFields()");
         string refreshSocialLinksBody = GetSection(
             content,
-            "private void RefreshSocialLinksState()",
+            "private void RefreshSocialLinksState(bool allowFallbackSelection = true)",
             "private void RefreshInventoryState()");
 
         Assert.Contains("selectedInventoryCategoryId = null;", openBody, StringComparison.Ordinal);
@@ -1026,7 +1047,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("UpdateWindowTitle();", shellStateBody, StringComparison.Ordinal);
         Assert.Contains("Title = ShellStateFormatter.GetWindowTitle(currentFilePath);", content, StringComparison.Ordinal);
         Assert.Contains("FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);", content, StringComparison.Ordinal);
-        Assert.Contains("StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite);", content, StringComparison.Ordinal);
+        Assert.Contains("StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty || HasPendingEditorDrafts(), viewModel.CanWrite);", content, StringComparison.Ordinal);
         Assert.Contains("FileOpenMenuItem.IsEnabled = !isBusy && !startupRefreshPending;", shellStateBody, StringComparison.Ordinal);
     }
 
@@ -1103,7 +1124,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("await ReportOpenFailureAsync(\"Drop\", $\"Could not read the dropped file: {ex.Message}\");", mainWindowContent, StringComparison.Ordinal);
         Assert.Contains("ShellStateFormatter.GetWindowTitle(currentFilePath)", mainWindowContent, StringComparison.Ordinal);
         Assert.Contains("ShellStateFormatter.GetFilePathText(currentFilePath)", mainWindowContent, StringComparison.Ordinal);
-        Assert.Contains("ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite)", mainWindowContent, StringComparison.Ordinal);
+        Assert.Contains("ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty || HasPendingEditorDrafts(), viewModel.CanWrite)", mainWindowContent, StringComparison.Ordinal);
         Assert.Contains("ShellStateFormatter.GetDiagnosticsText(diagnostics)", mainWindowContent, StringComparison.Ordinal);
     }
 
@@ -1184,7 +1205,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("OpenSaveFileFromPathAsync(startupOpenPath, \"Launch\")", loadedBody, StringComparison.Ordinal);
         Assert.Contains("DispatcherQueue.TryEnqueue(RefreshBasicFieldsFromViewModel);", loadedBody, StringComparison.Ordinal);
         Assert.Contains("FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);", content, StringComparison.Ordinal);
-        Assert.Contains("StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite);", content, StringComparison.Ordinal);
+        Assert.Contains("StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty || HasPendingEditorDrafts(), viewModel.CanWrite);", content, StringComparison.Ordinal);
         Assert.DoesNotContain("if (refreshEditableFieldsAfterStartupOpen && diagnostics.Count == 0)", content, StringComparison.Ordinal);
         string diagnosticsBody = GetSection(
             content,

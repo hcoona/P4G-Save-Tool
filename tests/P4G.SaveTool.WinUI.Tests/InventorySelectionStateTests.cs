@@ -1,4 +1,5 @@
 using P4G.SaveTool.Catalog;
+using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Presentation;
 using P4G.SaveTool.WinUI;
 using Xunit;
@@ -7,6 +8,19 @@ namespace P4G.SaveTool.WinUI.Tests;
 
 public sealed class InventorySelectionStateTests
 {
+    [Fact]
+    public void InventoryEditabilityTreatsLegacyPlaceholdersAndCatalogBlankItemsAsUnwritable()
+    {
+        ushort[] blankItemIds = P4GCatalog.Items
+            .Where(static item => string.Equals(item.Name, "Blank", StringComparison.Ordinal) && item.Id < 2559)
+            .Select(static item => item.Id)
+            .ToArray();
+
+        Assert.NotEmpty(blankItemIds);
+        Assert.Contains((ushort)1792, InventoryItemEditability.PlaceholderItemIds);
+        Assert.All(blankItemIds, static itemId => Assert.False(InventoryItemEditability.IsWritableItemId(itemId)));
+    }
+
     [Fact]
     public void DeleteSelectionSuppressesInventoryAutoSelectUntilSelectionResumes()
     {

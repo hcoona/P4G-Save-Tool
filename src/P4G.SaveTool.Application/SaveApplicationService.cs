@@ -292,7 +292,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     static (currentState, slotIndex, personaSlot) => currentState.WithProtagonistPersonaSlot(slotIndex, personaSlot),
                     state.ProtagonistPersonaSlots,
                     "ProtagonistPersonaSlots",
-                    allowBlankPersonaId: true);
+                    allowBlankPersonaId: true,
+                    allowNonBlankLevelZero: false);
 
             case SetPartyPersonaSlotEdit setPartyPersonaSlot:
                 return ApplyPersonaSlotEdit(
@@ -303,7 +304,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     static (currentState, slotIndex, personaSlot) => currentState.WithPartyPersonaSlot(slotIndex, personaSlot),
                     state.PartyPersonaSlots,
                     "PartyPersonaSlots",
-                    allowBlankPersonaId: true);
+                    allowBlankPersonaId: true,
+                    allowNonBlankLevelZero: false);
 
             case SetCompendiumPersonaSlotEdit setCompendiumPersonaSlot:
                 return ApplyPersonaSlotEdit(
@@ -485,13 +487,10 @@ public sealed class SaveApplicationService : ISaveApplicationService
         P4GSaveLayout layout = P4GSaveLayout.For(snapshot.LayoutKind);
         List<SaveFieldPatch> patches = [];
 
-        if (state.Names != snapshot.Names)
-        {
-            patches.Add(CreateJStringPatch(layout.FamilyNameJString, state.Names.FamilyName));
-            patches.Add(CreateJStringPatch(layout.GivenNameJString, state.Names.GivenName));
-            patches.Add(CreatePStringPatch(layout.FamilyNamePString, state.Names.FamilyName));
-            patches.Add(CreatePStringPatch(layout.GivenNamePString, state.Names.GivenName));
-        }
+        patches.Add(CreateJStringPatch(layout.FamilyNameJString, state.Names.FamilyName));
+        patches.Add(CreateJStringPatch(layout.GivenNameJString, state.Names.GivenName));
+        patches.Add(CreatePStringPatch(layout.FamilyNamePString, state.Names.FamilyName));
+        patches.Add(CreatePStringPatch(layout.GivenNamePString, state.Names.GivenName));
 
         if (state.Yen != snapshot.Yen)
         {
@@ -515,9 +514,10 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
         AddEquipmentPatches(patches, layout, state, snapshot);
 
-        if (!InventoryStacksEqual(state.InventoryStacks, snapshot.InventoryStacks))
+        IReadOnlyList<InventoryStack> normalizedInventoryStacks = NormalizeInventoryStacks(state.InventoryStacks);
+        if (!InventoryStacksEqual(normalizedInventoryStacks, snapshot.InventoryStacks))
         {
-            patches.Add(CreateInventoryPatch(layout.Inventory, state.InventoryStacks));
+            patches.Add(CreateInventoryPatch(layout.Inventory, normalizedInventoryStacks));
         }
 
         if (!SocialStatsEqual(state.SocialStats, snapshot.SocialStats))
@@ -878,6 +878,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
         IReadOnlyList<PersonaSlot> currentSlots,
         string diagnosticTarget,
         bool allowBlankPersonaId,
+        bool allowNonBlankLevelZero = true,
         uint? maximumTotalExperience = null)
     {
         if ((uint)slotIndex >= (uint)currentSlots.Count)
@@ -925,6 +926,16 @@ public sealed class SaveApplicationService : ISaveApplicationService
                 DiagnosticSeverity.Error,
                 "P4GAPP009",
                 "Persona slot edit must specify a persona id.",
+                PersonaDiagnosticTarget));
+            return state;
+        }
+
+        if (!allowNonBlankLevelZero && personaSlotEdit.Level == 0)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP019",
+                "Non-blank persona slot edits must use level 1 or higher.",
                 PersonaDiagnosticTarget));
             return state;
         }

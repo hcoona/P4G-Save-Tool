@@ -66,9 +66,9 @@
               Style="{ThemeResource SubtitleTextBlockStyle}"
               />
             <TextBlock x:Name="FilePathTextBlock" TextWrapping="Wrap" automation:AutomationProperties.AutomationId="FilePathTextBlock" automation:AutomationProperties.Name="File path" />
-            <TextBox x:Name="FamilyNameTextBox" Header="Family name" MaxLength="9" IsEnabled="False" automation:AutomationProperties.AutomationId="FamilyNameTextBox" automation:AutomationProperties.Name="Family name" />
-            <TextBox x:Name="GivenNameTextBox" Header="Given name" MaxLength="9" IsEnabled="False" automation:AutomationProperties.AutomationId="GivenNameTextBox" automation:AutomationProperties.Name="Given name" />
-            <TextBox x:Name="YenTextBox" Header="Yen" InputScope="Number" IsEnabled="False" automation:AutomationProperties.AutomationId="YenTextBox" automation:AutomationProperties.Name="Yen" />
+            <TextBox x:Name="FamilyNameTextBox" Header="Family name" MaxLength="9" IsEnabled="False" TextChanged="FamilyNameTextBox_TextChanged" automation:AutomationProperties.AutomationId="FamilyNameTextBox" automation:AutomationProperties.Name="Family name" />
+            <TextBox x:Name="GivenNameTextBox" Header="Given name" MaxLength="9" IsEnabled="False" TextChanged="GivenNameTextBox_TextChanged" automation:AutomationProperties.AutomationId="GivenNameTextBox" automation:AutomationProperties.Name="Given name" />
+            <TextBox x:Name="YenTextBox" Header="Yen" InputScope="Number" IsEnabled="False" TextChanged="YenTextBox_TextChanged" automation:AutomationProperties.AutomationId="YenTextBox" automation:AutomationProperties.Name="Yen" />
             <TextBlock Text="Main character" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,4,0,0" />
             <Grid ColumnSpacing="8">
               <Grid.ColumnDefinitions>
@@ -93,7 +93,8 @@
             x:Name="MainCharacterTotalExperienceTextBox"
             Header="Total XP"
             InputScope="Number"
-            IsEnabled="False" />
+            IsEnabled="False"
+            TextChanged="MainCharacterTotalExperienceTextBox_TextChanged" />
             <Button
               x:Name="MainCharacterCalculateFromLevelButton"
               Content="Calculate from level"
@@ -108,19 +109,19 @@
               Style="{ThemeResource BodyStrongTextBlockStyle}"
               Margin="0,4,0,0"
               />
-            <ComboBox x:Name="CourageComboBox" Header="Courage" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="CourageComboBox" Header="Courage" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox x:Name="KnowledgeComboBox" Header="Knowledge" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="KnowledgeComboBox" Header="Knowledge" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox x:Name="ExpressionComboBox" Header="Expression" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="ExpressionComboBox" Header="Expression" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox x:Name="UnderstandingComboBox" Header="Understanding" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="UnderstandingComboBox" Header="Understanding" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox x:Name="DiligenceComboBox" Header="Diligence" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="DiligenceComboBox" Header="Diligence" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <TextBlock Text="Calendar" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
@@ -129,8 +130,8 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
-              <TextBox x:Name="DayTextBox" Header="Day" InputScope="Number" IsEnabled="False" Width="120" />
-              <ComboBox x:Name="PhaseComboBox" Grid.Column="1" Header="Phase" IsEnabled="False" IsTextSearchEnabled="True">
+              <TextBox x:Name="DayTextBox" Header="Day" InputScope="Number" IsEnabled="False" Width="120" TextChanged="DayTextBox_TextChanged" />
+              <ComboBox x:Name="PhaseComboBox" Grid.Column="1" Header="Phase" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PhaseComboBox_SelectionChanged">
                 <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
               </ComboBox>
             </Grid>
@@ -139,8 +140,8 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
-              <TextBox x:Name="NextDayTextBox" Header="Next day" InputScope="Number" IsEnabled="False" Width="120" />
-              <ComboBox x:Name="NextPhaseComboBox" Grid.Column="1" Header="Next phase" IsEnabled="False" IsTextSearchEnabled="True">
+              <TextBox x:Name="NextDayTextBox" Header="Next day" InputScope="Number" IsEnabled="False" Width="120" TextChanged="NextDayTextBox_TextChanged" />
+              <ComboBox x:Name="NextPhaseComboBox" Grid.Column="1" Header="Next phase" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="NextPhaseComboBox_SelectionChanged">
                 <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
               </ComboBox>
             </Grid>
@@ -175,8 +176,8 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
-              <TextBox x:Name="SocialLinkLevelTextBox" Header="Level" InputScope="Number" IsEnabled="False" Width="100" />
-              <TextBox Grid.Column="1" x:Name="SocialLinkProgressTextBox" Header="Progress" InputScope="Number" IsEnabled="False" Width="100" />
+              <TextBox x:Name="SocialLinkLevelTextBox" Header="Level" InputScope="Number" IsEnabled="False" Width="100" TextChanged="SocialLinkTextBox_TextChanged" />
+              <TextBox Grid.Column="1" x:Name="SocialLinkProgressTextBox" Header="Progress" InputScope="Number" IsEnabled="False" Width="100" TextChanged="SocialLinkTextBox_TextChanged" />
               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <Button x:Name="SocialLinkDeleteButton" Content="Delete" Click="SocialLinkDeleteButton_Click" IsEnabled="False" />
               </StackPanel>
@@ -187,13 +188,13 @@
               Style="{ThemeResource BodyStrongTextBlockStyle}"
               Margin="0,4,0,0"
               />
-            <ComboBox x:Name="PartySlot0ComboBox" Header="Party slot 1" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="PartySlot0ComboBox" Header="Party slot 1" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PartySlot0ComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox x:Name="PartySlot1ComboBox" Header="Party slot 2" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="PartySlot1ComboBox" Header="Party slot 2" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PartySlot1ComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox x:Name="PartySlot2ComboBox" Header="Party slot 3" IsEnabled="False" IsTextSearchEnabled="True">
+            <ComboBox x:Name="PartySlot2ComboBox" Header="Party slot 3" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PartySlot2ComboBox_SelectionChanged">
               <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <TextBlock Text="Persona editing" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />

@@ -69,6 +69,7 @@ public sealed partial class MainWindow : Window
     private bool suppressPersonaEvents;
     private bool suppressCompendiumEvents;
     private bool suppressSocialLinkEvents;
+    private bool suppressImmediateEditEvents;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool preservePersonaEditorStateDuringEquipmentRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
@@ -140,8 +141,13 @@ public sealed partial class MainWindow : Window
     private async void About_Click(object sender, RoutedEventArgs e) =>
         await ShowAboutDialogAsync();
 
-    private void MainCharacterLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
+    private void MainCharacterLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
         UpdateMainCharacterLevelValueText();
+        ApplyImmediateEdit(
+            () => new SetMainCharacterLevelEdit((byte)MainCharacterLevelSlider.Value),
+            refreshAfterSuccess: false);
+    }
 
     private void JumpBasicStats_Click(object sender, RoutedEventArgs e) =>
         NavigateToSection(BasicStatsSectionHeader);
@@ -425,15 +431,15 @@ public sealed partial class MainWindow : Window
     private async Task<BusyOperationCompletion> SaveAsync(bool forcePicker)
     {
         string? targetPath;
-        if (!ApplyEditorFields())
-        {
-            return BusyOperationCompletion.PreserveEditorState;
-        }
-
         targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)
             ? await PickSavePathAsync()
             : currentFilePath;
         if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return BusyOperationCompletion.PreserveEditorState;
+        }
+
+        if (!ApplyEditorFields())
         {
             return BusyOperationCompletion.PreserveEditorState;
         }
@@ -799,7 +805,8 @@ public sealed partial class MainWindow : Window
     internal static SocialLinkViewState? ResolveSelectedSocialLinkViewState(
         IReadOnlyList<SocialLinkViewState> socialLinks,
         int? selectedSocialLinkIndex,
-        byte? selectedSocialLinkLinkId)
+        byte? selectedSocialLinkLinkId,
+        bool allowFallbackSelection = true)
     {
         ArgumentNullException.ThrowIfNull(socialLinks);
 
@@ -826,7 +833,7 @@ public sealed partial class MainWindow : Window
             }
         }
 
-        return socialLinks[0];
+        return allowFallbackSelection ? socialLinks[0] : null;
     }
 
     internal static void ResetSelectedSocialLinkState(ref int? selectedSocialLinkIndex, ref byte? selectedSocialLinkLinkId)
@@ -1093,7 +1100,8 @@ public sealed partial class MainWindow : Window
             PersonaLuckSlider.Value,
             out personaSlotEdit,
             out diagnostic,
-            maximumTotalExperience);
+            maximumTotalExperience,
+            allowNonBlankLevelZero: selectedCompendiumSlotIndex.HasValue);
     }
 
     private SaveEditorOperationResult SelectOrAddCompendiumPersona(PersonaChoiceViewState selectedChoice) =>
@@ -1212,7 +1220,8 @@ public sealed partial class MainWindow : Window
         double luck,
         out PersonaSlotEdit personaSlotEdit,
         out SaveDiagnostic diagnostic,
-        uint? maximumTotalExperience = null)
+        uint? maximumTotalExperience = null,
+        bool allowNonBlankLevelZero = true)
     {
         ArgumentNullException.ThrowIfNull(skillIds);
 
@@ -1240,9 +1249,16 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
+        byte roundedLevel = (byte)Math.Round(level, MidpointRounding.AwayFromZero);
+        if (!allowNonBlankLevelZero && personaId != 0 && roundedLevel == 0)
+        {
+            diagnostic = CreateUiDiagnostic("P4GWINUI032", "Non-blank persona level must be at least 1.", "Persona.Level");
+            return false;
+        }
+
         personaSlotEdit = new PersonaSlotEdit(
             personaId,
-            (byte)Math.Round(level, MidpointRounding.AwayFromZero),
+            roundedLevel,
             totalExperience,
             skillIds,
             (byte)Math.Round(strength, MidpointRounding.AwayFromZero),
@@ -1566,14 +1582,22 @@ public sealed partial class MainWindow : Window
 
     private void RefreshBasicStatsState()
     {
-        FamilyNameTextBox.Text = viewModel.FamilyName;
-        GivenNameTextBox.Text = viewModel.GivenName;
-        YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
-        SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);
-        UpdateMainCharacterLevelValueText();
-        MainCharacterTotalExperienceTextBox.Text = viewModel.HasSave
-            ? viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture)
-            : string.Empty;
+        suppressImmediateEditEvents = true;
+        try
+        {
+            FamilyNameTextBox.Text = viewModel.FamilyName;
+            GivenNameTextBox.Text = viewModel.GivenName;
+            YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);
+            UpdateMainCharacterLevelValueText();
+            MainCharacterTotalExperienceTextBox.Text = viewModel.HasSave
+                ? viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture)
+                : string.Empty;
+        }
+        finally
+        {
+            suppressImmediateEditEvents = false;
+        }
     }
 
     private void UpdateShellState()
@@ -1613,7 +1637,7 @@ public sealed partial class MainWindow : Window
         CompendiumListView.IsEnabled = canEdit;
         CompendiumAddComboBox.IsEnabled = canEdit;
         CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumSlotIndex.HasValue;
-        CompendiumClearButton.IsEnabled = canEdit;
+        CompendiumClearButton.IsEnabled = canEdit && compendiumItems.Count > 0;
         PartySlot0ComboBox.IsEnabled = canEdit;
         PartySlot1ComboBox.IsEnabled = canEdit;
         PartySlot2ComboBox.IsEnabled = canEdit;
@@ -1649,9 +1673,113 @@ public sealed partial class MainWindow : Window
         InventoryDeleteButton.IsEnabled = canEdit && selectedInventoryEntryId.HasValue && selectedInventoryItemId.HasValue;
 
         FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);
-        StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty, viewModel.CanWrite);
+        StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty || HasPendingEditorDrafts(), viewModel.CanWrite);
         UpdateWindowTitle();
     }
+
+    private bool HasPendingEditorDrafts() =>
+        viewModel.HasSave &&
+        (HasBasicStatsDraft() || HasGroup4Draft() || HasSelectedSocialLinkDraft() || HasPersonaDraft() || inventoryQuantityDraftDirty);
+
+    private bool HasBasicStatsDraft() =>
+        !string.Equals(FamilyNameTextBox.Text ?? string.Empty, viewModel.FamilyName, StringComparison.Ordinal) ||
+        !string.Equals(GivenNameTextBox.Text ?? string.Empty, viewModel.GivenName, StringComparison.Ordinal) ||
+        !string.Equals(YenTextBox.Text ?? string.Empty, viewModel.Yen.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+        (byte)MainCharacterLevelSlider.Value != viewModel.MainCharacterLevel ||
+        !string.Equals(
+            MainCharacterTotalExperienceTextBox.Text ?? string.Empty,
+            viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+
+    private bool HasGroup4Draft()
+    {
+        if (!viewModel.HasSave || viewModel.SocialStats.Count < 5)
+        {
+            return false;
+        }
+
+        return HasSocialStatDraft(CourageComboBox, 0) ||
+            HasSocialStatDraft(KnowledgeComboBox, 1) ||
+            HasSocialStatDraft(ExpressionComboBox, 4) ||
+            HasSocialStatDraft(UnderstandingComboBox, 3) ||
+            HasSocialStatDraft(DiligenceComboBox, 2) ||
+            !string.Equals(DayTextBox.Text ?? string.Empty, viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+            HasCalendarPhaseDraft(PhaseComboBox, viewModel.Calendar.DayPhaseId) ||
+            !string.Equals(NextDayTextBox.Text ?? string.Empty, viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+            HasCalendarPhaseDraft(NextPhaseComboBox, viewModel.Calendar.NextDayPhaseId);
+    }
+
+    private bool HasSelectedSocialLinkDraft()
+    {
+        if (!selectedSocialLinkIndex.HasValue)
+        {
+            return false;
+        }
+
+        SocialLinkViewState? selectedLink = viewModel.SocialLinks.FirstOrDefault(link => link.SlotIndex == selectedSocialLinkIndex.Value);
+        return selectedLink is not null &&
+            (!string.Equals(SocialLinkLevelTextBox.Text ?? string.Empty, selectedLink.Level.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+                !string.Equals(SocialLinkProgressTextBox.Text ?? string.Empty, selectedLink.Progress.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
+    }
+
+    private bool HasPersonaDraft()
+    {
+        PersonaSlotViewState? selectedSlot = GetSelectedPersonaSlotViewState();
+        if (selectedSlot is null)
+        {
+            return false;
+        }
+
+        return !string.Equals(PersonaXpTextBox.Text ?? string.Empty, selectedSlot.TotalExperience.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+            (byte)PersonaLevelSlider.Value != selectedSlot.Level ||
+            (byte)PersonaStrengthSlider.Value != selectedSlot.Strength ||
+            (byte)PersonaMagicSlider.Value != selectedSlot.Magic ||
+            (byte)PersonaEnduranceSlider.Value != selectedSlot.Endurance ||
+            (byte)PersonaAgilitySlider.Value != selectedSlot.Agility ||
+            (byte)PersonaLuckSlider.Value != selectedSlot.Luck ||
+            ReadSkillId(PersonaSkillBox1) != selectedSlot.SkillIds[0] ||
+            ReadSkillId(PersonaSkillBox2) != selectedSlot.SkillIds[1] ||
+            ReadSkillId(PersonaSkillBox3) != selectedSlot.SkillIds[2] ||
+            ReadSkillId(PersonaSkillBox4) != selectedSlot.SkillIds[3] ||
+            ReadSkillId(PersonaSkillBox5) != selectedSlot.SkillIds[4] ||
+            ReadSkillId(PersonaSkillBox6) != selectedSlot.SkillIds[5] ||
+            ReadSkillId(PersonaSkillBox7) != selectedSlot.SkillIds[6] ||
+            ReadSkillId(PersonaSkillBox8) != selectedSlot.SkillIds[7];
+    }
+
+    private PersonaSlotViewState? GetSelectedPersonaSlotViewState()
+    {
+        if (selectedCompendiumSlotIndex.HasValue &&
+            (uint)selectedCompendiumSlotIndex.Value < (uint)viewModel.CompendiumPersonaSlots.Count)
+        {
+            return viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value];
+        }
+
+        if (!selectedPersonaMemberId.HasValue)
+        {
+            return null;
+        }
+
+        if (selectedPersonaMemberId.Value == 0)
+        {
+            return (uint)selectedPersonaSlotIndex < (uint)viewModel.ProtagonistPersonaSlots.Count
+                ? viewModel.ProtagonistPersonaSlots[selectedPersonaSlotIndex]
+                : null;
+        }
+
+        int partySlotIndex = selectedPersonaMemberId.Value - 1;
+        return (uint)partySlotIndex < (uint)viewModel.PartyPersonaSlots.Count
+            ? viewModel.PartyPersonaSlots[partySlotIndex]
+            : null;
+    }
+
+    private bool HasSocialStatDraft(ComboBox comboBox, int statIndex) =>
+        comboBox.SelectedItem is SocialStatRankChoiceViewState selectedRank &&
+        !ShouldSkipSocialStatEdit(viewModel.SocialStats[statIndex], selectedRank);
+
+    private static bool HasCalendarPhaseDraft(ComboBox comboBox, int currentPhaseId) =>
+        comboBox.SelectedItem is CalendarPhaseChoiceViewState selectedPhase &&
+        !ShouldSkipCalendarPhaseEdit(currentPhaseId, selectedPhase);
 
     private void RefreshSocialStatsState()
     {
@@ -1682,15 +1810,23 @@ public sealed partial class MainWindow : Window
     private void SetSocialStatSelection(ComboBox comboBox, int statIndex)
     {
         TraceStartup($"SetSocialStatSelection enter {statIndex}");
-        SocialStatViewState stat = viewModel.SocialStats[statIndex];
-        comboBox.Items.Clear();
-        IReadOnlyList<SocialStatRankChoiceViewState> choices = SaveEditorViewModel.GetSocialStatChoices(statIndex, stat.Points, out SocialStatRankChoiceViewState selectedChoice);
-        foreach (SocialStatRankChoiceViewState choice in choices)
+        suppressImmediateEditEvents = true;
+        try
         {
-            comboBox.Items.Add(choice);
-        }
+            SocialStatViewState stat = viewModel.SocialStats[statIndex];
+            comboBox.Items.Clear();
+            IReadOnlyList<SocialStatRankChoiceViewState> choices = SaveEditorViewModel.GetSocialStatChoices(statIndex, stat.Points, out SocialStatRankChoiceViewState selectedChoice);
+            foreach (SocialStatRankChoiceViewState choice in choices)
+            {
+                comboBox.Items.Add(choice);
+            }
 
-        comboBox.SelectedItem = selectedChoice;
+            comboBox.SelectedItem = selectedChoice;
+        }
+        finally
+        {
+            suppressImmediateEditEvents = false;
+        }
         TraceStartup($"SetSocialStatSelection exit {statIndex}");
     }
 
@@ -1700,37 +1836,45 @@ public sealed partial class MainWindow : Window
     private void RefreshCalendarState()
     {
         TraceStartup("RefreshCalendarState enter");
-        if (!viewModel.HasSave)
+        suppressImmediateEditEvents = true;
+        try
         {
-            PhaseComboBox.Items.Clear();
-            NextPhaseComboBox.Items.Clear();
-            PhaseComboBox.SelectedItem = null;
-            NextPhaseComboBox.SelectedItem = null;
-            DayTextBox.Text = string.Empty;
-            NextDayTextBox.Text = string.Empty;
-            return;
-        }
+            if (!viewModel.HasSave)
+            {
+                PhaseComboBox.Items.Clear();
+                NextPhaseComboBox.Items.Clear();
+                PhaseComboBox.SelectedItem = null;
+                NextPhaseComboBox.SelectedItem = null;
+                DayTextBox.Text = string.Empty;
+                NextDayTextBox.Text = string.Empty;
+                return;
+            }
 
-        DayTextBox.Text = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);
-        NextDayTextBox.Text = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);
-        PhaseComboBox.Items.Clear();
-        IReadOnlyList<CalendarPhaseChoiceViewState> phaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase);
-        foreach (CalendarPhaseChoiceViewState choice in phaseChoices)
-        {
-            PhaseComboBox.Items.Add(choice);
+            DayTextBox.Text = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);
+            NextDayTextBox.Text = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);
+            PhaseComboBox.Items.Clear();
+            IReadOnlyList<CalendarPhaseChoiceViewState> phaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase);
+            foreach (CalendarPhaseChoiceViewState choice in phaseChoices)
+            {
+                PhaseComboBox.Items.Add(choice);
+            }
+            PhaseComboBox.SelectedItem = selectedPhase;
+            NextPhaseComboBox.Items.Clear();
+            IReadOnlyList<CalendarPhaseChoiceViewState> nextPhaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);
+            foreach (CalendarPhaseChoiceViewState choice in nextPhaseChoices)
+            {
+                NextPhaseComboBox.Items.Add(choice);
+            }
+            NextPhaseComboBox.SelectedItem = selectedNextPhase;
         }
-        PhaseComboBox.SelectedItem = selectedPhase;
-        NextPhaseComboBox.Items.Clear();
-        IReadOnlyList<CalendarPhaseChoiceViewState> nextPhaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);
-        foreach (CalendarPhaseChoiceViewState choice in nextPhaseChoices)
+        finally
         {
-            NextPhaseComboBox.Items.Add(choice);
+            suppressImmediateEditEvents = false;
         }
-        NextPhaseComboBox.SelectedItem = selectedNextPhase;
         TraceStartup("RefreshCalendarState exit");
     }
 
-    private void RefreshSocialLinksState()
+    private void RefreshSocialLinksState(bool allowFallbackSelection = true)
     {
         TraceStartup("RefreshSocialLinksState enter");
         suppressSocialLinkEvents = true;
@@ -1776,8 +1920,20 @@ public sealed partial class MainWindow : Window
             TraceStartup("RefreshSocialLinksState after selection-state check");
 
             TraceStartup("RefreshSocialLinksState resolving selection");
-            SocialLinkViewState selectedLink = ResolveSelectedSocialLinkViewState(viewModel.SocialLinks, selectedSocialLinkIndex, selectedSocialLinkLinkId)
-                ?? viewModel.SocialLinks[0];
+            SocialLinkViewState? selectedLink = ResolveSelectedSocialLinkViewState(
+                viewModel.SocialLinks,
+                selectedSocialLinkIndex,
+                selectedSocialLinkLinkId,
+                allowFallbackSelection);
+            if (selectedLink is null)
+            {
+                ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
+                SocialLinkListView.SelectedItem = null;
+                SocialLinkAddComboBox.SelectedItem = blankChoice;
+                SocialLinkLevelTextBox.Text = string.Empty;
+                SocialLinkProgressTextBox.Text = string.Empty;
+                return;
+            }
             TraceStartup("RefreshSocialLinksState resolved selection");
             selectedSocialLinkIndex = selectedLink.SlotIndex;
             selectedSocialLinkLinkId = selectedLink.LinkId;
@@ -2027,7 +2183,7 @@ public sealed partial class MainWindow : Window
         {
             selectedSocialLinkIndex = null;
             selectedSocialLinkLinkId = null;
-            RefreshSocialLinksState();
+            RefreshSocialLinksState(allowFallbackSelection: selectedSocialLinkIndex.HasValue);
             UpdateShellState();
             return;
         }
@@ -2062,14 +2218,7 @@ public sealed partial class MainWindow : Window
         uiDiagnosticsOverride = null;
         SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
             () => viewModel.AddSocialLink(addLinkId));
-        if (result.Succeeded && viewModel.SocialLinks.Count > 0)
-        {
-            SocialLinkViewState selectedLink = viewModel.SocialLinks[viewModel.SocialLinks.Count - 1];
-            selectedSocialLinkIndex = selectedLink.SlotIndex;
-            selectedSocialLinkLinkId = selectedLink.LinkId;
-        }
-
-        RefreshSocialLinksState();
+        RefreshSocialLinksState(allowFallbackSelection: selectedSocialLinkIndex.HasValue);
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateShellState();
         if (!result.Succeeded)
@@ -2321,9 +2470,17 @@ public sealed partial class MainWindow : Window
 
     private void RefreshPartyConfigurationState()
     {
-        SetPartyConfigurationChoices(partySlot0Choices, PartySlot0ComboBox, 0);
-        SetPartyConfigurationChoices(partySlot1Choices, PartySlot1ComboBox, 1);
-        SetPartyConfigurationChoices(partySlot2Choices, PartySlot2ComboBox, 2);
+        suppressImmediateEditEvents = true;
+        try
+        {
+            SetPartyConfigurationChoices(partySlot0Choices, PartySlot0ComboBox, 0);
+            SetPartyConfigurationChoices(partySlot1Choices, PartySlot1ComboBox, 1);
+            SetPartyConfigurationChoices(partySlot2Choices, PartySlot2ComboBox, 2);
+        }
+        finally
+        {
+            suppressImmediateEditEvents = false;
+        }
     }
 
     private void SetPartyConfigurationChoices(
@@ -2676,9 +2833,15 @@ public sealed partial class MainWindow : Window
 
     private bool TryAutoAddSelectedInventoryItem()
     {
-        if (!selectedInventoryItemId.HasValue ||
-            viewModel.InventoryEntries.Any(entry => entry.ItemId == selectedInventoryItemId.Value))
+        if (!selectedInventoryItemId.HasValue)
         {
+            return true;
+        }
+
+        InventoryStackViewState? existingEntry = viewModel.InventoryEntries.FirstOrDefault(entry => entry.ItemId == selectedInventoryItemId.Value);
+        if (existingEntry is not null)
+        {
+            selectedInventoryEntryId = existingEntry.ItemId;
             return true;
         }
 
@@ -3135,6 +3298,273 @@ public sealed partial class MainWindow : Window
         }
 
         inventoryQuantityDraftDirty = true;
+        if (!TryReadInventoryQuantity(out byte quantity))
+        {
+            UpdateShellState();
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.SetInventoryItemQuantity(selectedInventoryItemId.Value, quantity));
+        if (!result.Succeeded)
+        {
+            SetUiDiagnostics(result.Diagnostics);
+            UpdateShellState();
+            return;
+        }
+
+        inventoryQuantityDraftDirty = false;
+        if (quantity == 0)
+        {
+            inventorySelectionState.DisableAutoSelectAfterDelete();
+            selectedInventoryCategoryId = null;
+            selectedInventoryItemId = null;
+            selectedInventoryEntryId = null;
+        }
+        else
+        {
+            selectedInventoryEntryId = selectedInventoryItemId.Value;
+        }
+
+        RefreshInventoryState();
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+    }
+
+    private void FamilyNameTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
+        ApplyImmediateEdit(
+            () => new SetSaveNamesEdit(FamilyNameTextBox.Text ?? string.Empty, GivenNameTextBox.Text ?? string.Empty),
+            refreshAfterSuccess: false);
+
+    private void GivenNameTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
+        ApplyImmediateEdit(
+            () => new SetSaveNamesEdit(FamilyNameTextBox.Text ?? string.Empty, GivenNameTextBox.Text ?? string.Empty),
+            refreshAfterSuccess: false);
+
+    private void YenTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!CanProcessImmediateEditEvent())
+        {
+            return;
+        }
+
+        if (!uint.TryParse(YenTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint yen))
+        {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI006", "Yen must be an unsigned whole number.", "Yen")]);
+            return;
+        }
+
+        ApplyImmediateEdit(() => new SetYenEdit(yen), refreshAfterSuccess: false);
+    }
+
+    private void MainCharacterTotalExperienceTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!CanProcessImmediateEditEvent())
+        {
+            return;
+        }
+
+        if (!uint.TryParse(MainCharacterTotalExperienceTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint totalExperience))
+        {
+            SetUiDiagnostics([CreateUiDiagnostic(
+                "P4GWINUI028",
+                "Main character total experience must be an unsigned whole number.",
+                "MainCharacter.TotalExperience")]);
+            return;
+        }
+
+        ApplyImmediateEdit(() => new SetMainCharacterTotalExperienceEdit(totalExperience), refreshAfterSuccess: false);
+    }
+
+    private void SocialStatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!CanProcessImmediateEditEvent())
+        {
+            return;
+        }
+
+        if (ReferenceEquals(sender, CourageComboBox))
+        {
+            ApplyImmediateSocialStatEdit(CourageComboBox, 0);
+        }
+        else if (ReferenceEquals(sender, KnowledgeComboBox))
+        {
+            ApplyImmediateSocialStatEdit(KnowledgeComboBox, 1);
+        }
+        else if (ReferenceEquals(sender, ExpressionComboBox))
+        {
+            ApplyImmediateSocialStatEdit(ExpressionComboBox, 4);
+        }
+        else if (ReferenceEquals(sender, UnderstandingComboBox))
+        {
+            ApplyImmediateSocialStatEdit(UnderstandingComboBox, 3);
+        }
+        else if (ReferenceEquals(sender, DiligenceComboBox))
+        {
+            ApplyImmediateSocialStatEdit(DiligenceComboBox, 2);
+        }
+    }
+
+    private void ApplyImmediateSocialStatEdit(ComboBox comboBox, int statIndex)
+    {
+        if (comboBox.SelectedItem is not SocialStatRankChoiceViewState selectedRank)
+        {
+            return;
+        }
+
+        if (ShouldSkipSocialStatEdit(viewModel.SocialStats[statIndex], selectedRank))
+        {
+            UpdateShellState();
+            return;
+        }
+
+        ApplyImmediateEdit(() => new SetSocialStatRankEdit(statIndex, selectedRank.Rank), refreshAfterSuccess: true);
+    }
+
+    private void DayTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
+        ApplyImmediateDayEdit(DayTextBox.Text ?? string.Empty, false);
+
+    private void NextDayTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
+        ApplyImmediateDayEdit(NextDayTextBox.Text ?? string.Empty, true);
+
+    private void ApplyImmediateDayEdit(string text, bool isNextDay)
+    {
+        if (!CanProcessImmediateEditEvent())
+        {
+            return;
+        }
+
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int day))
+        {
+            SetUiDiagnostics([CreateUiDiagnostic(
+                isNextDay ? "P4GWINUI020" : "P4GWINUI018",
+                isNextDay ? "Next day must be a whole number." : "Day must be a whole number.",
+                isNextDay ? "Calendar.NextDay" : "Calendar.Day")]);
+            return;
+        }
+
+        ApplyImmediateEdit(
+            () => isNextDay ? new SetNextDayEdit(day) : new SetDayEdit(day),
+            refreshAfterSuccess: false);
+    }
+
+    private void PhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!CanProcessImmediateEditEvent())
+        {
+            return;
+        }
+
+        ApplyImmediatePhaseEdit(PhaseComboBox, viewModel.Calendar.DayPhaseId, false);
+    }
+
+    private void NextPhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!CanProcessImmediateEditEvent())
+        {
+            return;
+        }
+
+        ApplyImmediatePhaseEdit(NextPhaseComboBox, viewModel.Calendar.NextDayPhaseId, true);
+    }
+
+    private void ApplyImmediatePhaseEdit(ComboBox comboBox, int currentPhaseId, bool isNextPhase)
+    {
+        if (comboBox.SelectedItem is not CalendarPhaseChoiceViewState selectedPhase)
+        {
+            return;
+        }
+
+        if (ShouldSkipCalendarPhaseEdit(currentPhaseId, selectedPhase))
+        {
+            UpdateShellState();
+            return;
+        }
+
+        ApplyImmediateEdit(
+            () => isNextPhase ? new SetNextDayPhaseEdit(selectedPhase.PhaseId) : new SetDayPhaseEdit(selectedPhase.PhaseId),
+            refreshAfterSuccess: false);
+    }
+
+    private void PartySlot0ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyImmediatePartyMemberEdit(PartySlot0ComboBox, 0);
+
+    private void PartySlot1ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyImmediatePartyMemberEdit(PartySlot1ComboBox, 1);
+
+    private void PartySlot2ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyImmediatePartyMemberEdit(PartySlot2ComboBox, 2);
+
+    private void ApplyImmediatePartyMemberEdit(ComboBox comboBox, int slotIndex)
+    {
+        if (!CanProcessImmediateEditEvent() ||
+            comboBox.SelectedItem is not PartyConfigurationChoiceViewState selectedMember)
+        {
+            return;
+        }
+
+        ApplyImmediateEdit(() => new SetPartyMemberEdit(slotIndex, selectedMember.MemberValue), refreshAfterSuccess: false);
+    }
+
+    private void SocialLinkTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (suppressSocialLinkEvents || !CanProcessImmediateEditEvent() || !selectedSocialLinkIndex.HasValue)
+        {
+            return;
+        }
+
+        List<SaveEditCommand> edits = [];
+        List<SaveDiagnostic> diagnostics = [];
+        if (!TryAppendSelectedSocialLinkEdits(edits, diagnostics))
+        {
+            SetUiDiagnostics(diagnostics);
+            return;
+        }
+
+        ApplyImmediateEdits(edits, refreshAfterSuccess: false);
+    }
+
+    private bool CanProcessImmediateEditEvent() =>
+        !suppressImmediateEditEvents &&
+        viewModel is not null &&
+        viewModel.HasSave &&
+        !isBusy &&
+        !refreshEditableFieldsAfterStartupOpen;
+
+    private void ApplyImmediateEdit(Func<SaveEditCommand> createEdit, bool refreshAfterSuccess)
+    {
+        if (!CanProcessImmediateEditEvent())
+        {
+            return;
+        }
+
+        ApplyImmediateEdits([createEdit()], refreshAfterSuccess);
+    }
+
+    private void ApplyImmediateEdits(List<SaveEditCommand> edits, bool refreshAfterSuccess)
+    {
+        if (!CanProcessImmediateEditEvent() || edits.Count == 0)
+        {
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.ApplyEdits(edits));
+        if (refreshAfterSuccess && result.Succeeded)
+        {
+            RefreshBasicStatsState();
+            RefreshSocialStatsState();
+            RefreshCalendarState();
+        }
+
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        UpdateShellState();
+        if (!result.Succeeded)
+        {
+            SetUiDiagnostics(result.Diagnostics);
+        }
     }
 
     internal static bool TryReadInventoryQuantityText(

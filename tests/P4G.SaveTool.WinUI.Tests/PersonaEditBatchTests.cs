@@ -150,6 +150,51 @@ public sealed class PersonaEditBatchTests
         Assert.Equal((byte)46, personaSlotEdit.Luck);
     }
 
+    [Fact]
+    public void PersonaEditBuilderRejectsNonBlankLevelZeroWhenRequested()
+    {
+        bool succeeded = MainWindow.TryBuildPersonaSlotEditCore(
+            0x0404,
+            "1234",
+            [0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408],
+            0,
+            11,
+            22,
+            33,
+            44,
+            45,
+            out _,
+            out SaveDiagnostic diagnostic,
+            allowNonBlankLevelZero: false);
+
+        Assert.False(succeeded);
+        Assert.Equal("P4GWINUI032", diagnostic.Code);
+        Assert.Equal("Persona.Level", diagnostic.Target);
+    }
+
+    [Fact]
+    public void PersonaEditBuilderAllowsBlankLevelZeroWhenRequested()
+    {
+        bool succeeded = MainWindow.TryBuildPersonaSlotEditCore(
+            0,
+            "1234",
+            [0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408],
+            0,
+            11,
+            22,
+            33,
+            44,
+            45,
+            out PersonaSlotEdit personaSlotEdit,
+            out SaveDiagnostic diagnostic,
+            allowNonBlankLevelZero: false);
+
+        Assert.True(succeeded);
+        Assert.Equal("P4GWINUI014", diagnostic.Code);
+        Assert.Equal((ushort)0, personaSlotEdit.PersonaId);
+        Assert.Equal((byte)0, personaSlotEdit.Level);
+    }
+
     [Theory]
     [InlineData(99, false)]
     [InlineData(100, true)]

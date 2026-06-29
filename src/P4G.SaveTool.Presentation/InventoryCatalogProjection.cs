@@ -262,7 +262,11 @@ internal static class InventoryCatalogProjection
             return;
         }
 
-        items.Add(new InventoryItemChoiceViewState(itemId, categoryId, item.Name, isPlaceholder));
+        items.Add(new InventoryItemChoiceViewState(
+            itemId,
+            categoryId,
+            item.Name,
+            isPlaceholder || InventoryItemEditability.IsPlaceholderItemId(itemId)));
     }
 
     private static void AddPlaceholderChoice(List<InventoryItemChoiceViewState> items, ushort itemId, byte categoryId)

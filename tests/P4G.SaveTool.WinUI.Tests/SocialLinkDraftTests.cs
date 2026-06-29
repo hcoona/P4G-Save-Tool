@@ -87,6 +87,23 @@ public sealed class SocialLinkDraftTests
     }
 
     [Fact]
+    public void SocialLinkSelectionResolverCanSuppressFallbackWhenSelectionIsAbsent()
+    {
+        IReadOnlyList<SocialLinkViewState> socialLinks =
+        [
+            new(0, 1, "First", string.Empty, 1, 0, 0),
+        ];
+
+        SocialLinkViewState? selectedLink = MainWindow.ResolveSelectedSocialLinkViewState(
+            socialLinks,
+            selectedSocialLinkIndex: null,
+            selectedSocialLinkLinkId: null,
+            allowFallbackSelection: false);
+
+        Assert.Null(selectedLink);
+    }
+
+    [Fact]
     public void SocialLinkSelectionResolverReturnsNullWhenNoEntriesExist()
     {
         SocialLinkViewState? selectedLink = MainWindow.ResolveSelectedSocialLinkViewState(

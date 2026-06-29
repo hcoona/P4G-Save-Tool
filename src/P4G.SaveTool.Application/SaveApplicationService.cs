@@ -21,6 +21,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
     private const string InvalidSocialLinkDiagnosticCode = "P4GAPP016";
     private const string DuplicateSocialLinkDiagnosticCode = "P4GAPP017";
     private const string SocialLinksCapacityDiagnosticCode = "P4GAPP015";
+    private const uint LegacyCompendiumMaximumTotalExperience = 999_999_999;
 
     private readonly IApplicationSaveCodec codec;
 
@@ -290,7 +291,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     setProtagonistPersonaSlot.PersonaSlot,
                     static (currentState, slotIndex, personaSlot) => currentState.WithProtagonistPersonaSlot(slotIndex, personaSlot),
                     state.ProtagonistPersonaSlots,
-                    "ProtagonistPersonaSlots");
+                    "ProtagonistPersonaSlots",
+                    allowBlankPersonaId: true);
 
             case SetPartyPersonaSlotEdit setPartyPersonaSlot:
                 return ApplyPersonaSlotEdit(
@@ -300,7 +302,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     setPartyPersonaSlot.PersonaSlot,
                     static (currentState, slotIndex, personaSlot) => currentState.WithPartyPersonaSlot(slotIndex, personaSlot),
                     state.PartyPersonaSlots,
-                    "PartyPersonaSlots");
+                    "PartyPersonaSlots",
+                    allowBlankPersonaId: true);
 
             case SetCompendiumPersonaSlotEdit setCompendiumPersonaSlot:
                 return ApplyPersonaSlotEdit(
@@ -310,7 +313,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     setCompendiumPersonaSlot.PersonaSlot,
                     static (currentState, slotIndex, personaSlot) => currentState.WithCompendiumPersonaSlot(slotIndex, personaSlot),
                     state.CompendiumPersonaSlots,
-                    "CompendiumPersonaSlots");
+                    "CompendiumPersonaSlots",
+                    allowBlankPersonaId: false,
+                    maximumTotalExperience: LegacyCompendiumMaximumTotalExperience);
 
             case ClearCompendiumPersonaSlotEdit clearCompendiumPersonaSlot:
                 return ApplyCompendiumClearEdit(state, diagnostics, clearCompendiumPersonaSlot.SlotIndex);
@@ -439,23 +444,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
         IsSupportedNameComponent(names.FamilyName) &&
         IsSupportedNameComponent(names.GivenName);
 
-    private static bool IsSupportedNameComponent(string? value)
-    {
-        if (value is null || value.Length > SaveStringCodec.EncodedNameCharacterLength)
-        {
-            return false;
-        }
-
-        foreach (char character in value)
-        {
-            if (character is < '!' or > '~')
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    private static bool IsSupportedNameComponent(string? value) =>
+        value is not null &&
+        value.Length <= SaveStringCodec.EncodedNameCharacterLength;
 
     private static WorkingSaveState CreateState(SaveSnapshot snapshot) =>
         new(
@@ -536,7 +527,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
         if (!SocialLinksEqual(state.SocialLinks, snapshot.SocialLinks))
         {
-            patches.Add(CreateSocialLinksPatch(layout.SocialLinks, state.SocialLinks, snapshot));
+            patches.Add(CreateSocialLinksPatch(layout.SocialLinks, state.SocialLinks));
         }
 
         if (!CalendarEqual(state, snapshot))
@@ -554,11 +545,10 @@ public sealed class SaveApplicationService : ISaveApplicationService
             snapshot.PartyPersonaSlots,
             state.PartyPersonaSlots,
             layout.PartyPersonaSlots);
-        AddPersonaSlotPatches(
-            patches,
-            snapshot.CompendiumPersonaSlots,
-            state.CompendiumPersonaSlots,
-            layout.CompendiumPersonaSlots);
+        if (!PersonaSlotsEqual(snapshot.CompendiumPersonaSlots, state.CompendiumPersonaSlots))
+        {
+            patches.Add(CreateCompendiumPersonaBlockPatch(layout.CompendiumPersonaSlots, state.CompendiumPersonaSlots));
+        }
 
         return patches;
     }
@@ -628,10 +618,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
     private static SaveFieldPatch CreateSocialLinksPatch(
         SaveFieldDescriptor field,
-        IReadOnlyList<SocialLinkState> socialLinks,
-        SaveSnapshot snapshot)
+        IReadOnlyList<SocialLinkState> socialLinks)
     {
-        byte[] bytes = snapshot.OriginalBytes.Slice(field.Offset, field.Length).ToArray();
+        byte[] bytes = new byte[field.Length];
         int slotCount = field.Length / SocialLinkSlotStride;
         for (int index = 0; index < slotCount; index++)
         {
@@ -645,6 +634,62 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
         return new SaveFieldPatch(field.Name, bytes);
     }
+
+    private static SaveFieldPatch CreateCompendiumPersonaBlockPatch(
+        PersonaBlockDescriptor block,
+        IReadOnlyList<PersonaSlot> compendiumSlots)
+    {
+        byte[] bytes = new byte[block.Count * block.Stride];
+        bool[] occupiedSlots = new bool[block.Count];
+
+        WriteCompendiumPersonaSlots(bytes, block, compendiumSlots, occupiedSlots, canonicalKnownPersonas: true);
+        WriteCompendiumPersonaSlots(bytes, block, compendiumSlots, occupiedSlots, canonicalKnownPersonas: false);
+
+        return new SaveFieldPatch(block.Name, bytes);
+    }
+
+    private static void WriteCompendiumPersonaSlots(
+        byte[] bytes,
+        PersonaBlockDescriptor block,
+        IReadOnlyList<PersonaSlot> compendiumSlots,
+        bool[] occupiedSlots,
+        bool canonicalKnownPersonas)
+    {
+        int slotCount = Math.Min(compendiumSlots.Count, block.Count);
+        for (int sourceSlotIndex = 0; sourceSlotIndex < slotCount; sourceSlotIndex++)
+        {
+            PersonaSlot slot = compendiumSlots[sourceSlotIndex];
+            if (!slot.Exists || slot.PersonaId == 0)
+            {
+                continue;
+            }
+
+            bool isCanonicalPersonaId = IsCanonicalCompendiumPersonaId(slot.PersonaId, block.Count);
+            if (isCanonicalPersonaId != canonicalKnownPersonas)
+            {
+                continue;
+            }
+
+            int targetSlotIndex = isCanonicalPersonaId
+                ? slot.PersonaId - 1
+                : sourceSlotIndex;
+            if ((uint)targetSlotIndex >= (uint)block.Count ||
+                (!canonicalKnownPersonas && occupiedSlots[targetSlotIndex]))
+            {
+                continue;
+            }
+
+            SaveWriteResult writeResult = PersonaSlotBinaryCodec.Write(slot);
+            ReadOnlyMemory<byte> personaBytes = writeResult.Bytes ?? Array.Empty<byte>();
+            int targetOffset = (targetSlotIndex * block.Stride) + block.PersonaOffsetWithinStride;
+            personaBytes.Span.CopyTo(bytes.AsSpan(targetOffset, PersonaSlotBinaryCodec.BinaryLength));
+            occupiedSlots[targetSlotIndex] = true;
+        }
+    }
+
+    private static bool IsCanonicalCompendiumPersonaId(ushort personaId, int slotCount) =>
+        personaId is not 0 &&
+        personaId <= slotCount;
 
     private static SaveFieldPatch CreateCalendarPatch(
         SaveFieldDescriptor field,
@@ -676,6 +721,12 @@ public sealed class SaveApplicationService : ISaveApplicationService
             patches.Add(CreatePersonaSlotPatch(block, slotIndex, stateSlots[slotIndex]));
         }
     }
+
+    private static bool PersonaSlotsEqual(
+        IReadOnlyList<PersonaSlot> left,
+        IReadOnlyList<PersonaSlot> right) =>
+        left.Count == right.Count &&
+        left.SequenceEqual(right);
 
     private static SaveFieldPatch CreatePersonaSlotPatch(
         PersonaBlockDescriptor block,
@@ -812,7 +863,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
         PersonaSlotEdit personaSlotEdit,
         Func<WorkingSaveState, int, PersonaSlot, WorkingSaveState> apply,
         IReadOnlyList<PersonaSlot> currentSlots,
-        string diagnosticTarget)
+        string diagnosticTarget,
+        bool allowBlankPersonaId,
+        uint? maximumTotalExperience = null)
     {
         if ((uint)slotIndex >= (uint)currentSlots.Count)
         {
@@ -834,8 +887,23 @@ public sealed class SaveApplicationService : ISaveApplicationService
             return state;
         }
 
+        if (maximumTotalExperience.HasValue && personaSlotEdit.TotalExperience > maximumTotalExperience.Value)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP018",
+                $"Persona slot edit total experience must be at most {maximumTotalExperience.Value}.",
+                PersonaDiagnosticTarget));
+            return state;
+        }
+
         if (personaSlotEdit.PersonaId == 0)
         {
+            if (allowBlankPersonaId)
+            {
+                return apply(state, slotIndex, CreateBlankPersonaSlot());
+            }
+
             diagnostics.Add(new SaveDiagnostic(
                 DiagnosticSeverity.Error,
                 "P4GAPP009",

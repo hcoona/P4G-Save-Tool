@@ -437,11 +437,6 @@ public sealed class WorkingSaveState
     public WorkingSaveState WithInventoryItemQuantity(ushort itemId, byte quantity)
     {
         int itemIndex = FindInventoryItemIndex(itemId);
-        if (quantity == 0)
-        {
-            return itemIndex < 0 ? this : WithInventoryItemRemoved(itemIndex);
-        }
-
         InventoryStack updatedStack = new(itemId, quantity);
         if (itemIndex >= 0)
         {

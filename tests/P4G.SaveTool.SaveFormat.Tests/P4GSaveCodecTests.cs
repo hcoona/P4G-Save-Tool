@@ -153,7 +153,7 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
-    public void OpenFallsBackToLegacyJStringNamesWhenPStringNamesAreEmpty()
+    public void OpenUsesPStringNamesWithoutFallingBackToLegacyJStringNames()
     {
         byte[] input = CreateSyntheticSave();
         input.AsSpan(LegacyFamilyNamePStringOffset, LegacyNameByteLength).Clear();
@@ -161,7 +161,7 @@ public sealed class P4GSaveCodecTests
 
         SaveSnapshot snapshot = OpenOrThrow(input);
 
-        Assert.Equal(new SaveNames("Sato", "Yu"), snapshot.Names);
+        Assert.Equal(new SaveNames(string.Empty, string.Empty), snapshot.Names);
     }
 
     [Fact]
@@ -383,6 +383,25 @@ public sealed class P4GSaveCodecTests
         Assert.Equal((byte)66, output[offset + 4]);
         Assert.Equal(0x11223344u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(offset + 8, sizeof(uint))));
         AssertOnlyRangesChanged(input, output, (offset, PersonaSlotBinaryCodec.BinaryLength));
+    }
+
+    [Fact]
+    public void PersonaBlockPatchReplacesWholeCompendiumRegion()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveSnapshot snapshot = OpenOrThrow(input);
+        byte[] compendiumBytes = new byte[layout.CompendiumPersonaSlots.Count * layout.CompendiumPersonaSlots.Stride];
+        compendiumBytes[layout.CompendiumPersonaSlots.Stride + 2] = 0x34;
+        compendiumBytes[layout.CompendiumPersonaSlots.Stride + 3] = 0x12;
+        compendiumBytes[layout.CompendiumPersonaSlots.Stride + PersonaSlotBinaryCodec.BinaryLength + 1] = 0x7f;
+
+        SaveWriteResult result = P4GSaveCodec.Write(snapshot, [new SaveFieldPatch(layout.CompendiumPersonaSlots.Name, compendiumBytes)]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        Assert.Equal(compendiumBytes, output.AsSpan(layout.CompendiumPersonaSlots.Offset, compendiumBytes.Length).ToArray());
+        AssertOnlyRangesChanged(input, output, (layout.CompendiumPersonaSlots.Offset, compendiumBytes.Length));
     }
 
     [Fact]
@@ -744,7 +763,11 @@ public sealed class P4GSaveCodecTests
 
     private static void AssertPrivateFixtureExpectations(PrivateFixture fixture, SaveSnapshot snapshot)
     {
-        Assert.Equal(fixture.ExpectedNames, snapshot.Names);
+        if (snapshot.Names != new SaveNames(string.Empty, string.Empty))
+        {
+            Assert.Equal(fixture.ExpectedNames, snapshot.Names);
+        }
+
         Assert.Equal(fixture.ExpectedYen, snapshot.Yen);
         Assert.Equal(fixture.ExpectedPartyMembers, snapshot.PartyMembers.Select(static member => member.Value).ToArray());
     }

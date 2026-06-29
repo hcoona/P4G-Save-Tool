@@ -23,11 +23,6 @@ public static class P4GSaveCodec
         ReadOnlySpan<byte> span = bytes.Span;
         string familyName = SaveStringCodec.DecodePString(bytes.Slice(layout.FamilyNamePString.Offset, layout.FamilyNamePString.Length));
         string givenName = SaveStringCodec.DecodePString(bytes.Slice(layout.GivenNamePString.Offset, layout.GivenNamePString.Length));
-        if (familyName.Length == 0 && givenName.Length == 0)
-        {
-            familyName = SaveStringCodec.DecodeJString(bytes.Slice(layout.FamilyNameJString.Offset, layout.FamilyNameJString.Length));
-            givenName = SaveStringCodec.DecodeJString(bytes.Slice(layout.GivenNameJString.Offset, layout.GivenNameJString.Length));
-        }
 
         EquipmentArrays equipmentArrays = ReadEquipmentArrays(span, layout);
         CalendarValues calendar = ReadCalendar(span, layout.Calendar);
@@ -114,6 +109,12 @@ public static class P4GSaveCodec
                 string.Equals(region.Name, patch.FieldName, StringComparison.Ordinal));
             if (field is null)
             {
+                if (TryGetPersonaBlockPatch(layout, patch.FieldName, out PersonaBlockDescriptor? personaBlock))
+                {
+                    ApplyPersonaBlockPatch(output, patch, personaBlock!, diagnostics);
+                    continue;
+                }
+
                 if (TryGetPersonaSlotPatch(layout, patch.FieldName, out PersonaBlockDescriptor? block, out int slotIndex))
                 {
                     ApplyPersonaSlotPatch(output, patch, block!, slotIndex, diagnostics);
@@ -171,6 +172,36 @@ public static class P4GSaveCodec
 
         int offset = block.Offset + (slotIndex * block.Stride) + block.PersonaOffsetWithinStride;
         patch.BytesSpan.CopyTo(output.AsSpan(offset, PersonaSlotBinaryCodec.BinaryLength));
+    }
+
+    private static void ApplyPersonaBlockPatch(
+        byte[] output,
+        SaveFieldPatch patch,
+        PersonaBlockDescriptor block,
+        List<SaveDiagnostic> diagnostics)
+    {
+        int blockLength = block.Count * block.Stride;
+        if (patch.ByteLength != blockLength)
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4G004",
+                "Save field patch data is invalid for the target.",
+                PatchDiagnosticTarget));
+            return;
+        }
+
+        patch.BytesSpan.CopyTo(output.AsSpan(block.Offset, blockLength));
+    }
+
+    private static bool TryGetPersonaBlockPatch(
+        P4GSaveLayout layout,
+        string patchFieldName,
+        out PersonaBlockDescriptor? block)
+    {
+        block = layout.PersonaBlocks.FirstOrDefault(candidate =>
+            string.Equals(candidate.Name, patchFieldName, StringComparison.Ordinal));
+        return block is not null;
     }
 
     private static bool TryGetPersonaSlotPatch(

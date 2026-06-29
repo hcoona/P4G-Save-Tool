@@ -374,8 +374,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("new SetMainCharacterTotalExperienceEdit(parsedMainCharacterTotalExperience)", editBatchBody, StringComparison.Ordinal);
         Assert.Contains("P4GWINUI028", editBatchBody, StringComparison.Ordinal);
         Assert.Contains("LevelExperienceProjection.CalculateTotalExperienceFromLevel", content, StringComparison.Ordinal);
-        Assert.Contains("MainCharacterLevelSlider.Value = viewModel.HasSave ? viewModel.MainCharacterLevel : 0;", refreshBasicStatsBody, StringComparison.Ordinal);
-        Assert.Contains("MainCharacterLevelValueTextBlock.Text = viewModel.HasSave", refreshBasicStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);", refreshBasicStatsBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateMainCharacterLevelValueText();", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("Math.Max(1d, viewModel.MainCharacterLevel)", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(CalendarSocialStatsSectionHeader);", content, StringComparison.Ordinal);
@@ -390,6 +390,10 @@ public sealed class WinUIArchitectureTests
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainCharacterLevelSlider = GetSection(
+            content,
+            "x:Name=\"MainCharacterLevelSlider\"",
+            "x:Name=\"MainCharacterLevelValueTextBlock\"");
 
         Assert.Contains("x:Name=\"SocialLinkListView\"", content, StringComparison.Ordinal);
         Assert.Contains("SelectionChanged=\"SocialLinkListView_SelectionChanged\"", content, StringComparison.Ordinal);
@@ -409,6 +413,10 @@ public sealed class WinUIArchitectureTests
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainCharacterLevelSlider = GetSection(
+            content,
+            "x:Name=\"MainCharacterLevelSlider\"",
+            "x:Name=\"MainCharacterLevelValueTextBlock\"");
 
         Assert.Contains("x:Name=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Click=\"JumpBasicStats_Click\"", content, StringComparison.Ordinal);
@@ -438,7 +446,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"YenTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"MainCharacterLevelSlider\"", content, StringComparison.Ordinal);
-        Assert.Contains("Minimum=\"0\"", content, StringComparison.Ordinal);
+        Assert.Contains("Minimum=\"0\"", mainCharacterLevelSlider, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"MainCharacterLevelValueTextBlock\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"MainCharacterTotalExperienceTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"MainCharacterCalculateFromLevelButton\"", content, StringComparison.Ordinal);

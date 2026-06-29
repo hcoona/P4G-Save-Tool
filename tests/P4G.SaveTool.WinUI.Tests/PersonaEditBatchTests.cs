@@ -58,6 +58,49 @@ public sealed class PersonaEditBatchTests
     }
 
     [Fact]
+    public void PersonaEditBuilderCapsCompendiumExperienceAtLegacyNineDigits()
+    {
+        bool succeeded = MainWindow.TryBuildPersonaSlotEditCore(
+            0x0404,
+            "1000000000",
+            [0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408],
+            55,
+            11,
+            22,
+            33,
+            44,
+            45,
+            out _,
+            out SaveDiagnostic diagnostic,
+            999_999_999);
+
+        Assert.False(succeeded);
+        Assert.Equal("P4GWINUI031", diagnostic.Code);
+        Assert.Equal("Persona.Xp", diagnostic.Target);
+    }
+
+    [Fact]
+    public void PersonaEditBuilderLeavesNonCompendiumExperienceUncapped()
+    {
+        bool succeeded = MainWindow.TryBuildPersonaSlotEditCore(
+            0x0404,
+            "1000000000",
+            [0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408],
+            55,
+            11,
+            22,
+            33,
+            44,
+            45,
+            out PersonaSlotEdit personaSlotEdit,
+            out SaveDiagnostic diagnostic);
+
+        Assert.True(succeeded);
+        Assert.Equal(1_000_000_000u, personaSlotEdit.TotalExperience);
+        Assert.Equal("P4GWINUI014", diagnostic.Code);
+    }
+
+    [Fact]
     public void PersonaEditBuilderReportsMissingSkillSelectionForSelectedCompendiumPersona()
     {
         bool succeeded = MainWindow.TryBuildPersonaSlotEditCore(
@@ -76,6 +119,85 @@ public sealed class PersonaEditBatchTests
         Assert.False(succeeded);
         Assert.Equal("P4GWINUI016", diagnostic.Code);
         Assert.Equal("Persona.Skills", diagnostic.Target);
+    }
+
+    [Fact]
+    public void PersonaEditBuilderBuildsBlankSlotWithoutRequiringExperienceOrSkills()
+    {
+        bool succeeded = MainWindow.TryBuildPersonaSlotEditCore(
+            0,
+            "not-a-number",
+            [ushort.MaxValue],
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            out PersonaSlotEdit personaSlotEdit,
+            out SaveDiagnostic diagnostic);
+
+        Assert.True(succeeded);
+        Assert.Equal("P4GWINUI014", diagnostic.Code);
+        Assert.Equal((ushort)0, personaSlotEdit.PersonaId);
+        Assert.Equal((byte)0, personaSlotEdit.Level);
+        Assert.Equal(0u, personaSlotEdit.TotalExperience);
+        Assert.Equal(new ushort[] { 0, 0, 0, 0, 0, 0, 0, 0 }, personaSlotEdit.SkillIds);
+        Assert.Equal((byte)0, personaSlotEdit.Strength);
+        Assert.Equal((byte)0, personaSlotEdit.Magic);
+        Assert.Equal((byte)0, personaSlotEdit.Endurance);
+        Assert.Equal((byte)0, personaSlotEdit.Agility);
+        Assert.Equal((byte)0, personaSlotEdit.Luck);
+    }
+
+    [Theory]
+    [InlineData(99, false)]
+    [InlineData(100, true)]
+    [InlineData(255, true)]
+    public void LegacyLevelWarningStartsAboveNinetyNine(double level, bool expectedWarning) =>
+        Assert.Equal(expectedWarning, MainWindow.IsLegacyLevelWarningValue(level));
+
+    [Fact]
+    public void GlobalApplyAppendsSelectedInventoryQuantityDraft()
+    {
+        List<SaveEditCommand> edits = [];
+        List<SaveDiagnostic> diagnostics = [];
+
+        bool succeeded = MainWindow.TryAppendSelectedInventoryQuantityEdit(true, 257, "42", edits, diagnostics);
+
+        Assert.True(succeeded);
+        Assert.Empty(diagnostics);
+        SetInventoryItemQuantityEdit edit = Assert.IsType<SetInventoryItemQuantityEdit>(Assert.Single(edits));
+        Assert.Equal((ushort)257, edit.ItemId);
+        Assert.Equal((byte)42, edit.Quantity);
+    }
+
+    [Fact]
+    public void GlobalApplyReportsInvalidSelectedInventoryQuantityDraft()
+    {
+        List<SaveEditCommand> edits = [];
+        List<SaveDiagnostic> diagnostics = [];
+
+        bool succeeded = MainWindow.TryAppendSelectedInventoryQuantityEdit(true, 257, "invalid", edits, diagnostics);
+
+        Assert.False(succeeded);
+        Assert.Empty(edits);
+        SaveDiagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("P4GWINUI011", diagnostic.Code);
+        Assert.Equal("Inventory.Quantity", diagnostic.Target);
+    }
+
+    [Fact]
+    public void GlobalApplySkipsSelectedInventoryQuantityWhenDraftIsNotDirty()
+    {
+        List<SaveEditCommand> edits = [];
+        List<SaveDiagnostic> diagnostics = [];
+
+        bool succeeded = MainWindow.TryAppendSelectedInventoryQuantityEdit(false, 257, "1", edits, diagnostics);
+
+        Assert.True(succeeded);
+        Assert.Empty(edits);
+        Assert.Empty(diagnostics);
     }
 
     [Fact]

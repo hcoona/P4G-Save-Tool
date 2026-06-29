@@ -2,9 +2,11 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 using P4G.SaveTool.Application;
 using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Presentation;
@@ -17,6 +19,8 @@ namespace P4G.SaveTool.WinUI;
 
 public sealed partial class MainWindow : Window
 {
+    private const uint LegacyCompendiumMaximumTotalExperience = 999_999_999;
+
     private enum BusyOperationCompletion
     {
         RefreshViewModel,
@@ -53,6 +57,9 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices8 = new();
     private readonly InventorySelectionState inventorySelectionState = new();
     private readonly SaveEditorRefreshCoordinator saveEditorRefreshCoordinator = new();
+    private readonly Brush? defaultMainCharacterLevelValueForeground;
+    private readonly Brush? defaultPersonaLevelValueForeground;
+    private readonly SolidColorBrush legacyLevelWarningForeground = new(Colors.Red);
     private string? startupOpenPath;
     private IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride;
     private string? currentFilePath;
@@ -67,6 +74,7 @@ public sealed partial class MainWindow : Window
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
     private bool refreshEditableFieldsAfterStartupOpen;
+    private bool inventoryQuantityDraftDirty;
     private byte? selectedInventoryCategoryId;
     private ushort? selectedInventoryItemId;
     private ushort? selectedInventoryEntryId;
@@ -111,6 +119,8 @@ public sealed partial class MainWindow : Window
 
         viewModel = new SaveEditorViewModel(new SaveApplicationService());
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        defaultMainCharacterLevelValueForeground = MainCharacterLevelValueTextBlock.Foreground;
+        defaultPersonaLevelValueForeground = PersonaLevelValueTextBlock.Foreground;
     }
 
     private async void OpenButton_Click(object sender, RoutedEventArgs e) =>
@@ -131,9 +141,7 @@ public sealed partial class MainWindow : Window
         await ShowAboutDialogAsync();
 
     private void MainCharacterLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
-        MainCharacterLevelValueTextBlock.Text = viewModel.HasSave
-            ? ((byte)e.NewValue).ToString(CultureInfo.InvariantCulture)
-            : string.Empty;
+        UpdateMainCharacterLevelValueText();
 
     private void JumpBasicStats_Click(object sender, RoutedEventArgs e) =>
         NavigateToSection(BasicStatsSectionHeader);
@@ -163,12 +171,39 @@ public sealed partial class MainWindow : Window
         PersonaXpTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)PersonaLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
 
     private void PersonaLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
-        PersonaLevelValueTextBlock.Text = viewModel.HasSave
-            ? ((byte)e.NewValue).ToString(CultureInfo.InvariantCulture)
-            : string.Empty;
+        UpdatePersonaLevelValueText();
 
     private void MainCharacterCalculateFromLevelButton_Click(object sender, RoutedEventArgs e) =>
         MainCharacterTotalExperienceTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)MainCharacterLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
+
+    private void UpdateMainCharacterLevelValueText() =>
+        UpdateLevelValueText(
+            MainCharacterLevelValueTextBlock,
+            MainCharacterLevelSlider.Value,
+            defaultMainCharacterLevelValueForeground);
+
+    private void UpdatePersonaLevelValueText() =>
+        UpdateLevelValueText(
+            PersonaLevelValueTextBlock,
+            PersonaLevelSlider.Value,
+            defaultPersonaLevelValueForeground);
+
+    private void UpdateLevelValueText(TextBlock valueTextBlock, double level, Brush? defaultForeground)
+    {
+        bool hasSave = viewModel is not null && viewModel.HasSave;
+        valueTextBlock.Text = hasSave
+            ? ((byte)Math.Round(level, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
+        valueTextBlock.Foreground = hasSave && IsLegacyLevelWarningValue(level)
+            ? legacyLevelWarningForeground
+            : defaultForeground;
+    }
+
+    internal static bool IsLegacyLevelWarningValue(double level) =>
+        Math.Round(level, MidpointRounding.AwayFromZero) > 99;
+
+    private static void SetLevelSliderValue(Slider slider, double rawLevel) =>
+        slider.Value = Math.Clamp(rawLevel, slider.Minimum, slider.Maximum);
 
     internal readonly record struct SocialLinkDraftState(
         int SlotIndex,
@@ -314,6 +349,7 @@ public sealed partial class MainWindow : Window
                     selectedSocialLinkLinkId = null;
                     selectedPersonaMemberId = 0;
                     selectedPersonaSlotIndex = 0;
+                    inventoryQuantityDraftDirty = false;
                     inventorySelectionState.Reset();
                     autoSelectInventoryEntryAfterOpen = true;
                     autoSelectCompendiumEntryAfterOpen = true;
@@ -379,6 +415,7 @@ public sealed partial class MainWindow : Window
         }
 
         RefreshFromViewModelPreservingInventoryQuantityDraft(
+            preserveSelectedInventoryQuantityDraft: ShouldPreserveSelectedInventoryQuantityDraftAfterApply(edits),
             preserveSelectedSocialLinkDraft: ShouldPreserveSelectedSocialLinkDraftAfterApply(edits),
             preserveSelectedCompendiumDraft: ShouldPreserveSelectedCompendiumDraftAfterApply(edits));
         return true;
@@ -625,6 +662,12 @@ public sealed partial class MainWindow : Window
             validationDiagnostics);
         AddPersonaEdit(batch, validationDiagnostics);
         TryAppendSelectedSocialLinkEdits(batch, validationDiagnostics);
+        TryAppendSelectedInventoryQuantityEdit(
+            inventoryQuantityDraftDirty,
+            selectedInventoryItemId,
+            InventoryQuantityTextBox.Text ?? string.Empty,
+            batch,
+            validationDiagnostics);
 
         return TryFinalizeEditBatch(batch, validationDiagnostics, out edits, out diagnostics);
     }
@@ -651,7 +694,7 @@ public sealed partial class MainWindow : Window
     {
         if (selectedCompendiumSlotIndex.HasValue)
         {
-            if (!TryBuildPersonaSlotEdit(out PersonaSlotEdit compendiumPersonaSlotEdit, out SaveDiagnostic compendiumDiagnostic))
+            if (!TryBuildPersonaSlotEdit(out PersonaSlotEdit compendiumPersonaSlotEdit, out SaveDiagnostic compendiumDiagnostic, LegacyCompendiumMaximumTotalExperience))
             {
                 diagnostics.Add(compendiumDiagnostic);
                 return;
@@ -866,7 +909,7 @@ public sealed partial class MainWindow : Window
             PersonaChoiceComboBox.ItemsSource = SaveEditorViewModel.GetPersonaChoices(compendiumDraft.PersonaId, out PersonaChoiceViewState selectedCompendiumChoice);
             PersonaChoiceComboBox.SelectedItem = selectedCompendiumChoice;
             PersonaXpTextBox.Text = compendiumDraft.ExperienceText;
-            PersonaLevelSlider.Value = compendiumDraft.Level;
+            SetLevelSliderValue(PersonaLevelSlider, compendiumDraft.Level);
             PersonaStrengthSlider.Value = compendiumDraft.Strength;
             PersonaMagicSlider.Value = compendiumDraft.Magic;
             PersonaEnduranceSlider.Value = compendiumDraft.Endurance;
@@ -918,6 +961,31 @@ public sealed partial class MainWindow : Window
 
         edits.Add(new SetSocialLinkLevelEdit(selectedSocialLinkIndex.Value, level));
         edits.Add(new SetSocialLinkProgressEdit(selectedSocialLinkIndex.Value, progress));
+        return true;
+    }
+
+    internal static bool TryAppendSelectedInventoryQuantityEdit(
+        bool quantityDraftDirty,
+        ushort? selectedInventoryItemId,
+        string quantityText,
+        List<SaveEditCommand> edits,
+        List<SaveDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        if (!quantityDraftDirty || !selectedInventoryItemId.HasValue)
+        {
+            return true;
+        }
+
+        if (!TryReadInventoryQuantityText(quantityText, out byte quantity, out SaveDiagnostic diagnostic))
+        {
+            diagnostics.Add(diagnostic);
+            return false;
+        }
+
+        edits.Add(new SetInventoryItemQuantityEdit(selectedInventoryItemId.Value, quantity));
         return true;
     }
 
@@ -975,13 +1043,34 @@ public sealed partial class MainWindow : Window
 
     private bool TryBuildPersonaSlotEdit(
         out PersonaSlotEdit personaSlotEdit,
-        out SaveDiagnostic diagnostic)
+        out SaveDiagnostic diagnostic,
+        uint? maximumTotalExperience = null)
     {
         personaSlotEdit = new PersonaSlotEdit(0, 0, 0, Array.Empty<ushort>(), 0, 0, 0, 0, 0);
         diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
 
-        if (!TryReadSelectedPersonaId(out ushort personaId, out diagnostic) ||
-            !TryReadSelectedSkillIds(out IReadOnlyList<ushort> skillIds, out diagnostic))
+        if (!TryReadSelectedPersonaId(out ushort personaId, out diagnostic))
+        {
+            return false;
+        }
+
+        if (personaId == 0)
+        {
+            return TryBuildPersonaSlotEditCore(
+                personaId,
+                string.Empty,
+                [],
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                out personaSlotEdit,
+                out diagnostic);
+        }
+
+        if (!TryReadSelectedSkillIds(out IReadOnlyList<ushort> skillIds, out diagnostic))
         {
             return false;
         }
@@ -997,7 +1086,8 @@ public sealed partial class MainWindow : Window
             PersonaAgilitySlider.Value,
             PersonaLuckSlider.Value,
             out personaSlotEdit,
-            out diagnostic);
+            out diagnostic,
+            maximumTotalExperience);
     }
 
     private SaveEditorOperationResult SelectOrAddCompendiumPersona(PersonaChoiceViewState selectedChoice) =>
@@ -1111,16 +1201,32 @@ public sealed partial class MainWindow : Window
         double agility,
         double luck,
         out PersonaSlotEdit personaSlotEdit,
-        out SaveDiagnostic diagnostic)
+        out SaveDiagnostic diagnostic,
+        uint? maximumTotalExperience = null)
     {
         ArgumentNullException.ThrowIfNull(skillIds);
 
         personaSlotEdit = new PersonaSlotEdit(0, 0, 0, Array.Empty<ushort>(), 0, 0, 0, 0, 0);
         diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
 
+        if (personaId == 0)
+        {
+            personaSlotEdit = CreateBlankPersonaSlotEdit();
+            return true;
+        }
+
         if (!uint.TryParse(totalExperienceText, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint totalExperience))
         {
             diagnostic = CreateUiDiagnostic("P4GWINUI015", "Persona total experience must be an unsigned whole number.", "Persona.Xp");
+            return false;
+        }
+
+        if (maximumTotalExperience.HasValue && totalExperience > maximumTotalExperience.Value)
+        {
+            diagnostic = CreateUiDiagnostic(
+                "P4GWINUI031",
+                $"Compendium persona total experience must be at most {maximumTotalExperience.Value.ToString(CultureInfo.InvariantCulture)}.",
+                "Persona.Xp");
             return false;
         }
 
@@ -1143,6 +1249,9 @@ public sealed partial class MainWindow : Window
         diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
         return true;
     }
+
+    private static PersonaSlotEdit CreateBlankPersonaSlotEdit() =>
+        new(0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0);
 
     private static PersonaSlotEdit CreateDefaultCompendiumPersonaSlotEdit(ushort personaId) =>
         new(
@@ -1284,6 +1393,7 @@ public sealed partial class MainWindow : Window
     }
 
     private void RefreshFromViewModelPreservingInventoryQuantityDraft(
+        bool preserveSelectedInventoryQuantityDraft = true,
         bool preserveSelectedSocialLinkDraft = true,
         bool preserveSelectedCompendiumDraft = true)
     {
@@ -1291,12 +1401,15 @@ public sealed partial class MainWindow : Window
         ushort? selectedInventoryItemIdBeforeRefresh = selectedInventoryItemId;
         ushort? selectedInventoryEntryIdBeforeRefresh = selectedInventoryEntryId;
         string inventoryQuantityDraft = InventoryQuantityTextBox.Text;
+        bool inventoryQuantityDraftWasDirty = inventoryQuantityDraftDirty;
         SocialLinkDraftState? socialLinkDraft = CaptureSelectedSocialLinkDraft();
         CompendiumDraftState? compendiumDraft = preserveSelectedCompendiumDraft ? CaptureSelectedCompendiumDraft() : null;
 
         RefreshFromViewModel();
 
-        if (InventorySelectionState.ShouldRestoreQuantityDraft(
+        if (preserveSelectedInventoryQuantityDraft &&
+            inventoryQuantityDraftWasDirty &&
+            InventorySelectionState.ShouldRestoreQuantityDraft(
                 selectedInventoryCategoryIdBeforeRefresh,
                 selectedInventoryItemIdBeforeRefresh,
                 selectedInventoryEntryIdBeforeRefresh,
@@ -1304,7 +1417,22 @@ public sealed partial class MainWindow : Window
                 selectedInventoryItemId,
                 selectedInventoryEntryId))
         {
-            InventoryQuantityTextBox.Text = inventoryQuantityDraft;
+            bool wasSuppressingInventoryEvents = suppressInventoryEvents;
+            suppressInventoryEvents = true;
+            try
+            {
+                InventoryQuantityTextBox.Text = inventoryQuantityDraft;
+            }
+            finally
+            {
+                suppressInventoryEvents = wasSuppressingInventoryEvents;
+            }
+
+            inventoryQuantityDraftDirty = true;
+        }
+        else
+        {
+            inventoryQuantityDraftDirty = false;
         }
 
         if (preserveSelectedSocialLinkDraft && socialLinkDraft is not null)
@@ -1332,6 +1460,13 @@ public sealed partial class MainWindow : Window
 
         return !edits.Any(static edit =>
             edit is SetCompendiumPersonaSlotEdit or ClearCompendiumPersonaSlotEdit or ClearCompendiumPersonaSlotsEdit);
+    }
+
+    internal static bool ShouldPreserveSelectedInventoryQuantityDraftAfterApply(IReadOnlyList<SaveEditCommand> edits)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+
+        return !edits.Any(static edit => edit is SetInventoryItemQuantityEdit or RemoveInventoryItemEdit);
     }
 
     internal static bool ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(
@@ -1433,10 +1568,8 @@ public sealed partial class MainWindow : Window
         FamilyNameTextBox.Text = viewModel.FamilyName;
         GivenNameTextBox.Text = viewModel.GivenName;
         YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
-        MainCharacterLevelSlider.Value = viewModel.HasSave ? viewModel.MainCharacterLevel : 0;
-        MainCharacterLevelValueTextBlock.Text = viewModel.HasSave
-            ? MainCharacterLevelSlider.Value.ToString(CultureInfo.InvariantCulture)
-            : string.Empty;
+        SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);
+        UpdateMainCharacterLevelValueText();
         MainCharacterTotalExperienceTextBox.Text = viewModel.HasSave
             ? viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture)
             : string.Empty;
@@ -1679,7 +1812,17 @@ public sealed partial class MainWindow : Window
                     .Select(slot =>
                     {
                         SaveEditorViewModel.GetPersonaChoices(slot.PersonaId, out PersonaChoiceViewState choice);
-                        return new CompendiumPersonaViewState(slot.SlotIndex, slot.PersonaId, choice.Name, slot.Level, slot.TotalExperience);
+                        return new CompendiumPersonaViewState(
+                            slot.SlotIndex,
+                            slot.PersonaId,
+                            choice.Name,
+                            slot.Level,
+                            slot.TotalExperience,
+                            slot.Strength,
+                            slot.Magic,
+                            slot.Endurance,
+                            slot.Agility,
+                            slot.Luck);
                     })
                 )
                 {
@@ -2230,7 +2373,7 @@ public sealed partial class MainWindow : Window
                 personaChoices.Clear();
                 PersonaChoiceComboBox.SelectedItem = null;
                 PersonaXpTextBox.Text = string.Empty;
-                PersonaLevelSlider.Value = 0;
+                SetLevelSliderValue(PersonaLevelSlider, 0);
                 PersonaStrengthSlider.Value = 0;
                 PersonaMagicSlider.Value = 0;
                 PersonaEnduranceSlider.Value = 0;
@@ -2265,7 +2408,7 @@ public sealed partial class MainWindow : Window
                 }
                 PersonaChoiceComboBox.SelectedItem = selectedCompendiumChoice;
                 PersonaXpTextBox.Text = currentCompendiumSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
-                PersonaLevelSlider.Value = currentCompendiumSlot.Level;
+                SetLevelSliderValue(PersonaLevelSlider, currentCompendiumSlot.Level);
                 PersonaStrengthSlider.Value = currentCompendiumSlot.Strength;
                 PersonaMagicSlider.Value = currentCompendiumSlot.Magic;
                 PersonaEnduranceSlider.Value = currentCompendiumSlot.Endurance;
@@ -2319,7 +2462,7 @@ public sealed partial class MainWindow : Window
                 personaChoices.Clear();
                 PersonaChoiceComboBox.SelectedItem = null;
                 PersonaXpTextBox.Text = string.Empty;
-                PersonaLevelSlider.Value = 0;
+                SetLevelSliderValue(PersonaLevelSlider, 0);
                 PersonaStrengthSlider.Value = 0;
                 PersonaMagicSlider.Value = 0;
                 PersonaEnduranceSlider.Value = 0;
@@ -2352,7 +2495,7 @@ public sealed partial class MainWindow : Window
                 }
                 PersonaChoiceComboBox.SelectedItem = partySelectedPersonaChoice;
                 PersonaXpTextBox.Text = partyCurrentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
-                PersonaLevelSlider.Value = partyCurrentSlot.Level;
+                SetLevelSliderValue(PersonaLevelSlider, partyCurrentSlot.Level);
                 PersonaStrengthSlider.Value = partyCurrentSlot.Strength;
                 PersonaMagicSlider.Value = partyCurrentSlot.Magic;
                 PersonaEnduranceSlider.Value = partyCurrentSlot.Endurance;
@@ -2372,7 +2515,7 @@ public sealed partial class MainWindow : Window
             }
             PersonaChoiceComboBox.SelectedItem = selectedPersonaChoice;
             PersonaXpTextBox.Text = currentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
-            PersonaLevelSlider.Value = currentSlot.Level;
+            SetLevelSliderValue(PersonaLevelSlider, currentSlot.Level);
             PersonaStrengthSlider.Value = currentSlot.Strength;
             PersonaMagicSlider.Value = currentSlot.Magic;
             PersonaEnduranceSlider.Value = currentSlot.Endurance;
@@ -2385,9 +2528,7 @@ public sealed partial class MainWindow : Window
         {
             suppressPersonaEvents = false;
             RefreshPersonaSummary();
-            PersonaLevelValueTextBlock.Text = viewModel.HasSave
-                ? PersonaLevelSlider.Value.ToString(CultureInfo.InvariantCulture)
-                : string.Empty;
+            UpdatePersonaLevelValueText();
         }
     }
 
@@ -2464,11 +2605,13 @@ public sealed partial class MainWindow : Window
 
         if (InventoryListView.SelectedItem is not InventoryStackViewState selectedEntry)
         {
+            inventoryQuantityDraftDirty = false;
             selectedInventoryEntryId = null;
             UpdateShellState();
             return;
         }
 
+        inventoryQuantityDraftDirty = false;
         selectedInventoryEntryId = selectedEntry.ItemId;
         selectedInventoryCategoryId = selectedEntry.CategoryId;
         selectedInventoryItemId = selectedEntry.IsPlaceholder ? null : selectedEntry.ItemId;
@@ -2485,6 +2628,7 @@ public sealed partial class MainWindow : Window
 
         if (InventoryCategoryComboBox.SelectedItem is ItemCategoryViewState selectedCategory)
         {
+            inventoryQuantityDraftDirty = false;
             selectedInventoryCategoryId = selectedCategory.CategoryId;
             selectedInventoryItemId = null;
             selectedInventoryEntryId = null;
@@ -2502,6 +2646,7 @@ public sealed partial class MainWindow : Window
 
         if (InventoryItemComboBox.SelectedItem is InventoryItemChoiceViewState selectedItem)
         {
+            inventoryQuantityDraftDirty = false;
             selectedInventoryCategoryId = selectedItem.CategoryId;
             selectedInventoryItemId = selectedItem.IsPlaceholder ? null : selectedItem.ItemId;
             selectedInventoryEntryId = selectedItem.IsPlaceholder
@@ -2512,6 +2657,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        inventoryQuantityDraftDirty = false;
         selectedInventoryItemId = null;
         selectedInventoryEntryId = null;
         RefreshInventoryState();
@@ -2551,6 +2697,7 @@ public sealed partial class MainWindow : Window
 
         if (result.Succeeded)
         {
+            inventoryQuantityDraftDirty = false;
             InventorySelectionState.ApplySuccessfulQuantityEdit(
                 quantity,
                 ref selectedInventoryCategoryId,
@@ -2599,6 +2746,7 @@ public sealed partial class MainWindow : Window
 
         if (result.Succeeded)
         {
+            inventoryQuantityDraftDirty = false;
             inventorySelectionState.DisableAutoSelectAfterDelete();
             selectedInventoryCategoryId = null;
             selectedInventoryItemId = null;
@@ -2750,13 +2898,39 @@ public sealed partial class MainWindow : Window
 
     private bool TryReadInventoryQuantity(out byte quantity)
     {
-        if (byte.TryParse(InventoryQuantityTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out quantity))
+        if (TryReadInventoryQuantityText(InventoryQuantityTextBox.Text ?? string.Empty, out quantity, out SaveDiagnostic diagnostic))
         {
             return true;
         }
 
         quantity = 0;
-        SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI011", "Inventory quantity must be a whole number from 0 to 255.", "Inventory.Quantity")]);
+        SetUiDiagnostics([diagnostic]);
+        return false;
+    }
+
+    private void InventoryQuantityTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (suppressInventoryEvents || viewModel is null || !viewModel.HasSave || !selectedInventoryItemId.HasValue)
+        {
+            return;
+        }
+
+        inventoryQuantityDraftDirty = true;
+    }
+
+    internal static bool TryReadInventoryQuantityText(
+        string quantityText,
+        out byte quantity,
+        out SaveDiagnostic diagnostic)
+    {
+        if (byte.TryParse(quantityText, NumberStyles.Integer, CultureInfo.InvariantCulture, out quantity))
+        {
+            diagnostic = CreateUiDiagnostic("P4GWINUI011", "Inventory quantity must be a whole number from 0 to 255.", "Inventory.Quantity");
+            return true;
+        }
+
+        quantity = 0;
+        diagnostic = CreateUiDiagnostic("P4GWINUI011", "Inventory quantity must be a whole number from 0 to 255.", "Inventory.Quantity");
         return false;
     }
 

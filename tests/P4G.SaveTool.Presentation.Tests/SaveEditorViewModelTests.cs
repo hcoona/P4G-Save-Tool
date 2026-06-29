@@ -226,13 +226,9 @@ public sealed class SaveEditorViewModelTests
         Assert.DoesNotContain(weapons, static item => item.ItemId == 2433);
 
         IReadOnlyList<InventoryItemChoiceViewState> other = SaveEditorViewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Other);
-        Assert.NotEmpty(other);
-        Assert.True(other[0].IsPlaceholder);
-        Assert.Equal((ushort)1024, other[0].ItemId);
-        Assert.Contains(other, static item => item.ItemId == 820 && item.Name == "Arc Magatama");
-        Assert.Contains(other, static item => item.ItemId == 821 && item.Name == "Amethyst");
-        Assert.Contains(other, static item => item.ItemId == 822 && item.Name == "Aquamarine");
-        Assert.Contains(other, static item => item.ItemId == 823 && item.Name == "Emerald");
+        InventoryItemChoiceViewState otherPlaceholder = Assert.Single(other);
+        Assert.True(otherPlaceholder.IsPlaceholder);
+        Assert.Equal((ushort)1024, otherPlaceholder.ItemId);
         AssertReadOnlyListDoesNotAllowMutation(
             viewModel.InventoryEntries,
             new InventoryStackViewState(0, 999, "Test", 0, "Weapons", 1));
@@ -265,13 +261,25 @@ public sealed class SaveEditorViewModelTests
         Assert.NotEmpty(otherChoices);
         Assert.True(otherChoices[0].IsPlaceholder);
         Assert.Equal((ushort)1024, otherChoices[0].ItemId);
-        Assert.Contains(otherChoices, static item => item.ItemId == 1025);
+        Assert.DoesNotContain(otherChoices, static item => item.ItemId == 1025);
 
         SaveEditorOperationResult updateResult = viewModel.SetInventoryItemQuantity(1025, 9);
         SaveEditorOperationResult removeResult = viewModel.RemoveInventoryItem(1025);
 
         Assert.True(updateResult.Succeeded, FormatDiagnostics(updateResult.Diagnostics));
         Assert.True(removeResult.Succeeded, FormatDiagnostics(removeResult.Diagnostics));
+    }
+
+    [Fact]
+    public void ShelfPickerUsesLegacyOrdering()
+    {
+        IReadOnlyList<InventoryItemChoiceViewState> shelf = SaveEditorViewModel.GetInventoryItemsForCategory((byte)ItemCategoryId.Shelf);
+
+        Assert.True(shelf[0].IsPlaceholder);
+        Assert.Equal((ushort)1024, shelf[0].ItemId);
+        Assert.Equal(
+            new ushort[] { 2056, 2057, 2058, 2059, 2060, 1234 },
+            shelf.Skip(1).Take(6).Select(static item => item.ItemId).ToArray());
     }
 
     [Theory]
@@ -1153,6 +1161,28 @@ public sealed class SaveEditorViewModelTests
             service.AppliedEdits,
             static edits => Assert.IsType<SetInventoryItemQuantityEdit>(Assert.Single(edits)),
             static edits => Assert.IsType<RemoveInventoryItemEdit>(Assert.Single(edits)));
+    }
+
+    [Fact]
+    public void InventoryQuantityZeroRemainsVisibleInProjectionUntilReload()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks: [new InventoryStack(257, 3)])),
+                []),
+            ApplyEditsHandler = static (save, edits) => ApplyCommands(save, edits),
+        };
+        SaveEditorViewModel viewModel = new(service);
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        SaveEditorOperationResult result = viewModel.SetInventoryItemQuantity(257, 0);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        InventoryStackViewState entry = Assert.Single(viewModel.InventoryEntries);
+        Assert.Equal((ushort)257, entry.ItemId);
+        Assert.Equal((byte)0, entry.Quantity);
+        Assert.True(viewModel.IsDirty);
     }
 
     [Fact]

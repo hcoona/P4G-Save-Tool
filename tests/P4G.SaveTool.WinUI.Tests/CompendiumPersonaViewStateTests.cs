@@ -18,8 +18,8 @@ public sealed class CompendiumPersonaViewStateTests
     [Fact]
     public void ToStringIncludesNativeAotTemplateDisplayText()
     {
-        CompendiumPersonaViewState viewState = new(0, 0x0101, "Izanagi", 12, 1234);
+        CompendiumPersonaViewState viewState = new(0, 0x0101, "Izanagi", 12, 1234, 11, 12, 13, 14, 15);
 
-        Assert.Equal("#1 Izanagi  Lv 12  XP 1234", viewState.ToString());
+        Assert.Equal("#1 Izanagi  Lv 12  XP 1234  ST 11  MA 12  DE 13  AG 14  LU 15", viewState.ToString());
     }
 }

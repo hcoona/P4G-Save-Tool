@@ -32,7 +32,7 @@ internal static class InventoryCatalogProjection
         new((byte)ItemCategoryId.SocialLink, 1024,
             [(1184, 20), (1207, 3), (1224, 3), (1228, 1)]),
         new((byte)ItemCategoryId.Shelf, 1024,
-            [(1234, 13), (2056, 5)]),
+            [(2056, 5), (1234, 13)]),
         new((byte)ItemCategoryId.Costumes, 1792,
             [(1792, 193), (2040, 6)]),
         new((byte)ItemCategoryId.Bugs, 1024,
@@ -240,12 +240,7 @@ internal static class InventoryCatalogProjection
     private static ReadOnlyCollection<InventoryItemChoiceViewState> CreateOtherChoices(CategoryDefinition definition)
     {
         List<InventoryItemChoiceViewState> items = [];
-        HashSet<ushort> seen = [];
         AddPlaceholderChoice(items, definition.PlaceholderItemId, definition.CategoryId);
-        foreach (ushort itemId in EnumerateOtherItemIds())
-        {
-            AddChoice(items, seen, itemId, definition.CategoryId);
-        }
 
         return Array.AsReadOnly(items.ToArray());
     }

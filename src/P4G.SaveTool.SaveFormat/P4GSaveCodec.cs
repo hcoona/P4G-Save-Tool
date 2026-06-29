@@ -180,7 +180,7 @@ public static class P4GSaveCodec
         PersonaBlockDescriptor block,
         List<SaveDiagnostic> diagnostics)
     {
-        int blockLength = block.Count * block.Stride;
+        int blockLength = block.EffectiveBlockPatchLength;
         if (patch.ByteLength != blockLength)
         {
             diagnostics.Add(new SaveDiagnostic(

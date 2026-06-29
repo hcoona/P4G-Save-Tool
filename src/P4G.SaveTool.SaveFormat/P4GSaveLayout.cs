@@ -28,7 +28,7 @@ public sealed class P4GSaveLayout
         new PersonaBlockDescriptor("PartyPersonaSlots", 3492, 7, 132, 8),
         new SaveFieldDescriptor("Calendar", 6484, 11),
         new SaveFieldDescriptor("SocialLinks", 6512, 368),
-        new PersonaBlockDescriptor("CompendiumPersonaSlots", 9688, 249, 48));
+        new PersonaBlockDescriptor("CompendiumPersonaSlots", 9688, 249, 48, BlockPatchLength: 11937));
 
     private readonly ReadOnlyCollection<SaveFieldDescriptor> fieldRegions;
     private readonly ReadOnlyCollection<PersonaBlockDescriptor> personaBlocks;

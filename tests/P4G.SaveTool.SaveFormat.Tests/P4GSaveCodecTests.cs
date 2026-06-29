@@ -47,6 +47,7 @@ public sealed class P4GSaveCodecTests
     private const int LegacyCompendiumPersonaSlotsOffset = 9688;
     private const int LegacyCompendiumPersonaSlotsCount = 249;
     private const int LegacyCompendiumPersonaSlotStride = 48;
+    private const int LegacyCompendiumPersonaBlockPatchLength = 11937;
     private const int LegacyCompendiumPersonaLastSlotIndex = LegacyCompendiumPersonaSlotsCount - 1;
     private static readonly PersonaSlotSentinel CompendiumPersonaSlot248 = new(0x3388, 0x38, 0x38383838, 0x3381);
 
@@ -386,12 +387,12 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
-    public void PersonaBlockPatchReplacesWholeCompendiumRegion()
+    public void PersonaBlockPatchReplacesLegacyCompendiumWriteRegion()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
         byte[] input = CreateSyntheticSave();
         SaveSnapshot snapshot = OpenOrThrow(input);
-        byte[] compendiumBytes = new byte[layout.CompendiumPersonaSlots.Count * layout.CompendiumPersonaSlots.Stride];
+        byte[] compendiumBytes = new byte[layout.CompendiumPersonaSlots.EffectiveBlockPatchLength];
         compendiumBytes[layout.CompendiumPersonaSlots.Stride + 2] = 0x34;
         compendiumBytes[layout.CompendiumPersonaSlots.Stride + 3] = 0x12;
         compendiumBytes[layout.CompendiumPersonaSlots.Stride + PersonaSlotBinaryCodec.BinaryLength + 1] = 0x7f;
@@ -401,6 +402,9 @@ public sealed class P4GSaveCodecTests
         Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
         byte[] output = Assert.IsType<byte[]>(result.Bytes);
         Assert.Equal(compendiumBytes, output.AsSpan(layout.CompendiumPersonaSlots.Offset, compendiumBytes.Length).ToArray());
+        Assert.Equal(
+            input.AsSpan(layout.CompendiumPersonaSlots.Offset + compendiumBytes.Length, 15).ToArray(),
+            output.AsSpan(layout.CompendiumPersonaSlots.Offset + compendiumBytes.Length, 15).ToArray());
         AssertOnlyRangesChanged(input, output, (layout.CompendiumPersonaSlots.Offset, compendiumBytes.Length));
     }
 
@@ -600,6 +604,7 @@ public sealed class P4GSaveCodecTests
             LegacyCompendiumPersonaSlotsCount,
             LegacyCompendiumPersonaSlotStride,
             0);
+        Assert.Equal(LegacyCompendiumPersonaBlockPatchLength, layout.CompendiumPersonaSlots.EffectiveBlockPatchLength);
         Assert.Equal(
             LegacyCompendiumPersonaSlotsOffset
                 + (LegacyCompendiumPersonaSlotsCount * LegacyCompendiumPersonaSlotStride),

@@ -133,6 +133,51 @@ public sealed class CompendiumSelectionTests
     }
 
     [Fact]
+    public void CompendiumAddTargetResolverSelectsLastDuplicateExistingSlot()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+            new(2, true, 0x1111, 22, 200, [8, 7, 6, 5, 4, 3, 2, 1], 20, 21, 22, 23, 24),
+        ];
+
+        bool succeeded = MainWindow.TryResolveCompendiumPersonaAddTarget(
+            compendiumSlots,
+            0x1111,
+            out int slotIndex,
+            out bool existingSlot,
+            out SaveDiagnostic? diagnostic);
+
+        Assert.True(succeeded);
+        Assert.Equal(2, slotIndex);
+        Assert.True(existingSlot);
+        Assert.Null(diagnostic);
+    }
+
+    [Fact]
+    public void CompendiumAddTargetResolverTreatsInactiveNonzeroPersonaAsExisting()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, false, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+        ];
+
+        bool succeeded = MainWindow.TryResolveCompendiumPersonaAddTarget(
+            compendiumSlots,
+            0x1111,
+            out int slotIndex,
+            out bool existingSlot,
+            out SaveDiagnostic? diagnostic);
+
+        Assert.True(succeeded);
+        Assert.Equal(0, slotIndex);
+        Assert.True(existingSlot);
+        Assert.Null(diagnostic);
+    }
+
+    [Fact]
     public void CompendiumAddTargetResolverReturnsExistingSlotWhenCompendiumIsFull()
     {
         IReadOnlyList<PersonaSlotViewState> compendiumSlots =
@@ -243,6 +288,30 @@ public sealed class CompendiumSelectionTests
             new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
             new(1, true, 0x2222, 13, 101, [1, 2, 3, 4, 5, 6, 7, 8], 11, 12, 13, 14, 15),
             new(2, true, 0x4444, 14, 102, [1, 2, 3, 4, 5, 6, 7, 8], 12, 13, 14, 15, 16),
+            new(3, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
+        ];
+
+        bool succeeded = MainWindow.TryResolveCompendiumPersonaAddTarget(
+            compendiumSlots,
+            3,
+            out int slotIndex,
+            out bool existingSlot,
+            out SaveDiagnostic? diagnostic);
+
+        Assert.True(succeeded);
+        Assert.Equal(3, slotIndex);
+        Assert.False(existingSlot);
+        Assert.Null(diagnostic);
+    }
+
+    [Fact]
+    public void CompendiumAddTargetResolverDoesNotTreatInactiveNonzeroPersonaAsFree()
+    {
+        IReadOnlyList<PersonaSlotViewState> compendiumSlots =
+        [
+            new(0, true, 0x1111, 12, 100, [1, 2, 3, 4, 5, 6, 7, 8], 10, 11, 12, 13, 14),
+            new(1, true, 0x2222, 13, 101, [1, 2, 3, 4, 5, 6, 7, 8], 11, 12, 13, 14, 15),
+            new(2, false, 0x4444, 14, 102, [1, 2, 3, 4, 5, 6, 7, 8], 12, 13, 14, 15, 16),
             new(3, false, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0),
         ];
 

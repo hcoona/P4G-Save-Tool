@@ -283,11 +283,11 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Theory]
-    [InlineData((ushort)0, (byte)ItemCategoryId.Weapons, "Weapons")]
-    [InlineData((ushort)256, (byte)ItemCategoryId.Armor, "Armor")]
-    [InlineData((ushort)1024, (byte)ItemCategoryId.Books, "Books")]
-    [InlineData((ushort)1792, (byte)ItemCategoryId.Costumes, "Costumes")]
-    public void PlaceholderInventoryItemsProjectToTheirCategories(ushort itemId, byte expectedCategoryId, string expectedCategoryName)
+    [InlineData((ushort)0)]
+    [InlineData((ushort)256)]
+    [InlineData((ushort)1024)]
+    [InlineData((ushort)1792)]
+    public void PlaceholderInventoryItemsAreHiddenFromInventoryEntries(ushort itemId)
     {
         FakeSaveApplicationService service = new()
         {
@@ -303,12 +303,7 @@ public sealed class SaveEditorViewModelTests
         SaveEditorOperationResult result = viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
 
         Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
-        InventoryStackViewState entry = Assert.Single(viewModel.InventoryEntries);
-        Assert.Equal(itemId, entry.ItemId);
-        Assert.Equal(expectedCategoryId, entry.CategoryId);
-        Assert.Equal(expectedCategoryName, entry.CategoryName);
-        Assert.True(entry.IsPlaceholder);
-        Assert.EndsWith($"[{expectedCategoryName}]", entry.DisplayName);
+        Assert.Empty(viewModel.InventoryEntries);
     }
 
     [Fact]
@@ -784,6 +779,30 @@ public sealed class SaveEditorViewModelTests
         Assert.Single(setResult.Diagnostics, diagnostic => diagnostic.Code == "P4GPRES008");
         Assert.Single(removeResult.Diagnostics, diagnostic => diagnostic.Code == "P4GPRES008");
         Assert.Empty(service.AppliedEdits);
+    }
+
+    [Fact]
+    public void PlaceholderInventoryStacksAreHiddenFromProjectedEntries()
+    {
+        FakeSaveApplicationService service = new()
+        {
+            OpenHandler = static _ => new SaveOpenResult<WorkingSave>(
+                new FakeWorkingSave(CreateState(inventoryStacks:
+                [
+                    new InventoryStack(1792, 1),
+                    new InventoryStack(257, 2),
+                    new InventoryStack(1024, 3),
+                ])),
+                []),
+        };
+        SaveEditorViewModel viewModel = new(service);
+
+        viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
+
+        InventoryStackViewState entry = Assert.Single(viewModel.InventoryEntries);
+        Assert.Equal((ushort)257, entry.ItemId);
+        Assert.Equal((byte)2, entry.Quantity);
+        Assert.Equal(1, entry.SlotIndex);
     }
 
     [Fact]

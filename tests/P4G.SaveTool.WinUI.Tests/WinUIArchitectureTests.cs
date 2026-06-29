@@ -417,6 +417,10 @@ public sealed class WinUIArchitectureTests
             content,
             "x:Name=\"MainCharacterLevelSlider\"",
             "x:Name=\"MainCharacterLevelValueTextBlock\"");
+        string personaLevelSlider = GetSection(
+            content,
+            "x:Name=\"PersonaLevelSlider\"",
+            "x:Name=\"PersonaLevelValueTextBlock\"");
 
         Assert.Contains("x:Name=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Click=\"JumpBasicStats_Click\"", content, StringComparison.Ordinal);
@@ -455,6 +459,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("MainCharacterCalculateFromLevelButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("MainCharacterLevelSlider_ValueChanged", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PersonaCalculateFromLevelButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Minimum=\"0\"", personaLevelSlider, StringComparison.Ordinal);
         Assert.Contains("Click=\"PersonaCalculateFromLevelButton_Click\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PersonaLevelValueTextBlock\"", content, StringComparison.Ordinal);
         Assert.Contains("ValueChanged=\"PersonaLevelSlider_ValueChanged\"", content, StringComparison.Ordinal);
@@ -970,6 +975,7 @@ public sealed class WinUIArchitectureTests
 
         Assert.Contains("ApplyOpenResult(", openBody, StringComparison.Ordinal);
         Assert.Contains("if (!result.Succeeded)", openBody, StringComparison.Ordinal);
+        Assert.Contains("DisplayDiagnostics(result.Diagnostics);", openBody, StringComparison.Ordinal);
         Assert.Contains("if (string.Equals(source, \"Launch\", StringComparison.Ordinal))", openBody, StringComparison.Ordinal);
         Assert.Contains("refreshEditableFieldsAfterStartupOpen = true;", openBody, StringComparison.Ordinal);
         Assert.Contains("return BusyOperationCompletion.PreserveEditorState;", openBody, StringComparison.Ordinal);

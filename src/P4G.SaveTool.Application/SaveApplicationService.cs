@@ -639,7 +639,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
         PersonaBlockDescriptor block,
         IReadOnlyList<PersonaSlot> compendiumSlots)
     {
-        byte[] bytes = new byte[block.Count * block.Stride];
+        byte[] bytes = new byte[block.EffectiveBlockPatchLength];
         bool[] occupiedSlots = new bool[block.Count];
 
         WriteCompendiumPersonaSlots(bytes, block, compendiumSlots, occupiedSlots, canonicalKnownPersonas: true);
@@ -659,7 +659,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
         for (int sourceSlotIndex = 0; sourceSlotIndex < slotCount; sourceSlotIndex++)
         {
             PersonaSlot slot = compendiumSlots[sourceSlotIndex];
-            if (!slot.Exists || slot.PersonaId == 0)
+            if (slot.PersonaId == 0)
             {
                 continue;
             }
@@ -682,6 +682,11 @@ public sealed class SaveApplicationService : ISaveApplicationService
             SaveWriteResult writeResult = PersonaSlotBinaryCodec.Write(slot);
             ReadOnlyMemory<byte> personaBytes = writeResult.Bytes ?? Array.Empty<byte>();
             int targetOffset = (targetSlotIndex * block.Stride) + block.PersonaOffsetWithinStride;
+            if (targetOffset + PersonaSlotBinaryCodec.BinaryLength > bytes.Length)
+            {
+                continue;
+            }
+
             personaBytes.Span.CopyTo(bytes.AsSpan(targetOffset, PersonaSlotBinaryCodec.BinaryLength));
             occupiedSlots[targetSlotIndex] = true;
         }
@@ -901,7 +906,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
         {
             if (allowBlankPersonaId)
             {
-                return apply(state, slotIndex, CreateBlankPersonaSlot());
+                return apply(state, slotIndex, CreateBlankPersonaSlot(currentSlots[slotIndex]));
             }
 
             diagnostics.Add(new SaveDiagnostic(
@@ -916,7 +921,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
         byte existsRawByte = currentSlot.ExistsRawByte != 0
             ? currentSlot.ExistsRawByte
             : (byte)1;
-        byte level = personaSlotEdit.Level == 0
+        byte level = personaSlotEdit.Level == 0 && !currentSlot.Exists
             ? (byte)1
             : personaSlotEdit.Level;
         PersonaSlot updatedSlot = new(
@@ -979,6 +984,21 @@ public sealed class SaveApplicationService : ISaveApplicationService
             endurance: 0,
             agility: 0,
             luck: 0);
+
+    private static PersonaSlot CreateBlankPersonaSlot(PersonaSlot currentSlot) =>
+        new(
+            existsRawByte: 0,
+            currentSlot.Unknown0,
+            personaId: 0,
+            currentSlot.Level,
+            currentSlot.ReservedAfterLevel,
+            currentSlot.TotalExperience,
+            currentSlot.SkillIds,
+            currentSlot.Strength,
+            currentSlot.Magic,
+            currentSlot.Endurance,
+            currentSlot.Agility,
+            currentSlot.Luck);
 
     private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>
         itemId < (ushort)layout.Inventory.Length &&

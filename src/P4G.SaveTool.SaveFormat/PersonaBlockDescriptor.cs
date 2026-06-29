@@ -5,7 +5,10 @@ public sealed record PersonaBlockDescriptor(
     int Offset,
     int Count,
     int Stride,
-    int PersonaOffsetWithinStride = 0)
+    int PersonaOffsetWithinStride = 0,
+    int? BlockPatchLength = null)
 {
     public int EndOffset => Offset + (Count * Stride);
+
+    public int EffectiveBlockPatchLength => BlockPatchLength ?? Count * Stride;
 }

@@ -1009,6 +1009,7 @@ public sealed class SaveEditorViewModel : ViewModelBase
         IReadOnlyList<InventoryStack> stacks) =>
         Array.AsReadOnly(stacks
             .Select(static (stack, index) => InventoryCatalogProjection.ProjectStack(index, stack))
+            .Where(static stack => !stack.IsPlaceholder)
             .ToArray());
 
     private static bool InventoryEntriesEqual(

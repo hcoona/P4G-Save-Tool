@@ -248,7 +248,7 @@
                 </Grid.ColumnDefinitions>
                 <Slider
                   x:Name="PersonaLevelSlider"
-                  Minimum="1"
+                  Minimum="0"
                   Maximum="255"
                   TickFrequency="1"
                   StepFrequency="1"

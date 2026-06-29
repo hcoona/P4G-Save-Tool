@@ -360,6 +360,7 @@ public sealed partial class MainWindow : Window
 
             if (!result.Succeeded)
             {
+                DisplayDiagnostics(result.Diagnostics);
                 await ShowMessageAsync("Open failed", FormatDiagnostics(result.Diagnostics));
                 refreshEditableFieldsAfterStartupOpen = false;
                 return BusyOperationCompletion.PreserveEditorState;
@@ -1154,12 +1155,16 @@ public sealed partial class MainWindow : Window
         for (int index = 0; index < compendiumPersonaSlots.Count; index++)
         {
             PersonaSlotViewState slot = compendiumPersonaSlots[index];
-            if (slot.Exists && slot.PersonaId == personaId)
+            if (slot.PersonaId == personaId)
             {
                 slotIndex = slot.SlotIndex;
                 existingSlot = true;
-                return true;
             }
+        }
+
+        if (existingSlot)
+        {
+            return true;
         }
 
         if (personaId > 0)
@@ -1168,7 +1173,7 @@ public sealed partial class MainWindow : Window
             if (legacySlotIndex < compendiumPersonaSlots.Count)
             {
                 PersonaSlotViewState legacySlot = compendiumPersonaSlots[legacySlotIndex];
-                if (!legacySlot.Exists)
+                if (legacySlot.PersonaId == 0)
                 {
                     slotIndex = legacySlotIndex;
                     return true;
@@ -1179,7 +1184,7 @@ public sealed partial class MainWindow : Window
         for (int index = 0; index < compendiumPersonaSlots.Count; index++)
         {
             PersonaSlotViewState slot = compendiumPersonaSlots[index];
-            if (!slot.Exists)
+            if (slot.PersonaId == 0)
             {
                 slotIndex = slot.SlotIndex;
                 return true;
@@ -1808,7 +1813,7 @@ public sealed partial class MainWindow : Window
             if (viewModel.HasSave)
             {
                 foreach (CompendiumPersonaViewState compendiumEntry in viewModel.CompendiumPersonaSlots
-                    .Where(static slot => slot.Exists)
+                    .Where(static slot => slot.PersonaId != 0)
                     .Select(slot =>
                     {
                         SaveEditorViewModel.GetPersonaChoices(slot.PersonaId, out PersonaChoiceViewState choice);

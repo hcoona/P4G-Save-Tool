@@ -195,6 +195,29 @@ public sealed class PersonaEditBatchTests
         Assert.Equal((byte)0, personaSlotEdit.Level);
     }
 
+    [Fact]
+    public void PersonaChoiceRaisesNonCompendiumNonBlankLevelZeroToLegacyMinimum()
+    {
+        double level = MainWindow.ResolvePersonaLevelAfterPersonaChoice(0x0404, 0, isCompendiumContext: false);
+
+        Assert.Equal(1, level);
+    }
+
+    [Theory]
+    [InlineData(0, 0, false, 0)]
+    [InlineData(0x0404, 12, false, 12)]
+    [InlineData(0x0404, 0, true, 0)]
+    public void PersonaChoiceLeavesBlankNonzeroAndCompendiumLevelsUnchanged(
+        ushort selectedPersonaId,
+        double currentLevel,
+        bool isCompendiumContext,
+        double expectedLevel)
+    {
+        double level = MainWindow.ResolvePersonaLevelAfterPersonaChoice(selectedPersonaId, currentLevel, isCompendiumContext);
+
+        Assert.Equal(expectedLevel, level);
+    }
+
     [Theory]
     [InlineData(99, false)]
     [InlineData(100, true)]

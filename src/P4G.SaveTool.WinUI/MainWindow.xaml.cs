@@ -1275,12 +1275,22 @@ public sealed partial class MainWindow : Window
             personaId,
             1,
             0,
-            [0, 0, 0, 0, 0, 0, 1, 1],
-            1,
+            [0, 0, 0, 0, 0, 1, 1, 1],
             1,
             1,
             0,
+            0,
             0);
+
+    internal static double ResolvePersonaLevelAfterPersonaChoice(
+        ushort selectedPersonaId,
+        double currentLevel,
+        bool isCompendiumContext) =>
+        !isCompendiumContext &&
+        selectedPersonaId != 0 &&
+        (byte)Math.Round(currentLevel, MidpointRounding.AwayFromZero) == 0
+            ? 1
+            : currentLevel;
 
     internal static void MergeGroup4BatchResults(
         List<SaveEditCommand> batch,
@@ -3190,6 +3200,18 @@ public sealed partial class MainWindow : Window
         if (suppressPersonaEvents)
         {
             return;
+        }
+
+        if (PersonaChoiceComboBox.SelectedItem is PersonaChoiceViewState selectedPersonaChoice)
+        {
+            double resolvedLevel = ResolvePersonaLevelAfterPersonaChoice(
+                selectedPersonaChoice.PersonaId,
+                PersonaLevelSlider.Value,
+                selectedCompendiumSlotIndex.HasValue);
+            if (resolvedLevel != PersonaLevelSlider.Value)
+            {
+                SetLevelSliderValue(PersonaLevelSlider, resolvedLevel);
+            }
         }
 
         UpdateShellState();

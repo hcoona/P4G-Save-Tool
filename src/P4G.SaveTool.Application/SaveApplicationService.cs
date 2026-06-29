@@ -679,7 +679,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
                 continue;
             }
 
-            SaveWriteResult writeResult = PersonaSlotBinaryCodec.Write(slot);
+            SaveWriteResult writeResult = PersonaSlotBinaryCodec.Write(NormalizePersonaSlotForLegacyWrite(slot, clearReservedAfterLevel: true));
             ReadOnlyMemory<byte> personaBytes = writeResult.Bytes ?? Array.Empty<byte>();
             int targetOffset = (targetSlotIndex * block.Stride) + block.PersonaOffsetWithinStride;
             if (targetOffset + PersonaSlotBinaryCodec.BinaryLength > bytes.Length)
@@ -738,11 +738,26 @@ public sealed class SaveApplicationService : ISaveApplicationService
         int slotIndex,
         PersonaSlot personaSlot)
     {
-        SaveWriteResult writeResult = PersonaSlotBinaryCodec.Write(personaSlot);
+        SaveWriteResult writeResult = PersonaSlotBinaryCodec.Write(NormalizePersonaSlotForLegacyWrite(personaSlot, clearReservedAfterLevel: false));
         return new SaveFieldPatch(
             $"{block.Name}[{slotIndex}]",
             writeResult.Bytes ?? Array.Empty<byte>());
     }
+
+    private static PersonaSlot NormalizePersonaSlotForLegacyWrite(PersonaSlot personaSlot, bool clearReservedAfterLevel) =>
+        new(
+            personaSlot.Exists ? (byte)1 : (byte)0,
+            personaSlot.Unknown0,
+            personaSlot.PersonaId,
+            personaSlot.Level,
+            clearReservedAfterLevel ? new byte[] { 0, 0, 0 } : personaSlot.ReservedAfterLevel,
+            personaSlot.TotalExperience,
+            personaSlot.SkillIds,
+            personaSlot.Strength,
+            personaSlot.Magic,
+            personaSlot.Endurance,
+            personaSlot.Agility,
+            personaSlot.Luck);
 
     private static void AddEquipmentPatches(
         List<SaveFieldPatch> patches,
@@ -930,7 +945,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
             return state;
         }
 
-        if (!allowNonBlankLevelZero && personaSlotEdit.Level == 0)
+        bool personaIdChanged = currentSlot.PersonaId != personaSlotEdit.PersonaId;
+        bool activatesBlankSlot = personaIdChanged && !currentSlot.Exists;
+        if (!allowNonBlankLevelZero && personaSlotEdit.Level == 0 && !activatesBlankSlot)
         {
             diagnostics.Add(new SaveDiagnostic(
                 DiagnosticSeverity.Error,
@@ -940,11 +957,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
             return state;
         }
 
-        bool personaIdChanged = currentSlot.PersonaId != personaSlotEdit.PersonaId;
-        byte existsRawByte = !personaIdChanged || currentSlot.ExistsRawByte != 0
-            ? currentSlot.ExistsRawByte
-            : (byte)1;
-        byte level = personaSlotEdit.Level == 0 && personaIdChanged && !currentSlot.Exists
+        byte existsRawByte = currentSlot.Exists || personaIdChanged ? (byte)1 : (byte)0;
+        byte level = !allowNonBlankLevelZero && personaSlotEdit.Level == 0 && activatesBlankSlot
             ? (byte)1
             : personaSlotEdit.Level;
         PersonaSlot updatedSlot = new(

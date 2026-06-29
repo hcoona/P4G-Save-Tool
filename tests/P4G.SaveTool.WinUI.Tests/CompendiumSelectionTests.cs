@@ -391,10 +391,10 @@ public sealed class CompendiumSelectionTests
         Assert.Equal((ushort)3, appliedEditValue.PersonaId);
         Assert.Equal((byte)1, appliedEditValue.Level);
         Assert.Equal((uint)0, appliedEditValue.TotalExperience);
-        Assert.Equal([0, 0, 0, 0, 0, 0, 1, 1], appliedEditValue.SkillIds);
+        Assert.Equal([0, 0, 0, 0, 0, 1, 1, 1], appliedEditValue.SkillIds);
         Assert.Equal((byte)1, appliedEditValue.Strength);
         Assert.Equal((byte)1, appliedEditValue.Magic);
-        Assert.Equal((byte)1, appliedEditValue.Endurance);
+        Assert.Equal((byte)0, appliedEditValue.Endurance);
         Assert.Equal((byte)0, appliedEditValue.Agility);
         Assert.Equal((byte)0, appliedEditValue.Luck);
     }

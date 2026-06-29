@@ -1473,7 +1473,7 @@ public sealed class SaveApplicationServiceTests
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
             save,
-            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 1, 0x11111111, 0x1401))]);
+            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 0, 0x11111111, 0x1401))]);
 
         Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
         WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
@@ -1587,7 +1587,7 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
-    public void ApplyEditsAndWritePreservesPersonaSlotExistsRawByte()
+    public void ApplyEditsAndWriteCanonicalizesActivePersonaSlotExistsRawByte()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
         byte[] input = CreateSyntheticSave();
@@ -1597,19 +1597,68 @@ public sealed class SaveApplicationServiceTests
 
         SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
             save,
-            [new SetProtagonistPersonaSlotEdit(1, CreatePersonaSlotEdit(0x0102, 88, 0x11111111, 0x1401))]);
+            [new SetProtagonistPersonaSlotEdit(1, CreatePersonaSlotEdit(ProtagonistPersonaSlot1.PersonaId, 88, 0x11111111, 0x1401))]);
 
         Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
         WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
         SaveWriteResult writeResult = service.Write(editedSave);
         Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
         byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
-        Assert.Equal((byte)0x02, output[protagonistOffset]);
-        Assert.Equal((ushort)0x0102, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(protagonistOffset + 2, sizeof(ushort))));
+        Assert.Equal((byte)1, output[protagonistOffset]);
+        Assert.Equal(ProtagonistPersonaSlot1.PersonaId, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(protagonistOffset + 2, sizeof(ushort))));
         AssertOnlyRangesChanged(input, output, (protagonistOffset, PersonaSlotBinaryCodec.BinaryLength));
 
         WorkingSave reopenedSave = OpenOrThrow(service, output);
-        Assert.Equal((byte)0x02, reopenedSave.State.ProtagonistPersonaSlots[1].ExistsRawByte);
+        Assert.Equal((byte)1, reopenedSave.State.ProtagonistPersonaSlots[1].ExistsRawByte);
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteZeroesCompendiumReservedAfterLevelBytes()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+        int compendiumOffset = layout.CompendiumPersonaSlots.Offset + (0 * layout.CompendiumPersonaSlots.Stride) + layout.CompendiumPersonaSlots.PersonaOffsetWithinStride;
+        Assert.Equal(new byte[] { 0x32, 0x33, 0x34 }, input.AsSpan(compendiumOffset + 5, PersonaSlot.ReservedAfterLevelLength).ToArray());
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
+            save,
+            [new SetCompendiumPersonaSlotEdit(0, CreatePersonaSlotEdit(CompendiumPersonaSlot0.PersonaId, 88, 0x11111111, 0x1401))]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal(new byte[] { 0, 0, 0 }, output.AsSpan(compendiumOffset + 5, PersonaSlot.ReservedAfterLevelLength).ToArray());
+        Assert.Equal((byte)1, output[compendiumOffset]);
+        Assert.Equal(CompendiumPersonaSlot0.PersonaId, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(compendiumOffset + 2, sizeof(ushort))));
+    }
+
+    [Fact]
+    public void ApplyEditsAndWritePreservesCompendiumNonBlankLevelZero()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        int slotIndex = 2;
+        int compendiumOffset = layout.CompendiumPersonaSlots.Offset + (slotIndex * layout.CompendiumPersonaSlots.Stride) + layout.CompendiumPersonaSlots.PersonaOffsetWithinStride;
+        WritePersonaSlotBytes(input.AsSpan(compendiumOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0, 0, 0, 0, 0));
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
+            save,
+            [new SetCompendiumPersonaSlotEdit(slotIndex, CreatePersonaSlotEdit(3, 0, 0x11111111, 0x1401))]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)1, output[compendiumOffset]);
+        Assert.Equal((ushort)3, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(compendiumOffset + 2, sizeof(ushort))));
+        Assert.Equal((byte)0, output[compendiumOffset + 4]);
     }
 
     [Fact]

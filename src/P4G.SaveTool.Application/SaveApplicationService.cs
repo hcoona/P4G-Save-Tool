@@ -594,7 +594,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
         IReadOnlyList<InventoryStack> inventoryStacks)
     {
         byte[] bytes = new byte[field.Length];
-        foreach (InventoryStack stack in inventoryStacks)
+        foreach (InventoryStack stack in NormalizeInventoryStacks(inventoryStacks))
         {
             bytes[stack.ItemId] = stack.Quantity;
         }
@@ -808,6 +808,14 @@ public sealed class SaveApplicationService : ISaveApplicationService
         IReadOnlyList<InventoryStack> right) =>
         left.Count == right.Count &&
         left.SequenceEqual(right);
+
+    private static IReadOnlyList<InventoryStack> NormalizeInventoryStacks(IReadOnlyList<InventoryStack> inventoryStacks)
+    {
+        InventoryStack[] normalizedStacks = inventoryStacks
+            .Where(static stack => InventoryItemEditability.IsWritableItemId(stack.ItemId))
+            .ToArray();
+        return normalizedStacks.Length == inventoryStacks.Count ? inventoryStacks : normalizedStacks;
+    }
 
     private static bool SocialStatsEqual(
         IReadOnlyList<ushort> left,

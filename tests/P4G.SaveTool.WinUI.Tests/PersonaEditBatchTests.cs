@@ -218,6 +218,28 @@ public sealed class PersonaEditBatchTests
         Assert.False(MainWindow.ShouldSkipPersonaEdit(currentSlot, proposedEdit));
     }
 
+    [Fact]
+    public void CompendiumDetailEditPreservesCurrentPersonaIdentity()
+    {
+        PersonaSlotViewState currentSlot = new(
+            slotIndex: 4,
+            exists: true,
+            personaId: 0x3331,
+            level: 49,
+            totalExperience: 100,
+            skillIds: [1, 2, 3, 4, 5, 6, 7, 8],
+            strength: 10,
+            magic: 11,
+            endurance: 12,
+            agility: 13,
+            luck: 14);
+        PersonaSlotEdit proposedEdit = new(0x0404, 55, 1234, [0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408], 21, 22, 23, 24, 25);
+
+        PersonaSlotEdit preservedEdit = MainWindow.PreserveCompendiumPersonaIdentity(currentSlot, proposedEdit);
+
+        Assert.Equal(proposedEdit with { PersonaId = currentSlot.PersonaId }, preservedEdit);
+    }
+
     private static PersonaSlotViewState CreateBlankPersonaSlotViewState() =>
         new(
             slotIndex: 2,

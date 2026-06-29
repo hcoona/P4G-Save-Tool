@@ -308,6 +308,45 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
+    public void ApplyEditsAndWriteClearsPlaceholderInventoryBytesWhenInventoryPatchIsEmitted()
+    {
+        byte[] input = CreateSyntheticSave();
+        input[LegacyInventoryOffset + 1024] = 7;
+        input[LegacyInventoryOffset + 1792] = 8;
+        input[LegacyInventoryOffset + 2048] = 9;
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+        Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 1024);
+        Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 1792);
+        Assert.Contains(save.State.InventoryStacks, static stack => stack.ItemId == 2048);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, [new SetInventoryItemQuantityEdit(257, 9)]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)9, output[LegacyInventoryOffset + 257]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1024]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 1792]);
+        Assert.Equal((byte)0, output[LegacyInventoryOffset + 2048]);
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (LegacyInventoryOffset + 257, 1),
+            (LegacyInventoryOffset + 1024, 1),
+            (LegacyInventoryOffset + 1792, 1),
+            (LegacyInventoryOffset + 2048, 1));
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 1024);
+        Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 1792);
+        Assert.DoesNotContain(reopenedSave.State.InventoryStacks, static stack => stack.ItemId == 2048);
+    }
+
+    [Fact]
     public void ApplyEditsAndWriteSupportsAccessoryAndPartyCostumeExactOffsets()
     {
         byte[] input = CreateSyntheticSave();

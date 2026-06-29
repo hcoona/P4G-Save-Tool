@@ -75,10 +75,25 @@ public sealed class WinUIArchitectureTests
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string listHandlerBody = GetSection(
+            content,
+            "private void InventoryListView_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void InventoryCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+        string categoryHandlerBody = GetSection(
+            content,
+            "private void InventoryCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void InventoryItemComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+        string itemHandlerBody = GetSection(
+            content,
+            "private void InventoryItemComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void InventoryAddUpdateButton_Click(object sender, RoutedEventArgs e)");
 
         AssertHandlerRefreshesShellState(content, "InventoryListView_SelectionChanged", "RefreshInventoryState();");
         AssertHandlerRefreshesShellState(content, "InventoryCategoryComboBox_SelectionChanged", "RefreshInventoryState();");
         AssertHandlerRefreshesShellState(content, "InventoryItemComboBox_SelectionChanged", "RefreshInventoryState();");
+        AssertInventoryHandlerAutoAppliesBeforeClearingDraft(listHandlerBody);
+        AssertInventoryHandlerAutoAppliesBeforeClearingDraft(categoryHandlerBody);
+        AssertInventoryHandlerAutoAppliesBeforeClearingDraft(itemHandlerBody);
         AssertHandlerRefreshesShellState(content, "EquipmentCharacterComboBox_SelectionChanged", "RefreshEquipmentState();");
         Assert.Contains("ApplyEquipmentSelection(EquipmentWeaponComboBox", content, StringComparison.Ordinal);
         Assert.Contains("ApplyEquipmentSelection(EquipmentArmorComboBox", content, StringComparison.Ordinal);
@@ -95,6 +110,18 @@ public sealed class WinUIArchitectureTests
             content,
             "private void PersonaMemberComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
             "private void PersonaSlotComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+        string addPersonaBody = GetSection(
+            content,
+            "private void AddPersonaEdit(List<SaveEditCommand> edits, List<SaveDiagnostic> diagnostics)",
+            "private static bool TryValidateCompendiumPersonaExperienceChange(");
+        string captureCompendiumDraftBody = GetSection(
+            content,
+            "private CompendiumDraftState? CaptureSelectedCompendiumDraft()",
+            "private void RestoreSelectedCompendiumDraft(CompendiumDraftState compendiumDraft)");
+        string restoreCompendiumDraftBody = GetSection(
+            content,
+            "private void RestoreSelectedCompendiumDraft(CompendiumDraftState compendiumDraft)",
+            "internal static bool ShouldRestoreSelectedCompendiumDraft(");
 
         Assert.Contains("PersonaMemberComboBox_SelectionChanged", content, StringComparison.Ordinal);
         Assert.Contains("PersonaSlotComboBox_SelectionChanged", content, StringComparison.Ordinal);
@@ -111,6 +138,11 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("selectedPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1", content, StringComparison.Ordinal);
         Assert.Contains("ClearSelectedCompendiumContext(ref selectedCompendiumSlotIndex);", memberHandlerBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumListView.SelectedItem = null;", memberHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("PreserveCompendiumPersonaIdentity(currentCompendiumSlot, compendiumPersonaSlotEdit)", addPersonaBody, StringComparison.Ordinal);
+        Assert.Contains("ushort selectedPersonaId = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value].PersonaId;", captureCompendiumDraftBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("PersonaChoiceComboBox.ItemsSource = SaveEditorViewModel.GetPersonaChoices", restoreCompendiumDraftBody, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(content, Regex.Escape("PersonaChoiceComboBox.ItemsSource =")));
+        Assert.Contains("PersonaChoiceComboBox.IsEnabled = canEdit && !selectedCompendiumSlotIndex.HasValue;", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1573,6 +1605,16 @@ public sealed class WinUIArchitectureTests
 
         Assert.True(refreshIndex >= 0, $"{methodName} must refresh state.");
         Assert.True(shellIndex > refreshIndex, $"{methodName} must update shell state after refreshing state.");
+    }
+
+    private static void AssertInventoryHandlerAutoAppliesBeforeClearingDraft(string handlerBody)
+    {
+        int autoApplyIndex = handlerBody.IndexOf("if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())", StringComparison.Ordinal);
+        int clearDraftIndex = handlerBody.IndexOf("inventoryQuantityDraftDirty = false;", StringComparison.Ordinal);
+
+        Assert.True(autoApplyIndex >= 0, "Inventory selection handlers must auto-apply dirty quantity drafts before changing selection.");
+        Assert.True(clearDraftIndex < 0 || autoApplyIndex < clearDraftIndex, "Inventory drafts must be applied before they are cleared.");
+        Assert.Contains("RestoreInventorySelectionAfterBlockedDraft();", handlerBody, StringComparison.Ordinal);
     }
 
     private static string GetWinUIProjectFile()

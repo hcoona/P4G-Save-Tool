@@ -702,6 +702,7 @@ public sealed partial class MainWindow : Window
             }
 
             PersonaSlotViewState currentCompendiumSlot = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value];
+            compendiumPersonaSlotEdit = PreserveCompendiumPersonaIdentity(currentCompendiumSlot, compendiumPersonaSlotEdit);
             if (!TryValidateCompendiumPersonaExperienceChange(currentCompendiumSlot, compendiumPersonaSlotEdit, out SaveDiagnostic experienceDiagnostic))
             {
                 diagnostics.Add(experienceDiagnostic);
@@ -874,9 +875,7 @@ public sealed partial class MainWindow : Window
             return null;
         }
 
-        ushort selectedPersonaId = PersonaChoiceComboBox.SelectedItem is PersonaChoiceViewState selectedChoice
-            ? selectedChoice.PersonaId
-            : viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value].PersonaId;
+        ushort selectedPersonaId = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value].PersonaId;
 
         return new CompendiumDraftState(
             selectedCompendiumSlotIndex.Value,
@@ -909,7 +908,15 @@ public sealed partial class MainWindow : Window
         try
         {
             selectedCompendiumSlotIndex = compendiumDraft.SlotIndex;
-            PersonaChoiceComboBox.ItemsSource = SaveEditorViewModel.GetPersonaChoices(compendiumDraft.PersonaId, out PersonaChoiceViewState selectedCompendiumChoice);
+            personaChoices.Clear();
+            PersonaChoiceViewState selectedCompendiumChoice = default!;
+            foreach (PersonaChoiceViewState choice in SaveEditorViewModel.GetPersonaChoices(
+                compendiumDraft.PersonaId,
+                out selectedCompendiumChoice))
+            {
+                personaChoices.Add(choice);
+            }
+
             PersonaChoiceComboBox.SelectedItem = selectedCompendiumChoice;
             PersonaXpTextBox.Text = compendiumDraft.ExperienceText;
             SetLevelSliderValue(PersonaLevelSlider, compendiumDraft.Level);
@@ -939,6 +946,16 @@ public sealed partial class MainWindow : Window
         int? selectedCompendiumSlotIndex) =>
         selectedCompendiumSlotIndex.HasValue &&
         selectedCompendiumSlotIndex.Value == compendiumDraft.SlotIndex;
+
+    internal static PersonaSlotEdit PreserveCompendiumPersonaIdentity(
+        PersonaSlotViewState currentSlot,
+        PersonaSlotEdit personaSlotEdit)
+    {
+        ArgumentNullException.ThrowIfNull(currentSlot);
+        ArgumentNullException.ThrowIfNull(personaSlotEdit);
+
+        return personaSlotEdit with { PersonaId = currentSlot.PersonaId };
+    }
 
     internal static bool TryBuildSocialLinkEdits(
         int? selectedSocialLinkIndex,
@@ -1600,7 +1617,7 @@ public sealed partial class MainWindow : Window
         PartySlot2ComboBox.IsEnabled = canEdit;
         PersonaMemberComboBox.IsEnabled = canEdit;
         PersonaSlotComboBox.IsEnabled = canEdit && selectedPersonaMemberId == 0 && !selectedCompendiumSlotIndex.HasValue;
-        PersonaChoiceComboBox.IsEnabled = canEdit;
+        PersonaChoiceComboBox.IsEnabled = canEdit && !selectedCompendiumSlotIndex.HasValue;
         PersonaXpTextBox.IsEnabled = canEdit;
         PersonaLevelSlider.IsEnabled = canEdit;
         PersonaCalculateFromLevelButton.IsEnabled = canEdit;
@@ -2610,10 +2627,46 @@ public sealed partial class MainWindow : Window
         return entry?.Quantity ?? (byte)1;
     }
 
+    private bool TryApplySelectedInventoryQuantityDraftBeforeOperation()
+    {
+        if (!viewModel.HasSave || !inventoryQuantityDraftDirty || !selectedInventoryItemId.HasValue)
+        {
+            return true;
+        }
+
+        if (!TryReadInventoryQuantity(out byte quantity))
+        {
+            return false;
+        }
+
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.SetInventoryItemQuantity(selectedInventoryItemId.Value, quantity));
+        if (!result.Succeeded)
+        {
+            SetUiDiagnostics(result.Diagnostics);
+            return false;
+        }
+
+        inventoryQuantityDraftDirty = false;
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        return true;
+    }
+
+    private void RestoreInventorySelectionAfterBlockedDraft() =>
+        RefreshFromViewModelPreservingInventoryQuantityDraft();
+
     private void InventoryListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (suppressInventoryEvents)
         {
+            return;
+        }
+
+        if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())
+        {
+            RestoreInventorySelectionAfterBlockedDraft();
+            UpdateShellState();
             return;
         }
 
@@ -2640,6 +2693,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())
+        {
+            RestoreInventorySelectionAfterBlockedDraft();
+            UpdateShellState();
+            return;
+        }
+
         if (InventoryCategoryComboBox.SelectedItem is ItemCategoryViewState selectedCategory)
         {
             inventoryQuantityDraftDirty = false;
@@ -2655,6 +2715,13 @@ public sealed partial class MainWindow : Window
     {
         if (suppressInventoryEvents)
         {
+            return;
+        }
+
+        if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())
+        {
+            RestoreInventorySelectionAfterBlockedDraft();
+            UpdateShellState();
             return;
         }
 

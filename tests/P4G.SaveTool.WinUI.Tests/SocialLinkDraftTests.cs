@@ -16,7 +16,7 @@ public sealed class SocialLinkDraftTests
         SocialLinkViewState changedLink = new(3, 13, "Matching", string.Empty, 1, 1, 1);
 
         Assert.True(MainWindow.ShouldRestoreSelectedSocialLinkDraft(draft, matchingLink));
-        Assert.True(MainWindow.ShouldRestoreSelectedSocialLinkDraft(draft, shiftedLink));
+        Assert.False(MainWindow.ShouldRestoreSelectedSocialLinkDraft(draft, shiftedLink));
         Assert.False(MainWindow.ShouldRestoreSelectedSocialLinkDraft(draft, changedLink));
         Assert.False(MainWindow.ShouldRestoreSelectedSocialLinkDraft(draft, null));
     }
@@ -33,6 +33,29 @@ public sealed class SocialLinkDraftTests
         SocialLinkViewState? selectedLink = MainWindow.ResolveSelectedSocialLinkViewState(socialLinks, 2, 3);
 
         Assert.Same(socialLinks[1], selectedLink);
+    }
+
+    [Fact]
+    public void SocialLinkSelectionResolverPrefersSlotIndexWhenDuplicateLinkIdsExist()
+    {
+        IReadOnlyList<SocialLinkViewState> socialLinks =
+        [
+            new(0, 3, "First duplicate", string.Empty, 1, 0, 0),
+            new(1, 3, "Selected duplicate", string.Empty, 2, 1, 0),
+        ];
+
+        SocialLinkViewState? selectedLink = MainWindow.ResolveSelectedSocialLinkViewState(socialLinks, 1, 3);
+
+        Assert.Same(socialLinks[1], selectedLink);
+    }
+
+    [Fact]
+    public void SocialLinkDraftDoesNotRestoreAcrossDuplicateSlots()
+    {
+        MainWindow.SocialLinkDraftState draft = new(1, 3, "6", "4");
+        SocialLinkViewState firstDuplicate = new(0, 3, "First duplicate", string.Empty, 1, 1, 1);
+
+        Assert.False(MainWindow.ShouldRestoreSelectedSocialLinkDraft(draft, firstDuplicate));
     }
 
     [Fact]

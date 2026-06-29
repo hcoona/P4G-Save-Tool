@@ -5,6 +5,7 @@ namespace P4G.SaveTool.WinUI;
 internal sealed class InventorySelectionState
 {
     private bool suppressAutoSelectAfterDelete;
+    private readonly Dictionary<byte, ushort> rememberedItemIdsByCategory = new();
     private InventoryQuantityTextContext? quantityTextContext;
 
     internal bool ShouldAutoSelectFirstEntry(
@@ -29,8 +30,15 @@ internal sealed class InventorySelectionState
     internal void Reset()
     {
         suppressAutoSelectAfterDelete = false;
+        rememberedItemIdsByCategory.Clear();
         quantityTextContext = null;
     }
+
+    internal void RememberCategoryItem(byte categoryId, ushort itemId) =>
+        rememberedItemIdsByCategory[categoryId] = itemId;
+
+    internal ushort? GetRememberedCategoryItem(byte categoryId) =>
+        rememberedItemIdsByCategory.TryGetValue(categoryId, out ushort itemId) ? itemId : null;
 
     internal static bool TrySelectEditedEntry(byte quantity, ushort? selectedItemId, out ushort selectedEntryId)
     {

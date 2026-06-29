@@ -204,6 +204,30 @@ public sealed class InventorySelectionStateTests
         Assert.True(selectionState.ShouldHydrateQuantityText((byte)ItemCategoryId.Other, 1025, 1025, "3"));
     }
 
+    [Fact]
+    public void RemembersLastSelectedItemPerCategory()
+    {
+        InventorySelectionState selectionState = new();
+
+        selectionState.RememberCategoryItem((byte)ItemCategoryId.Weapons, 2432);
+        selectionState.RememberCategoryItem((byte)ItemCategoryId.Consumables, 0);
+
+        Assert.Equal((ushort)2432, selectionState.GetRememberedCategoryItem((byte)ItemCategoryId.Weapons));
+        Assert.Equal((ushort)0, selectionState.GetRememberedCategoryItem((byte)ItemCategoryId.Consumables));
+        Assert.Null(selectionState.GetRememberedCategoryItem((byte)ItemCategoryId.Other));
+    }
+
+    [Fact]
+    public void ResetClearsRememberedCategoryItems()
+    {
+        InventorySelectionState selectionState = new();
+        selectionState.RememberCategoryItem((byte)ItemCategoryId.Weapons, 2432);
+
+        selectionState.Reset();
+
+        Assert.Null(selectionState.GetRememberedCategoryItem((byte)ItemCategoryId.Weapons));
+    }
+
     private static string SimulateInventoryQuantityRefresh(
         string quantityDraft,
         byte? selectedCategoryIdBeforeRefresh,

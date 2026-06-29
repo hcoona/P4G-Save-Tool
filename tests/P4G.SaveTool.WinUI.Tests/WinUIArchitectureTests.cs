@@ -118,36 +118,45 @@ public sealed class WinUIArchitectureTests
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
-        string applyBody = GetSection(
+        string selectionBody = GetSection(
             content,
-            "private void SocialLinkApplyButton_Click(object sender, RoutedEventArgs e)",
-            "private void SocialLinkDeleteButton_Click(");
-        string deleteBody = GetSection(
-            content,
-            "private void SocialLinkDeleteButton_Click(object sender, RoutedEventArgs e)",
-            "private void RefreshEquipmentState()");
+            "private void SocialLinkListView_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void SocialLinkAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
         string addBody = GetSection(
             content,
             "private void SocialLinkAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
-            "private void SocialLinkApplyButton_Click(object sender, RoutedEventArgs e)");
+            "private bool TryApplySelectedSocialLinkDraftBeforeOperation()");
+        string autoApplyBody = GetSection(
+            content,
+            "private bool TryApplySelectedSocialLinkDraftBeforeOperation()",
+            "private void RestoreSocialLinkListSelection()");
+        string deleteBody = GetSection(
+            content,
+            "private void SocialLinkDeleteButton_Click(object sender, RoutedEventArgs e)",
+            "private void CompendiumListView_SelectionChanged(object sender, SelectionChangedEventArgs e)");
 
         Assert.Contains("RefreshSocialLinksState();", content, StringComparison.Ordinal);
         Assert.Contains("SocialLinkListView_SelectionChanged", content, StringComparison.Ordinal);
         Assert.Contains("SocialLinkAddComboBox_SelectionChanged", content, StringComparison.Ordinal);
-        Assert.Contains("SocialLinkApplyButton_Click", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("SocialLinkApplyButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDeleteButton_Click", content, StringComparison.Ordinal);
-        Assert.Contains("RefreshSocialLinkDraftPreservingSelection(", addBody, StringComparison.Ordinal);
-        Assert.Contains("RefreshSocialLinkDraftPreservingSelection(", deleteBody, StringComparison.Ordinal);
-        Assert.Contains("if (!TryAppendSelectedSocialLinkEdits(edits, validationDiagnostics))", applyBody, StringComparison.Ordinal);
-        Assert.Contains("SetUiDiagnostics(validationDiagnostics);", applyBody, StringComparison.Ordinal);
-        Assert.Contains("viewModel.ApplyEdits(edits)", applyBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("SetSocialLinkLevel(", applyBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("SetSocialLinkProgress(", applyBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("SetSocialLinkFlag(", applyBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("RestoreSocialLinkListSelection();", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", addBody, StringComparison.Ordinal);
+        Assert.Contains("ResetSocialLinkAddChoice();", addBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", deleteBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryAppendSelectedSocialLinkEdits(edits, validationDiagnostics))", autoApplyBody, StringComparison.Ordinal);
+        Assert.Contains("SetUiDiagnostics(validationDiagnostics);", autoApplyBody, StringComparison.Ordinal);
+        Assert.Contains("viewModel.ApplyEdits(edits)", autoApplyBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetSocialLinkLevel(", autoApplyBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetSocialLinkProgress(", autoApplyBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetSocialLinkFlag(", autoApplyBody, StringComparison.Ordinal);
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", addBody, StringComparison.Ordinal);
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", deleteBody, StringComparison.Ordinal);
         Assert.Contains("AddSocialLink(", content, StringComparison.Ordinal);
         Assert.Contains("RemoveSocialLink(", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshSocialLinkDraftPreservingSelection(", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshSocialLinkDraftPreservingSelection(", deleteBody, StringComparison.Ordinal);
         Assert.DoesNotContain("viewModel.SocialLinks.Any(link => link.LinkId == selectedChoice.LinkId)", addBody, StringComparison.Ordinal);
     }
 
@@ -402,8 +411,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"SocialLinkLevelTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinkProgressTextBox\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"SocialLinkFlagTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"SocialLinkApplyButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"SocialLinkApplyButton_Click\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"SocialLinkApplyButton\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("Click=\"SocialLinkApplyButton_Click\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinkDeleteButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Click=\"SocialLinkDeleteButton_Click\"", content, StringComparison.Ordinal);
     }
@@ -538,7 +547,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SocialLinkFlagTextBox", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SocialLinkApplyButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SocialLinkApplyButton", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);

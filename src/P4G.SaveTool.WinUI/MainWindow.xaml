@@ -178,7 +178,6 @@
               <TextBox x:Name="SocialLinkLevelTextBox" Header="Level" InputScope="Number" IsEnabled="False" Width="100" />
               <TextBox Grid.Column="1" x:Name="SocialLinkProgressTextBox" Header="Progress" InputScope="Number" IsEnabled="False" Width="100" />
               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                <Button x:Name="SocialLinkApplyButton" Content="Apply" Click="SocialLinkApplyButton_Click" IsEnabled="False" />
                 <Button x:Name="SocialLinkDeleteButton" Content="Delete" Click="SocialLinkDeleteButton_Click" IsEnabled="False" />
               </StackPanel>
             </Grid>

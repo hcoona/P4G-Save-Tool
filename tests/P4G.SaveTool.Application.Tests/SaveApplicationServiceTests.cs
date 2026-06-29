@@ -1251,22 +1251,47 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
-    public void ApplyEditsClearsProtagonistAndPartyPersonaIdsWhilePreservingSlotFields()
+    public void ApplyEditsAllowsUnchangedCompendiumPersonaExperienceAboveLegacyMaximum()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        PersonaSlotSentinel overCapCompendiumSlot = new(0x3331, 0x31, 1_000_000_000, 0x2301);
+        WritePersonaSlotBytes(input, layout.CompendiumPersonaSlots, 0, overCapCompendiumSlot);
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(
+            save,
+            [new SetCompendiumPersonaSlotEdit(0, CreatePersonaSlotEdit(0x3331, 0x32, 1_000_000_000, 0x2401))]);
+
+        Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(result.Save);
+        PersonaSlot editedSlot = editedSave.State.CompendiumPersonaSlots[0];
+        Assert.Equal((ushort)0x3331, editedSlot.PersonaId);
+        Assert.Equal((byte)0x32, editedSlot.Level);
+        Assert.Equal(1_000_000_000u, editedSlot.TotalExperience);
+        Assert.Equal(Enumerable.Range(0, PersonaSlot.SkillCount).Select(index => (ushort)(0x2401 + index)), editedSlot.SkillIds);
+    }
+
+    [Fact]
+    public void ApplyEditsClearsProtagonistAndPartyPersonaIdsWithEditedVisibleFields()
     {
         SaveApplicationService service = new();
         WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+        PersonaSlotEdit protagonistBlankEdit = CreatePersonaSlotEdit(0, 88, 0x11111111, 0x1401);
+        PersonaSlotEdit partyBlankEdit = CreatePersonaSlotEdit(0, 66, 0x22222222, 0x1501);
 
         SaveEditResult<WorkingSave> result = service.ApplyEdits(
             save,
             [
-                new SetProtagonistPersonaSlotEdit(0, CreatePersonaSlotEdit(0, 88, 0x11111111, 0x1401)),
-                new SetPartyPersonaSlotEdit(0, CreatePersonaSlotEdit(0, 66, 0x22222222, 0x1501)),
+                new SetProtagonistPersonaSlotEdit(0, protagonistBlankEdit),
+                new SetPartyPersonaSlotEdit(0, partyBlankEdit),
             ]);
 
         Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
         WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(result.Save);
-        AssertPersonaSlotClearedByIdOnly(editedSave.State.ProtagonistPersonaSlots[0], ProtagonistPersonaSlot0);
-        AssertPersonaSlotClearedByIdOnly(editedSave.State.PartyPersonaSlots[0], PartyPersonaSlot0);
+        AssertPersonaSlotClearedWithEditedFields(editedSave.State.ProtagonistPersonaSlots[0], ProtagonistPersonaSlot0, protagonistBlankEdit);
+        AssertPersonaSlotClearedWithEditedFields(editedSave.State.PartyPersonaSlots[0], PartyPersonaSlot0, partyBlankEdit);
     }
 
     [Fact]
@@ -1333,6 +1358,75 @@ public sealed class SaveApplicationServiceTests
         Assert.True(reopenedSave.State.ProtagonistPersonaSlots[2].Exists);
         Assert.Equal((byte)1, reopenedSave.State.ProtagonistPersonaSlots[2].ExistsRawByte);
         Assert.Equal((ushort)0x0102, reopenedSave.State.ProtagonistPersonaSlots[2].PersonaId);
+        Assert.Equal((byte)1, reopenedSave.State.ProtagonistPersonaSlots[2].Level);
+    }
+
+    [Fact]
+    public void ApplyEditsAndWritePreservesInactiveNonzeroPersonaSlotWhenPersonaIdIsUnchanged()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        int protagonistOffset = layout.ProtagonistPersonaSlots.Offset + (2 * layout.ProtagonistPersonaSlots.Stride) + layout.ProtagonistPersonaSlots.PersonaOffsetWithinStride;
+        WritePersonaSlotBytes(input.AsSpan(protagonistOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0102, 0, 0x11111111, 0x1401, 0));
+
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+        Assert.False(save.State.ProtagonistPersonaSlots[2].Exists);
+        Assert.Equal((byte)0, save.State.ProtagonistPersonaSlots[2].ExistsRawByte);
+        Assert.Equal((ushort)0x0102, save.State.ProtagonistPersonaSlots[2].PersonaId);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
+            save,
+            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0102, 0, 0x22222222, 0x1501))]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)0, output[protagonistOffset]);
+        Assert.Equal((ushort)0x0102, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(protagonistOffset + 2, sizeof(ushort))));
+        Assert.Equal((byte)0, output[protagonistOffset + 4]);
+        Assert.Equal(0x22222222u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(protagonistOffset + 8, sizeof(uint))));
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.False(reopenedSave.State.ProtagonistPersonaSlots[2].Exists);
+        Assert.Equal((byte)0, reopenedSave.State.ProtagonistPersonaSlots[2].ExistsRawByte);
+        Assert.Equal((ushort)0x0102, reopenedSave.State.ProtagonistPersonaSlots[2].PersonaId);
+        Assert.Equal((byte)0, reopenedSave.State.ProtagonistPersonaSlots[2].Level);
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteActivatesInactiveNonzeroPersonaSlotWhenPersonaIdChanges()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        int protagonistOffset = layout.ProtagonistPersonaSlots.Offset + (2 * layout.ProtagonistPersonaSlots.Stride) + layout.ProtagonistPersonaSlots.PersonaOffsetWithinStride;
+        WritePersonaSlotBytes(input.AsSpan(protagonistOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0102, 0, 0x11111111, 0x1401, 0));
+
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+        Assert.False(save.State.ProtagonistPersonaSlots[2].Exists);
+        Assert.Equal((byte)0, save.State.ProtagonistPersonaSlots[2].ExistsRawByte);
+        Assert.Equal((ushort)0x0102, save.State.ProtagonistPersonaSlots[2].PersonaId);
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(
+            save,
+            [new SetProtagonistPersonaSlotEdit(2, CreatePersonaSlotEdit(0x0203, 0, 0x22222222, 0x1501))]);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)1, output[protagonistOffset]);
+        Assert.Equal((ushort)0x0203, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(protagonistOffset + 2, sizeof(ushort))));
+        Assert.Equal((byte)1, output[protagonistOffset + 4]);
+
+        WorkingSave reopenedSave = OpenOrThrow(service, output);
+        Assert.True(reopenedSave.State.ProtagonistPersonaSlots[2].Exists);
+        Assert.Equal((byte)1, reopenedSave.State.ProtagonistPersonaSlots[2].ExistsRawByte);
+        Assert.Equal((ushort)0x0203, reopenedSave.State.ProtagonistPersonaSlots[2].PersonaId);
         Assert.Equal((byte)1, reopenedSave.State.ProtagonistPersonaSlots[2].Level);
     }
 
@@ -1591,25 +1685,26 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)(expected.Level + 8), actual.Luck);
     }
 
-    private static void AssertPersonaSlotClearedByIdOnly(PersonaSlot actual, PersonaSlotSentinel previous)
+    private static void AssertPersonaSlotClearedWithEditedFields(
+        PersonaSlot actual,
+        PersonaSlotSentinel previous,
+        PersonaSlotEdit edit)
     {
         Assert.False(actual.Exists);
         Assert.Equal((byte)0, actual.ExistsRawByte);
         Assert.Equal((byte)(0x80 | previous.Level), actual.Unknown0);
         Assert.Equal((ushort)0, actual.PersonaId);
-        Assert.Equal(previous.Level, actual.Level);
+        Assert.Equal(edit.Level, actual.Level);
         Assert.Equal(
             new[] { (byte)(previous.Level + 1), (byte)(previous.Level + 2), (byte)(previous.Level + 3) },
             actual.ReservedAfterLevel);
-        Assert.Equal(previous.TotalExperience, actual.TotalExperience);
-        Assert.Equal(
-            Enumerable.Range(0, PersonaSlot.SkillCount).Select(index => (ushort)(previous.FirstSkillId + index)),
-            actual.SkillIds);
-        Assert.Equal((byte)(previous.Level + 4), actual.Strength);
-        Assert.Equal((byte)(previous.Level + 5), actual.Magic);
-        Assert.Equal((byte)(previous.Level + 6), actual.Endurance);
-        Assert.Equal((byte)(previous.Level + 7), actual.Agility);
-        Assert.Equal((byte)(previous.Level + 8), actual.Luck);
+        Assert.Equal(edit.TotalExperience, actual.TotalExperience);
+        Assert.Equal(edit.SkillIds, actual.SkillIds);
+        Assert.Equal(edit.Strength, actual.Strength);
+        Assert.Equal(edit.Magic, actual.Magic);
+        Assert.Equal(edit.Endurance, actual.Endurance);
+        Assert.Equal(edit.Agility, actual.Agility);
+        Assert.Equal(edit.Luck, actual.Luck);
     }
 
     private static void AssertOnlyRangesChanged(

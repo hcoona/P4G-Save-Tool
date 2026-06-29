@@ -695,13 +695,19 @@ public sealed partial class MainWindow : Window
     {
         if (selectedCompendiumSlotIndex.HasValue)
         {
-            if (!TryBuildPersonaSlotEdit(out PersonaSlotEdit compendiumPersonaSlotEdit, out SaveDiagnostic compendiumDiagnostic, LegacyCompendiumMaximumTotalExperience))
+            if (!TryBuildPersonaSlotEdit(out PersonaSlotEdit compendiumPersonaSlotEdit, out SaveDiagnostic compendiumDiagnostic))
             {
                 diagnostics.Add(compendiumDiagnostic);
                 return;
             }
 
             PersonaSlotViewState currentCompendiumSlot = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value];
+            if (!TryValidateCompendiumPersonaExperienceChange(currentCompendiumSlot, compendiumPersonaSlotEdit, out SaveDiagnostic experienceDiagnostic))
+            {
+                diagnostics.Add(experienceDiagnostic);
+                return;
+            }
+
             if (ShouldSkipPersonaEdit(currentCompendiumSlot, compendiumPersonaSlotEdit))
             {
                 return;
@@ -769,27 +775,23 @@ public sealed partial class MainWindow : Window
             diagnostics);
     }
 
-    internal static SaveEditorOperationResult RefreshSocialLinkDraftPreservingSelection(
-        Func<SocialLinkDraftState?> captureDraft,
-        Func<SaveEditorOperationResult> mutateSocialLinks,
-        Action refreshSocialLinksState,
-        Func<SocialLinkViewState?> selectedLinkProvider,
-        Action<SocialLinkDraftState> restoreDraft)
+    private static bool TryValidateCompendiumPersonaExperienceChange(
+        PersonaSlotViewState currentSlot,
+        PersonaSlotEdit personaSlotEdit,
+        out SaveDiagnostic diagnostic)
     {
-        ArgumentNullException.ThrowIfNull(captureDraft);
-        ArgumentNullException.ThrowIfNull(mutateSocialLinks);
-        ArgumentNullException.ThrowIfNull(refreshSocialLinksState);
-        ArgumentNullException.ThrowIfNull(selectedLinkProvider);
-        ArgumentNullException.ThrowIfNull(restoreDraft);
-
-        SocialLinkDraftState? socialLinkDraft = captureDraft();
-        SaveEditorOperationResult result = mutateSocialLinks();
-        refreshSocialLinksState();
-        if (socialLinkDraft is not null && ShouldRestoreSelectedSocialLinkDraft(socialLinkDraft.Value, selectedLinkProvider()))
+        if (personaSlotEdit.TotalExperience != currentSlot.TotalExperience &&
+            personaSlotEdit.TotalExperience > LegacyCompendiumMaximumTotalExperience)
         {
-            restoreDraft(socialLinkDraft.Value);
+            diagnostic = CreateUiDiagnostic(
+                "P4GWINUI031",
+                $"Compendium persona total experience must be at most {LegacyCompendiumMaximumTotalExperience.ToString(CultureInfo.InvariantCulture)}.",
+                "Persona.Xp");
+            return false;
         }
-        return result;
+
+        diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
+        return true;
     }
 
     internal static SocialLinkViewState? ResolveSelectedSocialLinkViewState(
@@ -1055,22 +1057,6 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        if (personaId == 0)
-        {
-            return TryBuildPersonaSlotEditCore(
-                personaId,
-                string.Empty,
-                [],
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                out personaSlotEdit,
-                out diagnostic);
-        }
-
         if (!TryReadSelectedSkillIds(out IReadOnlyList<ushort> skillIds, out diagnostic))
         {
             return false;
@@ -1214,12 +1200,6 @@ public sealed partial class MainWindow : Window
         personaSlotEdit = new PersonaSlotEdit(0, 0, 0, Array.Empty<ushort>(), 0, 0, 0, 0, 0);
         diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
 
-        if (personaId == 0)
-        {
-            personaSlotEdit = CreateBlankPersonaSlotEdit();
-            return true;
-        }
-
         if (!uint.TryParse(totalExperienceText, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint totalExperience))
         {
             diagnostic = CreateUiDiagnostic("P4GWINUI015", "Persona total experience must be an unsigned whole number.", "Persona.Xp");
@@ -1254,9 +1234,6 @@ public sealed partial class MainWindow : Window
         diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
         return true;
     }
-
-    private static PersonaSlotEdit CreateBlankPersonaSlotEdit() =>
-        new(0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0);
 
     private static PersonaSlotEdit CreateDefaultCompendiumPersonaSlotEdit(ushort personaId) =>
         new(
@@ -1613,7 +1590,6 @@ public sealed partial class MainWindow : Window
         SocialLinkAddComboBox.IsEnabled = canEdit;
         SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
-        SocialLinkApplyButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         CompendiumListView.IsEnabled = canEdit;
         CompendiumAddComboBox.IsEnabled = canEdit;
@@ -2019,6 +1995,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!TryApplySelectedSocialLinkDraftBeforeOperation())
+        {
+            RestoreSocialLinkListSelection();
+            UpdateShellState();
+            return;
+        }
+
         if (SocialLinkListView.SelectedItem is not SocialLinkViewState selectedLink)
         {
             selectedSocialLinkIndex = null;
@@ -2047,25 +2030,25 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = RefreshSocialLinkDraftPreservingSelection(
-            CaptureSelectedSocialLinkDraft,
-            () =>
-            {
-                SaveEditorOperationResult mutationResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-                    () => viewModel.AddSocialLink(selectedChoice.LinkId));
-                if (mutationResult.Succeeded && viewModel.SocialLinks.Count > 0)
-                {
-                    SocialLinkViewState selectedLink = viewModel.SocialLinks[viewModel.SocialLinks.Count - 1];
-                    selectedSocialLinkIndex = selectedLink.SlotIndex;
-                    selectedSocialLinkLinkId = selectedLink.LinkId;
-                }
+        byte addLinkId = selectedChoice.LinkId;
+        if (!TryApplySelectedSocialLinkDraftBeforeOperation())
+        {
+            ResetSocialLinkAddChoice();
+            UpdateShellState();
+            return;
+        }
 
-                return mutationResult;
-            },
-            RefreshSocialLinksState,
-            GetSelectedSocialLinkViewState,
-            RestoreSelectedSocialLinkDraft);
+        uiDiagnosticsOverride = null;
+        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.AddSocialLink(addLinkId));
+        if (result.Succeeded && viewModel.SocialLinks.Count > 0)
+        {
+            SocialLinkViewState selectedLink = viewModel.SocialLinks[viewModel.SocialLinks.Count - 1];
+            selectedSocialLinkIndex = selectedLink.SlotIndex;
+            selectedSocialLinkLinkId = selectedLink.LinkId;
+        }
+
+        RefreshSocialLinksState();
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateShellState();
         if (!result.Succeeded)
@@ -2075,18 +2058,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void SocialLinkApplyButton_Click(object sender, RoutedEventArgs e)
+    private bool TryApplySelectedSocialLinkDraftBeforeOperation()
     {
-        if (!viewModel.HasSave)
+        if (!viewModel.HasSave || !selectedSocialLinkIndex.HasValue)
         {
-            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI022", "Open a save before editing social links.", "SocialLinks")]);
-            return;
-        }
-
-        if (!selectedSocialLinkIndex.HasValue)
-        {
-            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI023", "Select a social link before applying edits.", "SocialLinks.Item")]);
-            return;
+            return true;
         }
 
         List<SaveEditCommand> edits = [];
@@ -2094,19 +2070,45 @@ public sealed partial class MainWindow : Window
         if (!TryAppendSelectedSocialLinkEdits(edits, validationDiagnostics))
         {
             SetUiDiagnostics(validationDiagnostics);
-            return;
+            return false;
         }
 
         uiDiagnosticsOverride = null;
         SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
             () => viewModel.ApplyEdits(edits));
-        RefreshSocialLinksState();
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        UpdateShellState();
         if (!result.Succeeded)
         {
             SetUiDiagnostics(result.Diagnostics);
-            _ = ShowMessageAsync("Social link update failed", FormatDiagnostics(result.Diagnostics));
+            return false;
+        }
+
+        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
+        return true;
+    }
+
+    private void RestoreSocialLinkListSelection()
+    {
+        suppressSocialLinkEvents = true;
+        try
+        {
+            SocialLinkListView.SelectedItem = GetSelectedSocialLinkViewState();
+        }
+        finally
+        {
+            suppressSocialLinkEvents = false;
+        }
+    }
+
+    private void ResetSocialLinkAddChoice()
+    {
+        suppressSocialLinkEvents = true;
+        try
+        {
+            SocialLinkAddComboBox.SelectedItem = socialLinkChoices.FirstOrDefault(static choice => choice.IsPlaceholder);
+        }
+        finally
+        {
+            suppressSocialLinkEvents = false;
         }
     }
 
@@ -2124,25 +2126,32 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = RefreshSocialLinkDraftPreservingSelection(
-            CaptureSelectedSocialLinkDraft,
-            () =>
-            {
-                SaveEditorOperationResult mutationResult = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-                    () => viewModel.RemoveSocialLink(selectedSocialLinkIndex.Value));
-                if (mutationResult.Succeeded)
-                {
-                    selectedSocialLinkIndex = viewModel.SocialLinks.Count == 0
-                        ? null
-                        : Math.Min(selectedSocialLinkIndex.Value, viewModel.SocialLinks.Count - 1);
-                }
+        if (!TryApplySelectedSocialLinkDraftBeforeOperation())
+        {
+            UpdateShellState();
+            return;
+        }
 
-                return mutationResult;
-            },
-            RefreshSocialLinksState,
-            GetSelectedSocialLinkViewState,
-            RestoreSelectedSocialLinkDraft);
+        uiDiagnosticsOverride = null;
+        int deletedSlotIndex = selectedSocialLinkIndex.Value;
+        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
+            () => viewModel.RemoveSocialLink(deletedSlotIndex));
+        if (result.Succeeded)
+        {
+            if (viewModel.SocialLinks.Count == 0)
+            {
+                ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
+            }
+            else
+            {
+                int nextSlotIndex = Math.Min(deletedSlotIndex, viewModel.SocialLinks.Count - 1);
+                SocialLinkViewState selectedLink = viewModel.SocialLinks[nextSlotIndex];
+                selectedSocialLinkIndex = selectedLink.SlotIndex;
+                selectedSocialLinkLinkId = selectedLink.LinkId;
+            }
+        }
+
+        RefreshSocialLinksState();
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateShellState();
         if (!result.Succeeded)

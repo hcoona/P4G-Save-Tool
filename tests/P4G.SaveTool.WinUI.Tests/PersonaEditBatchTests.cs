@@ -122,32 +122,32 @@ public sealed class PersonaEditBatchTests
     }
 
     [Fact]
-    public void PersonaEditBuilderBuildsBlankSlotWithoutRequiringExperienceOrSkills()
+    public void PersonaEditBuilderBuildsBlankSlotFromVisibleFields()
     {
         bool succeeded = MainWindow.TryBuildPersonaSlotEditCore(
             0,
-            "not-a-number",
-            [ushort.MaxValue],
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
+            "1234",
+            [0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408],
+            1.5,
+            11.5,
+            22.5,
+            33.5,
+            44.5,
+            45.5,
             out PersonaSlotEdit personaSlotEdit,
             out SaveDiagnostic diagnostic);
 
         Assert.True(succeeded);
         Assert.Equal("P4GWINUI014", diagnostic.Code);
         Assert.Equal((ushort)0, personaSlotEdit.PersonaId);
-        Assert.Equal((byte)0, personaSlotEdit.Level);
-        Assert.Equal(0u, personaSlotEdit.TotalExperience);
-        Assert.Equal(new ushort[] { 0, 0, 0, 0, 0, 0, 0, 0 }, personaSlotEdit.SkillIds);
-        Assert.Equal((byte)0, personaSlotEdit.Strength);
-        Assert.Equal((byte)0, personaSlotEdit.Magic);
-        Assert.Equal((byte)0, personaSlotEdit.Endurance);
-        Assert.Equal((byte)0, personaSlotEdit.Agility);
-        Assert.Equal((byte)0, personaSlotEdit.Luck);
+        Assert.Equal((byte)2, personaSlotEdit.Level);
+        Assert.Equal(1234u, personaSlotEdit.TotalExperience);
+        Assert.Equal([0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408], personaSlotEdit.SkillIds);
+        Assert.Equal((byte)12, personaSlotEdit.Strength);
+        Assert.Equal((byte)23, personaSlotEdit.Magic);
+        Assert.Equal((byte)34, personaSlotEdit.Endurance);
+        Assert.Equal((byte)45, personaSlotEdit.Agility);
+        Assert.Equal((byte)46, personaSlotEdit.Luck);
     }
 
     [Theory]

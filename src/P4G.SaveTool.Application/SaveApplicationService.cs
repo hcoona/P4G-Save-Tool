@@ -882,6 +882,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
             return state;
         }
 
+        PersonaSlot currentSlot = currentSlots[slotIndex];
+
         if (personaSlotEdit.SkillIds is null || personaSlotEdit.SkillIds.Count != PersonaSlot.SkillCount)
         {
             diagnostics.Add(new SaveDiagnostic(
@@ -892,7 +894,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
             return state;
         }
 
-        if (maximumTotalExperience.HasValue && personaSlotEdit.TotalExperience > maximumTotalExperience.Value)
+        if (maximumTotalExperience.HasValue &&
+            personaSlotEdit.TotalExperience > maximumTotalExperience.Value &&
+            personaSlotEdit.TotalExperience != currentSlot.TotalExperience)
         {
             diagnostics.Add(new SaveDiagnostic(
                 DiagnosticSeverity.Error,
@@ -906,7 +910,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
         {
             if (allowBlankPersonaId)
             {
-                return apply(state, slotIndex, CreateBlankPersonaSlot(currentSlots[slotIndex]));
+                return apply(state, slotIndex, CreateBlankPersonaSlot(currentSlot, personaSlotEdit));
             }
 
             diagnostics.Add(new SaveDiagnostic(
@@ -917,11 +921,11 @@ public sealed class SaveApplicationService : ISaveApplicationService
             return state;
         }
 
-        PersonaSlot currentSlot = currentSlots[slotIndex];
-        byte existsRawByte = currentSlot.ExistsRawByte != 0
+        bool personaIdChanged = currentSlot.PersonaId != personaSlotEdit.PersonaId;
+        byte existsRawByte = !personaIdChanged || currentSlot.ExistsRawByte != 0
             ? currentSlot.ExistsRawByte
             : (byte)1;
-        byte level = personaSlotEdit.Level == 0 && !currentSlot.Exists
+        byte level = personaSlotEdit.Level == 0 && personaIdChanged && !currentSlot.Exists
             ? (byte)1
             : personaSlotEdit.Level;
         PersonaSlot updatedSlot = new(
@@ -985,20 +989,20 @@ public sealed class SaveApplicationService : ISaveApplicationService
             agility: 0,
             luck: 0);
 
-    private static PersonaSlot CreateBlankPersonaSlot(PersonaSlot currentSlot) =>
+    private static PersonaSlot CreateBlankPersonaSlot(PersonaSlot currentSlot, PersonaSlotEdit personaSlotEdit) =>
         new(
             existsRawByte: 0,
             currentSlot.Unknown0,
             personaId: 0,
-            currentSlot.Level,
+            personaSlotEdit.Level,
             currentSlot.ReservedAfterLevel,
-            currentSlot.TotalExperience,
-            currentSlot.SkillIds,
-            currentSlot.Strength,
-            currentSlot.Magic,
-            currentSlot.Endurance,
-            currentSlot.Agility,
-            currentSlot.Luck);
+            personaSlotEdit.TotalExperience,
+            personaSlotEdit.SkillIds,
+            personaSlotEdit.Strength,
+            personaSlotEdit.Magic,
+            personaSlotEdit.Endurance,
+            personaSlotEdit.Agility,
+            personaSlotEdit.Luck);
 
     private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>
         itemId < (ushort)layout.Inventory.Length &&

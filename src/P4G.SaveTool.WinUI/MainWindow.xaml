@@ -414,7 +414,7 @@
               Style="{ThemeResource BodyStrongTextBlockStyle}"
               Margin="0,8,0,0"
               />
-            <ListView x:Name="CompendiumListView" MinHeight="140" MaxHeight="220" SelectionChanged="CompendiumListView_SelectionChanged">
+            <ListView x:Name="CompendiumListView" MinHeight="140" MaxHeight="220" SelectionChanged="CompendiumListView_SelectionChanged" Tapped="CompendiumListView_Tapped">
               <ListView.ItemTemplate>
                 <DataTemplate>
                   <TextBlock Text="{Binding}" TextWrapping="Wrap" />

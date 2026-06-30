@@ -5,6 +5,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using P4G.SaveTool.Application;
@@ -80,6 +81,7 @@ public sealed partial class MainWindow : Window
     private ushort? selectedInventoryItemId;
     private ushort? selectedInventoryEntryId;
     private byte? selectedEquipmentCharacterId;
+    private int? selectedCompendiumListSlotIndex;
     private int? selectedCompendiumSlotIndex;
     private int? selectedSocialLinkIndex;
     private byte? selectedSocialLinkLinkId;
@@ -368,6 +370,7 @@ public sealed partial class MainWindow : Window
                     selectedInventoryItemId = null;
                     selectedInventoryEntryId = null;
                     selectedEquipmentCharacterId = null;
+                    selectedCompendiumListSlotIndex = null;
                     selectedCompendiumSlotIndex = null;
                     selectedSocialLinkIndex = null;
                     selectedSocialLinkLinkId = null;
@@ -601,6 +604,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        DragOperationDeferral deferral = e.GetDeferral();
         try
         {
             IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
@@ -619,6 +623,10 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             await ReportOpenFailureAsync("Drop", $"Could not read the dropped file: {ex.Message}");
+        }
+        finally
+        {
+            deferral.Complete();
         }
     }
 
@@ -988,6 +996,7 @@ public sealed partial class MainWindow : Window
         suppressPersonaEvents = true;
         try
         {
+            selectedCompendiumListSlotIndex = compendiumDraft.SlotIndex;
             selectedCompendiumSlotIndex = compendiumDraft.SlotIndex;
             personaChoices.Clear();
             PersonaChoiceViewState selectedCompendiumChoice = default!;
@@ -1181,7 +1190,11 @@ public sealed partial class MainWindow : Window
             viewModel.CompendiumPersonaSlots,
             selectedChoice,
             viewModel.SetCompendiumPersonaSlot,
-            slotIndex => selectedCompendiumSlotIndex = slotIndex);
+            slotIndex =>
+            {
+                selectedCompendiumListSlotIndex = slotIndex;
+                selectedCompendiumSlotIndex = slotIndex;
+            });
 
     internal static SaveEditorOperationResult SelectOrAddCompendiumPersonaCore(
         IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots,
@@ -1721,7 +1734,7 @@ public sealed partial class MainWindow : Window
         SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
         CompendiumListView.IsEnabled = canEdit;
         CompendiumAddComboBox.IsEnabled = canEdit;
-        CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumSlotIndex.HasValue;
+        CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumListSlotIndex.HasValue;
         CompendiumClearButton.IsEnabled = canEdit && compendiumItems.Count > 0;
         PartySlot0ComboBox.IsEnabled = canEdit;
         PartySlot1ComboBox.IsEnabled = canEdit;
@@ -2087,6 +2100,7 @@ public sealed partial class MainWindow : Window
 
             if (!viewModel.HasSave || compendiumItems.Count == 0)
             {
+                selectedCompendiumListSlotIndex = null;
                 selectedCompendiumSlotIndex = null;
                 CompendiumListView.SelectedItem = null;
                 autoSelectCompendiumEntryAfterOpen = false;
@@ -2095,20 +2109,20 @@ public sealed partial class MainWindow : Window
 
             CompendiumPersonaViewState? selectedEntry = ResolveSelectedCompendiumViewState(
                 compendiumItems.ToArray(),
-                selectedCompendiumSlotIndex,
+                selectedCompendiumListSlotIndex,
                 autoSelectCompendiumEntryAfterOpen);
 
             if (selectedEntry is not null)
             {
-                selectedCompendiumSlotIndex = selectedEntry.SlotIndex;
+                selectedCompendiumListSlotIndex = selectedEntry.SlotIndex;
                 CompendiumListView.SelectedItem = selectedEntry;
             }
             else
             {
+                selectedCompendiumListSlotIndex = null;
                 selectedCompendiumSlotIndex = null;
                 CompendiumListView.SelectedItem = null;
             }
-            autoSelectCompendiumEntryAfterOpen = false;
             autoSelectCompendiumEntryAfterOpen = false;
         }
         finally
@@ -2423,15 +2437,61 @@ public sealed partial class MainWindow : Window
 
         if (CompendiumListView.SelectedItem is not CompendiumPersonaViewState selectedEntry)
         {
+            selectedCompendiumListSlotIndex = null;
             selectedCompendiumSlotIndex = null;
             RefreshPersonaState();
             UpdateShellState();
             return;
         }
 
+        selectedCompendiumListSlotIndex = selectedEntry.SlotIndex;
         selectedCompendiumSlotIndex = selectedEntry.SlotIndex;
         RefreshPersonaState();
         UpdateShellState();
+    }
+
+    private void CompendiumListView_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (suppressCompendiumEvents ||
+            selectedCompendiumSlotIndex == selectedCompendiumListSlotIndex ||
+            CompendiumListView.SelectedItem is not CompendiumPersonaViewState selectedEntry ||
+            !IsSelectedCompendiumListItemTapped(e, selectedEntry))
+        {
+            return;
+        }
+
+        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        {
+            RestorePersonaSelectionAfterBlockedDraft();
+            UpdateShellState();
+            return;
+        }
+
+        selectedCompendiumListSlotIndex = selectedEntry.SlotIndex;
+        selectedCompendiumSlotIndex = selectedEntry.SlotIndex;
+        RefreshPersonaState();
+        UpdateShellState();
+    }
+
+    private static bool IsSelectedCompendiumListItemTapped(TappedRoutedEventArgs e, CompendiumPersonaViewState selectedEntry)
+    {
+        if (e.OriginalSource is not DependencyObject source)
+        {
+            return false;
+        }
+
+        DependencyObject? current = source;
+        while (current is not null)
+        {
+            if (current is ListViewItem item)
+            {
+                return ReferenceEquals(item.DataContext, selectedEntry);
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 
     private void CompendiumAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2456,6 +2516,7 @@ public sealed partial class MainWindow : Window
         if (selectedChoice.PersonaId == 0)
         {
             autoSelectCompendiumEntryAfterOpen = false;
+            selectedCompendiumListSlotIndex = null;
             selectedCompendiumSlotIndex = null;
             suppressCompendiumEvents = true;
             try
@@ -2501,20 +2562,31 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!selectedCompendiumSlotIndex.HasValue)
+        if (!selectedCompendiumListSlotIndex.HasValue)
         {
             SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI026", "Select a compendium entry before removing it.", "Compendium.Item")]);
             return;
         }
 
+        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        {
+            RestorePersonaSelectionAfterBlockedDraft();
+            UpdateShellState();
+            return;
+        }
+
         uiDiagnosticsOverride = null;
-        int removedSlotIndex = selectedCompendiumSlotIndex.Value;
+        int removedSlotIndex = selectedCompendiumListSlotIndex.Value;
         SaveEditorOperationResult result = RefreshCompendiumDraftPreservingSelection(
             () => saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
                 () => viewModel.ClearCompendiumPersonaSlot(removedSlotIndex)),
             preserveSelectedCompendiumDraft => RefreshFromViewModelPreservingInventoryQuantityDraft(
                 preserveSelectedCompendiumDraft: preserveSelectedCompendiumDraft),
-            () => selectedCompendiumSlotIndex = null);
+            () =>
+            {
+                selectedCompendiumListSlotIndex = null;
+                selectedCompendiumSlotIndex = null;
+            });
         if (!result.Succeeded)
         {
             SetUiDiagnostics(result.Diagnostics);
@@ -2530,13 +2602,24 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        {
+            RestorePersonaSelectionAfterBlockedDraft();
+            UpdateShellState();
+            return;
+        }
+
         uiDiagnosticsOverride = null;
         SaveEditorOperationResult result = RefreshCompendiumDraftPreservingSelection(
             () => saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
                 () => viewModel.ClearCompendiumPersonaSlots()),
             preserveSelectedCompendiumDraft => RefreshFromViewModelPreservingInventoryQuantityDraft(
                 preserveSelectedCompendiumDraft: preserveSelectedCompendiumDraft),
-            () => selectedCompendiumSlotIndex = null);
+            () =>
+            {
+                selectedCompendiumListSlotIndex = null;
+                selectedCompendiumSlotIndex = null;
+            });
         if (!result.Succeeded)
         {
             SetUiDiagnostics(result.Diagnostics);
@@ -2985,13 +3068,15 @@ public sealed partial class MainWindow : Window
             }
             else
             {
+                CompendiumListView.SelectedItem = selectedCompendiumListSlotIndex.HasValue
+                    ? compendiumItems.FirstOrDefault(entry => entry.SlotIndex == selectedCompendiumListSlotIndex.Value)
+                    : null;
                 PersonaMemberComboBox.SelectedItem = selectedPersonaMemberId.HasValue
                     ? personaMemberChoices.FirstOrDefault(member => member.MemberId == selectedPersonaMemberId.Value)
                     : null;
                 PersonaSlotComboBox.SelectedItem = selectedPersonaMemberId == 0
                     ? personaSlotChoices.FirstOrDefault(slot => slot.SlotIndex == selectedPersonaSlotIndex)
                     : null;
-                CompendiumListView.SelectedItem = null;
             }
 
             CompendiumAddComboBox.SelectedItem = compendiumAddChoices.FirstOrDefault(static choice => choice.PersonaId == 0);
@@ -3219,9 +3304,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (selectedCompendiumSlotIndex.HasValue)
+        if (selectedCompendiumSlotIndex.HasValue || selectedCompendiumListSlotIndex.HasValue)
         {
             ClearSelectedCompendiumContext(ref selectedCompendiumSlotIndex);
+            selectedCompendiumListSlotIndex = null;
             suppressCompendiumEvents = true;
             try
             {

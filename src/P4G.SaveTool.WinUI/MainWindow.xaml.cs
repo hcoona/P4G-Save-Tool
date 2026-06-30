@@ -177,7 +177,24 @@ public sealed partial class MainWindow : Window
         PersonaXpTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)PersonaLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
 
     private void PersonaLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
-        UpdatePersonaLevelValueText();
+        RefreshPersonaDraftShellState(UpdatePersonaLevelValueText);
+
+    private void PersonaDraftControl_Changed(object sender, TextChangedEventArgs e) =>
+        RefreshPersonaDraftShellState();
+
+    private void PersonaDraftControl_Changed(object sender, RangeBaseValueChangedEventArgs e) =>
+        RefreshPersonaDraftShellState();
+
+    private void RefreshPersonaDraftShellState(Action? refreshValueText = null)
+    {
+        refreshValueText?.Invoke();
+        if (suppressPersonaEvents || viewModel is null || !viewModel.HasSave)
+        {
+            return;
+        }
+
+        UpdateShellState();
+    }
 
     private void MainCharacterCalculateFromLevelButton_Click(object sender, RoutedEventArgs e) =>
         MainCharacterTotalExperienceTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)MainCharacterLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
@@ -1440,6 +1457,9 @@ public sealed partial class MainWindow : Window
     private static ushort ReadSkillId(ComboBox comboBox) =>
         comboBox.SelectedItem is SkillChoiceViewState selectedSkill ? selectedSkill.SkillId : ushort.MaxValue;
 
+    private static ushort ReadPersonaId(ComboBox comboBox) =>
+        comboBox.SelectedItem is PersonaChoiceViewState selectedPersona ? selectedPersona.PersonaId : ushort.MaxValue;
+
     internal static CompendiumPersonaViewState? ResolveSelectedCompendiumViewState(
         IReadOnlyList<CompendiumPersonaViewState> compendiumEntries,
         int? selectedCompendiumSlotIndex,
@@ -1732,7 +1752,7 @@ public sealed partial class MainWindow : Window
         InventoryListView.IsEnabled = canEdit;
         InventoryCategoryComboBox.IsEnabled = canEdit;
         InventoryItemComboBox.IsEnabled = canEdit;
-        InventoryQuantityTextBox.IsEnabled = canEdit;
+        InventoryQuantityTextBox.IsEnabled = canEdit && selectedInventoryItemId.HasValue;
         InventoryAddUpdateButton.IsEnabled = canEdit && selectedInventoryItemId.HasValue;
         InventoryDeleteButton.IsEnabled = canEdit && selectedInventoryEntryId.HasValue && selectedInventoryItemId.HasValue;
 
@@ -1794,7 +1814,8 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        return !string.Equals(PersonaXpTextBox.Text ?? string.Empty, selectedSlot.TotalExperience.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+        return ReadPersonaId(PersonaChoiceComboBox) != selectedSlot.PersonaId ||
+            !string.Equals(PersonaXpTextBox.Text ?? string.Empty, selectedSlot.TotalExperience.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
             (byte)PersonaLevelSlider.Value != selectedSlot.Level ||
             (byte)PersonaStrengthSlider.Value != selectedSlot.Strength ||
             (byte)PersonaMagicSlider.Value != selectedSlot.Magic ||
@@ -3418,6 +3439,7 @@ public sealed partial class MainWindow : Window
         if (!uint.TryParse(YenTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint yen))
         {
             SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI006", "Yen must be an unsigned whole number.", "Yen")]);
+            UpdateShellState();
             return;
         }
 
@@ -3437,6 +3459,7 @@ public sealed partial class MainWindow : Window
                 "P4GWINUI028",
                 "Main character total experience must be an unsigned whole number.",
                 "MainCharacter.TotalExperience")]);
+            UpdateShellState();
             return;
         }
 
@@ -3507,6 +3530,7 @@ public sealed partial class MainWindow : Window
                 isNextDay ? "P4GWINUI020" : "P4GWINUI018",
                 isNextDay ? "Next day must be a whole number." : "Day must be a whole number.",
                 isNextDay ? "Calendar.NextDay" : "Calendar.Day")]);
+            UpdateShellState();
             return;
         }
 
@@ -3585,6 +3609,7 @@ public sealed partial class MainWindow : Window
         if (!TryAppendSelectedSocialLinkEdits(edits, diagnostics))
         {
             SetUiDiagnostics(diagnostics);
+            UpdateShellState();
             return;
         }
 

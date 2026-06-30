@@ -122,7 +122,7 @@ public sealed class SaveEditorViewModelTests
     }
 
     [Fact]
-    public void PartyConfigurationChoicesUseLegacySaveValuesAndPreserveUnknownValues()
+    public void PartyConfigurationChoicesUseLegacySaveValuesAndCanonicalizeUnknownValuesToBlank()
     {
         IReadOnlyList<PartyConfigurationChoiceViewState> knownChoices =
             SaveEditorViewModel.GetPartyConfigurationChoices(7, out PartyConfigurationChoiceViewState selectedKnownChoice);
@@ -136,10 +136,10 @@ public sealed class SaveEditorViewModelTests
         IReadOnlyList<PartyConfigurationChoiceViewState> unknownChoices =
             SaveEditorViewModel.GetPartyConfigurationChoices(0xfe, out PartyConfigurationChoiceViewState selectedUnknownChoice);
 
-        Assert.True(selectedUnknownChoice.IsUnknown);
-        Assert.Equal((byte)0xfe, selectedUnknownChoice.MemberValue);
-        Assert.Equal("Unknown (254)", selectedUnknownChoice.Name);
-        Assert.Same(selectedUnknownChoice, unknownChoices[^1]);
+        Assert.False(selectedUnknownChoice.IsUnknown);
+        Assert.Equal((byte)0, selectedUnknownChoice.MemberValue);
+        Assert.Equal("Blank", selectedUnknownChoice.Name);
+        Assert.DoesNotContain(unknownChoices, static choice => choice.IsUnknown);
     }
 
     [Fact]

@@ -16,14 +16,6 @@ internal static class PersonaSelectionProjection
         (182, 32),
         (224, 26),
     ];
-    private static readonly (ushort Start, ushort Length)[] legacySkillRanges =
-    [
-        (0, 255),
-        (259, 42),
-        (349, 46),
-        (440, 13),
-        (472, 151),
-    ];
     private static readonly ReadOnlyCollection<PersonaChoiceViewState> personas = CreatePersonaChoices();
     private static readonly ReadOnlyCollection<SkillChoiceViewState> skills = CreateSkillChoices();
 
@@ -76,14 +68,10 @@ internal static class PersonaSelectionProjection
 
     private static void AppendSkillChoices(List<SkillChoiceViewState> choices)
     {
-        foreach ((ushort Start, ushort Length) in legacySkillRanges)
+        foreach (ushort skillId in PersonaSkillRules.EnumerateSupportedSkillIds())
         {
-            int end = Start + Length;
-            for (ushort skillId = Start; skillId < end; skillId++)
-            {
-                SkillCatalogEntry skill = P4GCatalog.SkillsById[skillId];
-                choices.Add(new SkillChoiceViewState(skill.Id, skill.Name));
-            }
+            SkillCatalogEntry skill = P4GCatalog.SkillsById[skillId];
+            choices.Add(new SkillChoiceViewState(skill.Id, skill.Name));
         }
     }
 

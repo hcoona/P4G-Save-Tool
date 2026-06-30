@@ -142,6 +142,16 @@ public sealed class SaveApplicationService : ISaveApplicationService
                     return state;
                 }
 
+                if (!PartyMemberRules.IsSupportedMemberValue(setPartyMember.MemberValue))
+                {
+                    diagnostics.Add(new SaveDiagnostic(
+                        DiagnosticSeverity.Error,
+                        "P4GAPP020",
+                        "Party member edit targets an unsupported member id.",
+                        PartyMembersDiagnosticTarget));
+                    return state;
+                }
+
                 return state.WithPartyMember(setPartyMember.SlotIndex, new PartyMemberId(setPartyMember.MemberValue));
 
             case SetSocialStatRankEdit setSocialStatRank:
@@ -507,9 +517,10 @@ public sealed class SaveApplicationService : ISaveApplicationService
             patches.Add(CreateUInt32Patch(layout.MainCharacterTotalExperience, state.MainCharacterTotalExperience));
         }
 
-        if (!PartyMembersEqual(state.PartyMembers, snapshot.PartyMembers))
+        IReadOnlyList<PartyMemberId> normalizedPartyMembers = NormalizePartyMembers(state.PartyMembers);
+        if (!PartyMembersEqual(normalizedPartyMembers, snapshot.PartyMembers))
         {
-            patches.Add(CreatePartyMembersPatch(snapshot, layout.PartyMembers, state.PartyMembers));
+            patches.Add(CreatePartyMembersPatch(snapshot, layout.PartyMembers, normalizedPartyMembers));
         }
 
         AddEquipmentPatches(patches, layout, state, snapshot);
@@ -755,12 +766,28 @@ public sealed class SaveApplicationService : ISaveApplicationService
             personaSlot.Level,
             clearReservedAfterLevel ? new byte[] { 0, 0, 0 } : personaSlot.ReservedAfterLevel,
             personaSlot.TotalExperience,
-            personaSlot.SkillIds,
+            NormalizeSkillIds(personaSlot.SkillIds),
             personaSlot.Strength,
             personaSlot.Magic,
             personaSlot.Endurance,
             personaSlot.Agility,
             personaSlot.Luck);
+
+    private static IReadOnlyList<PartyMemberId> NormalizePartyMembers(IReadOnlyList<PartyMemberId> partyMembers)
+    {
+        PartyMemberId[] normalizedPartyMembers = partyMembers
+            .Select(static member => new PartyMemberId(PartyMemberRules.NormalizeMemberValue(member.Value)))
+            .ToArray();
+        return normalizedPartyMembers.SequenceEqual(partyMembers) ? partyMembers : normalizedPartyMembers;
+    }
+
+    private static IReadOnlyList<ushort> NormalizeSkillIds(IReadOnlyList<ushort> skillIds)
+    {
+        ushort[] normalizedSkillIds = skillIds
+            .Select(PersonaSkillRules.NormalizeSkillId)
+            .ToArray();
+        return normalizedSkillIds.SequenceEqual(skillIds) ? skillIds : normalizedSkillIds;
+    }
 
     private static void AddEquipmentPatches(
         List<SaveFieldPatch> patches,

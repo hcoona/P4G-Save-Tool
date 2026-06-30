@@ -280,6 +280,20 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowSourceDisablesInventoryQuantityWhenNoItemIsSelected()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string updateShellStateBody = GetSection(
+            content,
+            "private void UpdateShellState()",
+            "private void RefreshSocialStatsState()");
+
+        Assert.Contains("InventoryQuantityTextBox.IsEnabled = canEdit && selectedInventoryItemId.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("InventoryAddUpdateButton.IsEnabled = canEdit && selectedInventoryItemId.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowCompendiumNoSaveHandlersReturnP4GWINUI025BeforeMutatingState()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
@@ -453,6 +467,36 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("target.StartBringIntoView();", content, StringComparison.Ordinal);
         Assert.Contains("PersonaCalculateFromLevelButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("PersonaLevelSlider_ValueChanged", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowInvalidImmediateInputBranchesRefreshShellState()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string yenBody = GetSection(
+            content,
+            "private void YenTextBox_TextChanged(object sender, TextChangedEventArgs e)",
+            "private void MainCharacterTotalExperienceTextBox_TextChanged(object sender, TextChangedEventArgs e)");
+        string mainCharacterExperienceBody = GetSection(
+            content,
+            "private void MainCharacterTotalExperienceTextBox_TextChanged(object sender, TextChangedEventArgs e)",
+            "private void SocialStatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+        string dayBody = GetSection(
+            content,
+            "private void ApplyImmediateDayEdit(string text, bool isNextDay)",
+            "private void PhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+        string socialLinkTextBody = GetSection(
+            content,
+            "private void SocialLinkTextBox_TextChanged(object sender, TextChangedEventArgs e)",
+            "private bool CanProcessImmediateEditEvent()");
+
+        AssertDiagnosticBranchRefreshesShellState(yenBody, "P4GWINUI006");
+        AssertDiagnosticBranchRefreshesShellState(mainCharacterExperienceBody, "P4GWINUI028");
+        AssertDiagnosticBranchRefreshesShellState(dayBody, "P4GWINUI018");
+        AssertDiagnosticBranchRefreshesShellState(dayBody, "P4GWINUI020");
+        Assert.Contains("SetUiDiagnostics(diagnostics);", socialLinkTextBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellState();", socialLinkTextBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -919,6 +963,29 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"PersonaLuckSlider\"", xaml);
         Assert.Contains("x:Name=\"PersonaSkillBox1\"", xaml);
         Assert.Contains("x:Name=\"PersonaSkillBox8\"", xaml);
+    }
+
+    [Fact]
+    public void MainWindowPersonaDraftControlsRefreshShellState()
+    {
+        string source = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string refreshDraftBody = GetSection(
+            source,
+            "private void RefreshPersonaDraftShellState(Action? refreshValueText = null)",
+            "private void MainCharacterCalculateFromLevelButton_Click(object sender, RoutedEventArgs e)");
+        string hasPersonaDraftBody = GetSection(
+            source,
+            "private bool HasPersonaDraft()",
+            "private PersonaSlotViewState? GetSelectedPersonaSlotViewState()");
+
+        Assert.Contains("TextChanged=\"PersonaDraftControl_Changed\"", xaml, StringComparison.Ordinal);
+        Assert.Equal(5, Regex.Count(xaml, Regex.Escape("ValueChanged=\"PersonaDraftControl_Changed\"")));
+        Assert.Contains("private void PersonaDraftControl_Changed(object sender, TextChangedEventArgs e)", source, StringComparison.Ordinal);
+        Assert.Contains("private void PersonaDraftControl_Changed(object sender, RangeBaseValueChangedEventArgs e)", source, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellState();", refreshDraftBody, StringComparison.Ordinal);
+        Assert.Contains("if (suppressPersonaEvents || viewModel is null || !viewModel.HasSave)", refreshDraftBody, StringComparison.Ordinal);
+        Assert.Contains("ReadPersonaId(PersonaChoiceComboBox) != selectedSlot.PersonaId", hasPersonaDraftBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1662,6 +1729,21 @@ public sealed class WinUIArchitectureTests
         Assert.True(autoApplyIndex >= 0, "Inventory selection handlers must auto-apply dirty quantity drafts before changing selection.");
         Assert.True(clearDraftIndex < 0 || autoApplyIndex < clearDraftIndex, "Inventory drafts must be applied before they are cleared.");
         Assert.Contains("RestoreInventorySelectionAfterBlockedDraft();", handlerBody, StringComparison.Ordinal);
+    }
+
+    private static void AssertDiagnosticBranchRefreshesShellState(string methodBody, string diagnosticCode)
+    {
+        int diagnosticIndex = methodBody.IndexOf(diagnosticCode, StringComparison.Ordinal);
+        int updateIndex = diagnosticIndex >= 0
+            ? methodBody.IndexOf("UpdateShellState();", diagnosticIndex, StringComparison.Ordinal)
+            : -1;
+        int returnIndex = updateIndex >= 0
+            ? methodBody.IndexOf("return;", updateIndex, StringComparison.Ordinal)
+            : -1;
+
+        Assert.True(diagnosticIndex >= 0, $"{diagnosticCode} branch was not found.");
+        Assert.True(updateIndex > diagnosticIndex, $"{diagnosticCode} branch must refresh shell state after setting diagnostics.");
+        Assert.True(returnIndex > updateIndex, $"{diagnosticCode} branch must return after refreshing shell state.");
     }
 
     private static void AssertPersonaSelectionHandlerAppliesDraftBeforeRefresh(string handlerBody)

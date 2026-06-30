@@ -39,12 +39,12 @@ public sealed class SaveApplicationServiceTests
     private const int LegacyPartyPersonaSlotCount = 7;
     private const int LegacyCompendiumPersonaSlotCount = 249;
     private const int LegacyCompendiumPersonaLastSlotIndex = LegacyCompendiumPersonaSlotCount - 1;
-    private static readonly PersonaSlotSentinel ProtagonistPersonaSlot0 = new(0x1111, 0x11, 0x10101010, 0x2101);
-    private static readonly PersonaSlotSentinel ProtagonistPersonaSlot1 = new(0x1112, 0x12, 0x11111111, 0x2111, 0x02);
-    private static readonly PersonaSlotSentinel PartyPersonaSlot0 = new(0x2221, 0x21, 0x20202020, 0x2201);
-    private static readonly PersonaSlotSentinel PartyPersonaSlot1 = new(0x2222, 0x22, 0x22222222, 0x2211);
-    private static readonly PersonaSlotSentinel CompendiumPersonaSlot0 = new(0x3331, 0x31, 0x30303030, 0x2301);
-    private static readonly PersonaSlotSentinel CompendiumPersonaSlot1 = new(0x3332, 0x32, 0x33333333, 0x2311);
+    private static readonly PersonaSlotSentinel ProtagonistPersonaSlot0 = new(0x1111, 0x11, 0x10101010, 1);
+    private static readonly PersonaSlotSentinel ProtagonistPersonaSlot1 = new(0x1112, 0x12, 0x11111111, 16, 0x02);
+    private static readonly PersonaSlotSentinel PartyPersonaSlot0 = new(0x2221, 0x21, 0x20202020, 259);
+    private static readonly PersonaSlotSentinel PartyPersonaSlot1 = new(0x2222, 0x22, 0x22222222, 267);
+    private static readonly PersonaSlotSentinel CompendiumPersonaSlot0 = new(0x3331, 0x31, 0x30303030, 349);
+    private static readonly PersonaSlotSentinel CompendiumPersonaSlot1 = new(0x3332, 0x32, 0x33333333, 357);
 
     [Fact]
     public void OpenProducesWorkingSaveStateWithoutExposingSaveFormat()
@@ -62,9 +62,9 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(0x0f0e0d0cu, save.State.MainCharacterTotalExperience);
         Assert.Collection(
             save.State.PartyMembers,
-            static member => Assert.Equal((byte)0x01, member.Value),
-            static member => Assert.Equal((byte)0xfe, member.Value),
-            static member => Assert.Equal((byte)0x80, member.Value));
+            static member => Assert.Equal((byte)0, member.Value),
+            static member => Assert.Equal((byte)2, member.Value),
+            static member => Assert.Equal((byte)3, member.Value));
         Assert.Equal(new ushort[] { 1, 39, 112, 150, 183, 217, 2305, 2434 }, save.State.EquippedWeapons);
         Assert.Equal(new ushort[] { 256, 266, 287, 293, 307, 315, 328, 334 }, save.State.EquippedArmors);
         Assert.Equal(new ushort[] { 512, 615, 685, 687, 754, 512, 615, 754 }, save.State.EquippedAccessories);
@@ -218,9 +218,9 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(7654321u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(LegacyYenOffset, LegacyYenLength)));
         Assert.Equal((byte)88, output[LegacyMainCharacterLevelOffset]);
         Assert.Equal(0x12345678u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(LegacyMainCharacterTotalExperienceOffset, LegacyMainCharacterTotalExperienceLength)));
-        Assert.Equal((byte)0x01, output[LegacyPartyMembersOffset]);
+        Assert.Equal((byte)0, output[LegacyPartyMembersOffset]);
         Assert.Equal((byte)0x07, output[LegacyPartyMembersOffset + 2]);
-        Assert.Equal((byte)0x80, output[LegacyPartyMembersOffset + 4]);
+        Assert.Equal((byte)3, output[LegacyPartyMembersOffset + 4]);
         Assert.Equal((ushort)257, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyProtagonistEquipmentOffset + 2, sizeof(ushort))));
         Assert.Equal((ushort)2435, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset, sizeof(ushort))));
         Assert.Equal((ushort)1792, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride) + 6, sizeof(ushort))));
@@ -239,7 +239,9 @@ public sealed class SaveApplicationServiceTests
             (LegacyYenOffset, LegacyYenLength),
             (LegacyMainCharacterLevelOffset, 1),
             (LegacyMainCharacterTotalExperienceOffset, LegacyMainCharacterTotalExperienceLength),
+            (LegacyPartyMembersOffset, 1),
             (LegacyPartyMembersOffset + 2, 1),
+            (LegacyPartyMembersOffset + 4, 1),
             (LegacyProtagonistEquipmentOffset, 8),
             (LegacyPartyEquipmentOffset, 8),
             (LegacyPartyEquipmentOffset + (2 * LegacyPartyEquipmentStride), 8),
@@ -581,7 +583,7 @@ public sealed class SaveApplicationServiceTests
         WorkingSave save = OpenOrThrow(service, input);
         SaveEditCommand[] edits =
         [
-            new SetCompendiumPersonaSlotEdit(LegacyCompendiumPersonaLastSlotIndex, new PersonaSlotEdit(0x0404, 18, 0x04040404, [0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408], 44, 55, 66, 77, 88)),
+            new SetCompendiumPersonaSlotEdit(LegacyCompendiumPersonaLastSlotIndex, new PersonaSlotEdit(0x0404, 18, 0x04040404, [1, 2, 3, 4, 5, 6, 7, 8], 44, 55, 66, 77, 88)),
             new ClearCompendiumPersonaSlotEdit(0),
         ];
 
@@ -608,7 +610,7 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((ushort)0x0404, reopenedSave.State.CompendiumPersonaSlots[LegacyCompendiumPersonaLastSlotIndex].PersonaId);
         Assert.Equal((byte)18, reopenedSave.State.CompendiumPersonaSlots[LegacyCompendiumPersonaLastSlotIndex].Level);
         Assert.Equal(0x04040404u, reopenedSave.State.CompendiumPersonaSlots[LegacyCompendiumPersonaLastSlotIndex].TotalExperience);
-        Assert.Equal(new ushort[] { 0x4401, 0x4402, 0x4403, 0x4404, 0x4405, 0x4406, 0x4407, 0x4408 }, reopenedSave.State.CompendiumPersonaSlots[LegacyCompendiumPersonaLastSlotIndex].SkillIds);
+        Assert.Equal(new ushort[] { 1, 2, 3, 4, 5, 6, 7, 8 }, reopenedSave.State.CompendiumPersonaSlots[LegacyCompendiumPersonaLastSlotIndex].SkillIds);
     }
 
     [Fact]
@@ -781,8 +783,8 @@ public sealed class SaveApplicationServiceTests
         byte[] input = CreateSyntheticSave();
         int protagonistOffset = layout.ProtagonistPersonaSlots.Offset + (2 * layout.ProtagonistPersonaSlots.Stride) + layout.ProtagonistPersonaSlots.PersonaOffsetWithinStride;
         int partyOffset = layout.PartyPersonaSlots.Offset + (2 * layout.PartyPersonaSlots.Stride) + layout.PartyPersonaSlots.PersonaOffsetWithinStride;
-        WritePersonaSlotBytes(input.AsSpan(protagonistOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0102, 0x12, 0x11111111, 0x1401, 0x7f));
-        WritePersonaSlotBytes(input.AsSpan(partyOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0203, 0x23, 0x22222222, 0x2401, 0x80));
+        WritePersonaSlotBytes(input.AsSpan(protagonistOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0102, 0x12, 0x11111111, 1, 0x7f));
+        WritePersonaSlotBytes(input.AsSpan(partyOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0203, 0x23, 0x22222222, 259, 0x80));
         SaveApplicationService service = new();
         WorkingSave save = OpenOrThrow(service, input);
 
@@ -793,6 +795,74 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal((byte)1, output[protagonistOffset]);
         Assert.Equal((byte)1, output[partyOffset]);
         AssertOnlyRangesChanged(input, output, (protagonistOffset, 1), (partyOffset, 1));
+    }
+
+    [Fact]
+    public void WriteCanonicalizesUnsupportedPersonaSkillIdsWithoutPersonaEdits()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        input[LegacyPartyMembersOffset] = 0;
+        input[LegacyPartyMembersOffset + 2] = 2;
+        input[LegacyPartyMembersOffset + 4] = 3;
+        int protagonistOffset = layout.ProtagonistPersonaSlots.Offset + (2 * layout.ProtagonistPersonaSlots.Stride) + layout.ProtagonistPersonaSlots.PersonaOffsetWithinStride;
+        int partyOffset = layout.PartyPersonaSlots.Offset + (2 * layout.PartyPersonaSlots.Stride) + layout.PartyPersonaSlots.PersonaOffsetWithinStride;
+        int compendiumOffset = layout.CompendiumPersonaSlots.Offset + (2 * layout.CompendiumPersonaSlots.Stride) + layout.CompendiumPersonaSlots.PersonaOffsetWithinStride;
+        WritePersonaSlotBytes(input.AsSpan(protagonistOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0102, 0x12, 0x11111111, 700));
+        WritePersonaSlotBytes(input.AsSpan(partyOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0203, 0x23, 0x22222222, 800));
+        WritePersonaSlotBytes(input.AsSpan(compendiumOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(3, 0x34, 0x33333333, 900));
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveWriteResult writeResult = service.Write(save);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        AssertPersonaSkillIds(output, protagonistOffset, 0, 0, 0, 0, 0, 0, 0, 0);
+        AssertPersonaSkillIds(output, partyOffset, 0, 0, 0, 0, 0, 0, 0, 0);
+        AssertPersonaSkillIds(output, compendiumOffset, 0, 0, 0, 0, 0, 0, 0, 0);
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (protagonistOffset + 12, PersonaSlot.SkillCount * sizeof(ushort)),
+            (partyOffset + 12, PersonaSlot.SkillCount * sizeof(ushort)));
+    }
+
+    [Fact]
+    public void ApplyEditsAndWriteCanonicalizesUnsupportedPersonaSkillIds()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        input[LegacyPartyMembersOffset] = 0;
+        input[LegacyPartyMembersOffset + 2] = 2;
+        input[LegacyPartyMembersOffset + 4] = 3;
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+        SaveEditCommand[] edits =
+        [
+            new SetProtagonistPersonaSlotEdit(3, new PersonaSlotEdit(0x0102, 88, 0x11111111, [1, 255, 258, 259, 300, 301, 622, 623], 11, 22, 33, 44, 55)),
+            new SetPartyPersonaSlotEdit(3, new PersonaSlotEdit(0x0203, 66, 0x22222222, [0, 254, 255, 349, 394, 395, 440, 453], 12, 23, 34, 45, 56)),
+            new SetCompendiumPersonaSlotEdit(3, new PersonaSlotEdit(4, 44, 0x33333333, [472, 622, 623, 42, 43, 44, 452, 453], 13, 24, 35, 46, 57)),
+        ];
+
+        SaveEditResult<WorkingSave> editResult = service.ApplyEdits(save, edits);
+        WorkingSave editedSave = Assert.IsAssignableFrom<WorkingSave>(editResult.Save);
+        SaveWriteResult writeResult = service.Write(editedSave);
+
+        Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        int protagonistOffset = layout.ProtagonistPersonaSlots.Offset + (3 * layout.ProtagonistPersonaSlots.Stride) + layout.ProtagonistPersonaSlots.PersonaOffsetWithinStride;
+        int partyOffset = layout.PartyPersonaSlots.Offset + (3 * layout.PartyPersonaSlots.Stride) + layout.PartyPersonaSlots.PersonaOffsetWithinStride;
+        int compendiumOffset = layout.CompendiumPersonaSlots.Offset + (3 * layout.CompendiumPersonaSlots.Stride) + layout.CompendiumPersonaSlots.PersonaOffsetWithinStride;
+        AssertPersonaSkillIds(output, protagonistOffset, 1, 0, 0, 259, 300, 0, 622, 0);
+        AssertPersonaSkillIds(output, partyOffset, 0, 254, 0, 349, 394, 0, 440, 0);
+        AssertPersonaSkillIds(output, compendiumOffset, 472, 622, 0, 42, 43, 44, 452, 0);
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (protagonistOffset, PersonaSlotBinaryCodec.BinaryLength),
+            (partyOffset, PersonaSlotBinaryCodec.BinaryLength));
     }
 
     [Fact]
@@ -997,7 +1067,7 @@ public sealed class SaveApplicationServiceTests
             new SetPartyMemberEdit(1, 0x07),
             new SetSaveNamesEdit("Dojima", "Nanako"),
             new SetYenEdit(9999999),
-            new SetPartyMemberEdit(1, 0x05),
+            new SetPartyMemberEdit(1, 0x06),
             new SetInventoryItemQuantityEdit(257, 7),
             new SetInventoryItemQuantityEdit(257, 9),
         ];
@@ -1009,7 +1079,7 @@ public sealed class SaveApplicationServiceTests
         Assert.True(editResult.Succeeded, FormatDiagnostics(editResult.Diagnostics));
         Assert.Equal(new SaveNames("Dojima", "Nanako"), editedSave.State.Names);
         Assert.Equal(9999999u, editedSave.State.Yen);
-        Assert.Equal(new PartyMemberId(0x05), editedSave.State.PartyMembers[1]);
+        Assert.Equal(new PartyMemberId(0x06), editedSave.State.PartyMembers[1]);
         Assert.Equal(new InventoryStack(257, 9), editedSave.State.InventoryStacks.Single(stack => stack.ItemId == 257));
         Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
         byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
@@ -1018,9 +1088,9 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal("Dojima", SaveStringCodec.DecodePString(output.AsMemory(LegacyFamilyNamePStringOffset, LegacyNameByteLength)));
         Assert.Equal("Nanako", SaveStringCodec.DecodePString(output.AsMemory(LegacyGivenNamePStringOffset, LegacyNameByteLength)));
         Assert.Equal(9999999u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(LegacyYenOffset, LegacyYenLength)));
-        Assert.Equal((byte)0x01, output[LegacyPartyMembersOffset]);
-        Assert.Equal((byte)0x05, output[LegacyPartyMembersOffset + 2]);
-        Assert.Equal((byte)0x80, output[LegacyPartyMembersOffset + 4]);
+        Assert.Equal((byte)0, output[LegacyPartyMembersOffset]);
+        Assert.Equal((byte)0x06, output[LegacyPartyMembersOffset + 2]);
+        Assert.Equal((byte)3, output[LegacyPartyMembersOffset + 4]);
         Assert.Equal((byte)9, output[LegacyInventoryOffset + 257]);
         AssertOnlyRangesChanged(
             input,
@@ -1028,7 +1098,9 @@ public sealed class SaveApplicationServiceTests
             (LegacyFamilyNameJStringOffset, LegacyNameByteLength),
             (LegacyGivenNameJStringOffset, LegacyNameByteLength),
             (LegacyYenOffset, LegacyYenLength),
+            (LegacyPartyMembersOffset, 1),
             (LegacyPartyMembersOffset + 2, 1),
+            (LegacyPartyMembersOffset + 4, 1),
             (LegacyFamilyNamePStringOffset, LegacyNameByteLength),
             (LegacyGivenNamePStringOffset, LegacyNameByteLength),
             (LegacyInventoryOffset + 257, 1));
@@ -1036,13 +1108,16 @@ public sealed class SaveApplicationServiceTests
         WorkingSave reopenedSave = OpenOrThrow(service, output);
         Assert.Equal(new SaveNames("Dojima", "Nanako"), reopenedSave.State.Names);
         Assert.Equal(9999999u, reopenedSave.State.Yen);
-        Assert.Equal(new PartyMemberId(0x05), reopenedSave.State.PartyMembers[1]);
+        Assert.Equal(new PartyMemberId(0x06), reopenedSave.State.PartyMembers[1]);
     }
 
     [Fact]
-    public void WriteWithoutEditsClearsAndRewritesSocialLinksOnly()
+    public void WriteWithoutEditsClearsSocialLinksAndCanonicalizesUnsupportedPartyMembers()
     {
         byte[] input = CreateSyntheticSave();
+        input[LegacyPartyMembersOffset] = 0x01;
+        input[LegacyPartyMembersOffset + 2] = 0xfe;
+        input[LegacyPartyMembersOffset + 4] = 0x80;
         SaveApplicationService service = new();
         WorkingSave save = OpenOrThrow(service, input);
 
@@ -1051,7 +1126,16 @@ public sealed class SaveApplicationServiceTests
         Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
         Assert.NotSame(input, result.Bytes);
         byte[] output = Assert.IsType<byte[]>(result.Bytes);
-        AssertOnlyRangesChanged(input, output, (LegacySocialLinksOffset, LegacySocialLinksLength));
+        Assert.Equal((byte)0, output[LegacyPartyMembersOffset]);
+        Assert.Equal((byte)0, output[LegacyPartyMembersOffset + 2]);
+        Assert.Equal((byte)0, output[LegacyPartyMembersOffset + 4]);
+        AssertOnlyRangesChanged(
+            input,
+            output,
+            (LegacyPartyMembersOffset, 1),
+            (LegacyPartyMembersOffset + 2, 1),
+            (LegacyPartyMembersOffset + 4, 1),
+            (LegacySocialLinksOffset, LegacySocialLinksLength));
     }
 
     [Fact]
@@ -1131,6 +1215,25 @@ public sealed class SaveApplicationServiceTests
                 Assert.Equal("P4GAPP003", diagnostic.Code);
                 Assert.Equal("PartyMembers", diagnostic.Target);
             });
+    }
+
+    [Theory]
+    [InlineData((byte)1)]
+    [InlineData((byte)5)]
+    [InlineData((byte)0xfe)]
+    public void ApplyEditsRejectsUnsupportedPartyMemberIds(byte memberValue)
+    {
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
+
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new SetPartyMemberEdit(0, memberValue)]);
+
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Save);
+        SaveDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("P4GAPP020", diagnostic.Code);
+        Assert.Equal("PartyMembers", diagnostic.Target);
     }
 
     [Fact]
@@ -1776,9 +1879,9 @@ public sealed class SaveApplicationServiceTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(LegacyYenOffset, LegacyYenLength), 123456);
         bytes[LegacyMainCharacterLevelOffset] = 99;
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(LegacyMainCharacterTotalExperienceOffset, LegacyMainCharacterTotalExperienceLength), 0x0f0e0d0c);
-        bytes[LegacyPartyMembersOffset] = 0x01;
-        bytes[LegacyPartyMembersOffset + 2] = 0xfe;
-        bytes[LegacyPartyMembersOffset + 4] = 0x80;
+        bytes[LegacyPartyMembersOffset] = 0;
+        bytes[LegacyPartyMembersOffset + 2] = 2;
+        bytes[LegacyPartyMembersOffset + 4] = 3;
         WriteSocialStats(bytes, 15, 30, 80, 140, 85);
         WriteCalendar(bytes, 18, 4, 19, 5);
         WriteSocialLinks(bytes, (1, 5, 3, 2), (8, 2, 1, 0), (10, 1, 0, 1));
@@ -1795,6 +1898,9 @@ public sealed class SaveApplicationServiceTests
         WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (4 * LegacyPartyEquipmentStride), 217, 315, 512, 2040);
         WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (5 * LegacyPartyEquipmentStride), 2305, 328, 615, 1792);
         WriteEquipmentSlot(bytes, LegacyPartyEquipmentOffset + (6 * LegacyPartyEquipmentStride), 2434, 334, 754, 2040);
+        ClearPersonaSlotBytes(bytes, layout.ProtagonistPersonaSlots);
+        ClearPersonaSlotBytes(bytes, layout.PartyPersonaSlots);
+        ClearPersonaSlotBytes(bytes, layout.CompendiumPersonaSlots);
         WritePersonaSlotBytes(bytes, layout.ProtagonistPersonaSlots, 0, ProtagonistPersonaSlot0);
         WritePersonaSlotBytes(bytes, layout.ProtagonistPersonaSlots, 1, ProtagonistPersonaSlot1);
         WritePersonaSlotBytes(bytes, layout.PartyPersonaSlots, 0, PartyPersonaSlot0);
@@ -1879,6 +1985,15 @@ public sealed class SaveApplicationServiceTests
         WritePersonaSlotBytes(bytes.AsSpan(offset, PersonaSlotBinaryCodec.BinaryLength), sentinel);
     }
 
+    private static void ClearPersonaSlotBytes(byte[] bytes, PersonaBlockDescriptor block)
+    {
+        for (int index = 0; index < block.Count; index++)
+        {
+            int offset = block.Offset + (index * block.Stride) + block.PersonaOffsetWithinStride;
+            bytes.AsSpan(offset, PersonaSlotBinaryCodec.BinaryLength).Clear();
+        }
+    }
+
     private static void WritePersonaSlotBytes(Span<byte> destination, PersonaSlotSentinel sentinel)
     {
         destination[..PersonaSlotBinaryCodec.BinaryLength].Clear();
@@ -1902,6 +2017,17 @@ public sealed class SaveApplicationServiceTests
         destination[30] = (byte)(sentinel.Level + 6);
         destination[31] = (byte)(sentinel.Level + 7);
         destination[32] = (byte)(sentinel.Level + 8);
+    }
+
+    private static void AssertPersonaSkillIds(byte[] bytes, int personaOffset, params ushort[] expectedSkillIds)
+    {
+        Assert.Equal(PersonaSlot.SkillCount, expectedSkillIds.Length);
+        for (int index = 0; index < expectedSkillIds.Length; index++)
+        {
+            Assert.Equal(
+                expectedSkillIds[index],
+                BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(personaOffset + 12 + (index * sizeof(ushort)), sizeof(ushort))));
+        }
     }
 
     private static void AssertPersonaSlots(

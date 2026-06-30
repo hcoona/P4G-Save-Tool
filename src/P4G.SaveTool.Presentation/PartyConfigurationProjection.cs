@@ -30,11 +30,8 @@ internal static class PartyConfigurationProjection
             return choices;
         }
 
-        selectedChoice = new PartyConfigurationChoiceViewState(
-            currentMemberValue,
-            $"Unknown ({currentMemberValue})",
-            true);
-        return Array.AsReadOnly(choices.Concat([selectedChoice]).ToArray());
+        selectedChoice = choices[0];
+        return choices;
     }
 
     private static ReadOnlyCollection<PartyConfigurationChoiceViewState> CreateChoices()

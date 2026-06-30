@@ -238,6 +238,7 @@
               Header="Total XP"
               InputScope="Number"
               IsEnabled="False"
+              TextChanged="PersonaDraftControl_Changed"
               />
             <StackPanel Spacing="4">
               <TextBlock Text="Level" />
@@ -266,23 +267,23 @@
               />
             <StackPanel Spacing="4">
               <TextBlock Text="Strength" />
-              <Slider x:Name="PersonaStrengthSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+              <Slider x:Name="PersonaStrengthSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" ValueChanged="PersonaDraftControl_Changed" />
             </StackPanel>
             <StackPanel Spacing="4">
               <TextBlock Text="Magic" />
-              <Slider x:Name="PersonaMagicSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+              <Slider x:Name="PersonaMagicSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" ValueChanged="PersonaDraftControl_Changed" />
             </StackPanel>
             <StackPanel Spacing="4">
               <TextBlock Text="Endurance" />
-              <Slider x:Name="PersonaEnduranceSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+              <Slider x:Name="PersonaEnduranceSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" ValueChanged="PersonaDraftControl_Changed" />
             </StackPanel>
             <StackPanel Spacing="4">
               <TextBlock Text="Agility" />
-              <Slider x:Name="PersonaAgilitySlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+              <Slider x:Name="PersonaAgilitySlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" ValueChanged="PersonaDraftControl_Changed" />
             </StackPanel>
             <StackPanel Spacing="4">
               <TextBlock Text="Luck" />
-              <Slider x:Name="PersonaLuckSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" />
+              <Slider x:Name="PersonaLuckSlider" Minimum="0" Maximum="255" TickFrequency="1" StepFrequency="1" IsEnabled="False" ValueChanged="PersonaDraftControl_Changed" />
             </StackPanel>
             <Grid ColumnSpacing="8" Margin="0,4,0,0">
               <Grid.ColumnDefinitions>

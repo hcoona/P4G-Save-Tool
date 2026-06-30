@@ -806,7 +806,7 @@ public sealed partial class MainWindow : Window
         IReadOnlyList<SocialLinkViewState> socialLinks,
         int? selectedSocialLinkIndex,
         byte? selectedSocialLinkLinkId,
-        bool allowFallbackSelection = true)
+        bool allowFallbackSelection = false)
     {
         ArgumentNullException.ThrowIfNull(socialLinks);
 
@@ -1275,10 +1275,10 @@ public sealed partial class MainWindow : Window
             personaId,
             1,
             0,
-            [0, 0, 0, 0, 0, 1, 1, 1],
+            [0, 0, 0, 0, 0, 0, 1, 1],
             1,
             1,
-            0,
+            1,
             0,
             0);
 
@@ -1884,7 +1884,7 @@ public sealed partial class MainWindow : Window
         TraceStartup("RefreshCalendarState exit");
     }
 
-    private void RefreshSocialLinksState(bool allowFallbackSelection = true)
+    private void RefreshSocialLinksState(bool allowFallbackSelection = false)
     {
         TraceStartup("RefreshSocialLinksState enter");
         suppressSocialLinkEvents = true;
@@ -2318,17 +2318,7 @@ public sealed partial class MainWindow : Window
             () => viewModel.RemoveSocialLink(deletedSlotIndex));
         if (result.Succeeded)
         {
-            if (viewModel.SocialLinks.Count == 0)
-            {
-                ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
-            }
-            else
-            {
-                int nextSlotIndex = Math.Min(deletedSlotIndex, viewModel.SocialLinks.Count - 1);
-                SocialLinkViewState selectedLink = viewModel.SocialLinks[nextSlotIndex];
-                selectedSocialLinkIndex = selectedLink.SlotIndex;
-                selectedSocialLinkLinkId = selectedLink.LinkId;
-            }
+            ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
         }
 
         RefreshSocialLinksState();

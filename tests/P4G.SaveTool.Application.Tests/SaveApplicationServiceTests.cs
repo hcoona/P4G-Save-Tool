@@ -891,6 +891,27 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
+    public void WriteClearsAndRewritesSocialLinksEvenWhenUnchanged()
+    {
+        byte[] input = CreateSyntheticSave();
+        Assert.Equal(SocialLinkPaddingSentinel(0), input[LegacySocialLinksOffset + 1]);
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveWriteResult writeResult = service.Write(save);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)1, output[LegacySocialLinksOffset]);
+        Assert.Equal((byte)5, output[LegacySocialLinksOffset + 2]);
+        Assert.Equal((byte)3, output[LegacySocialLinksOffset + 4]);
+        Assert.Equal((byte)2, output[LegacySocialLinksOffset + 12]);
+        Assert.Equal((byte)0, output[LegacySocialLinksOffset + 1]);
+        Assert.Equal((byte)0, output[LegacySocialLinksOffset + 3]);
+        AssertOnlyRangesChanged(input, output, (LegacySocialLinksOffset, LegacySocialLinksLength));
+    }
+
+    [Fact]
     public void ApplyEditsAppendsNewInventoryItemsToVisibleOrder()
     {
         SaveApplicationService service = new();
@@ -968,7 +989,7 @@ public sealed class SaveApplicationServiceTests
     }
 
     [Fact]
-    public void WriteWithoutEditsPreservesOriginalBytes()
+    public void WriteWithoutEditsClearsAndRewritesSocialLinksOnly()
     {
         byte[] input = CreateSyntheticSave();
         SaveApplicationService service = new();
@@ -978,7 +999,8 @@ public sealed class SaveApplicationServiceTests
 
         Assert.True(result.Succeeded, FormatDiagnostics(result.Diagnostics));
         Assert.NotSame(input, result.Bytes);
-        Assert.Equal(input, result.Bytes);
+        byte[] output = Assert.IsType<byte[]>(result.Bytes);
+        AssertOnlyRangesChanged(input, output, (LegacySocialLinksOffset, LegacySocialLinksLength));
     }
 
     [Fact]
@@ -1657,6 +1679,7 @@ public sealed class SaveApplicationServiceTests
         Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
         byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
         Assert.Equal((byte)1, output[compendiumOffset]);
+        Assert.Equal((byte)0, output[compendiumOffset + 1]);
         Assert.Equal((ushort)3, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(compendiumOffset + 2, sizeof(ushort))));
         Assert.Equal((byte)0, output[compendiumOffset + 4]);
     }
@@ -1889,10 +1912,16 @@ public sealed class SaveApplicationServiceTests
         byte[] actual,
         params (int Offset, int Length)[] changedRanges)
     {
+        List<(int Offset, int Length)> effectiveChangedRanges = [..changedRanges];
+        if (!effectiveChangedRanges.Contains((LegacySocialLinksOffset, LegacySocialLinksLength)))
+        {
+            effectiveChangedRanges.Add((LegacySocialLinksOffset, LegacySocialLinksLength));
+        }
+
         Assert.Equal(expectedOriginal.Length, actual.Length);
         for (int index = 0; index < expectedOriginal.Length; index++)
         {
-            bool shouldDiffer = changedRanges.Any(range => index >= range.Offset && index < range.Offset + range.Length);
+            bool shouldDiffer = effectiveChangedRanges.Any(range => index >= range.Offset && index < range.Offset + range.Length);
             if (shouldDiffer)
             {
                 continue;

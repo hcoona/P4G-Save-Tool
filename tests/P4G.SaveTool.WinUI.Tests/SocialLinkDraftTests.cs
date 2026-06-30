@@ -73,7 +73,7 @@ public sealed class SocialLinkDraftTests
     }
 
     [Fact]
-    public void SocialLinkSelectionResolverFallsBackToFirstLinkWhenSelectionIsStale()
+    public void SocialLinkSelectionResolverReturnsNullWhenSelectionIsStale()
     {
         IReadOnlyList<SocialLinkViewState> socialLinks =
         [
@@ -83,11 +83,11 @@ public sealed class SocialLinkDraftTests
 
         SocialLinkViewState? selectedLink = MainWindow.ResolveSelectedSocialLinkViewState(socialLinks, 9, 99);
 
-        Assert.Same(socialLinks[0], selectedLink);
+        Assert.Null(selectedLink);
     }
 
     [Fact]
-    public void SocialLinkSelectionResolverCanSuppressFallbackWhenSelectionIsAbsent()
+    public void SocialLinkSelectionResolverCanUseExplicitFallbackWhenRequested()
     {
         IReadOnlyList<SocialLinkViewState> socialLinks =
         [
@@ -98,9 +98,9 @@ public sealed class SocialLinkDraftTests
             socialLinks,
             selectedSocialLinkIndex: null,
             selectedSocialLinkLinkId: null,
-            allowFallbackSelection: false);
+            allowFallbackSelection: true);
 
-        Assert.Null(selectedLink);
+        Assert.Same(socialLinks[0], selectedLink);
     }
 
     [Fact]

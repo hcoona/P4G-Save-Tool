@@ -525,10 +525,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
             patches.Add(CreateSocialStatsPatch(layout.SocialStats, state.SocialStats, snapshot));
         }
 
-        if (!SocialLinksEqual(state.SocialLinks, snapshot.SocialLinks))
-        {
-            patches.Add(CreateSocialLinksPatch(layout.SocialLinks, state.SocialLinks));
-        }
+        patches.Add(CreateSocialLinksPatch(layout.SocialLinks, state.SocialLinks));
 
         if (!CalendarEqual(state, snapshot))
         {
@@ -838,12 +835,6 @@ public sealed class SaveApplicationService : ISaveApplicationService
         left.Count == right.Count &&
         left.SequenceEqual(right);
 
-    private static bool SocialLinksEqual(
-        IReadOnlyList<SocialLinkState> left,
-        IReadOnlyList<SocialLinkState> right) =>
-        left.Count == right.Count &&
-        left.SequenceEqual(right);
-
     private static int GetSocialLinkSlotCount(P4GSaveLayout layout) =>
         layout.SocialLinks.Length / SocialLinkSlotStride;
 
@@ -963,7 +954,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
             : personaSlotEdit.Level;
         PersonaSlot updatedSlot = new(
             existsRawByte,
-            currentSlot.Unknown0,
+            GetPersonaSlotUnknown0(currentSlot, personaSlotEdit, resetUnknown0ForBlankTarget: maximumTotalExperience.HasValue),
             personaSlotEdit.PersonaId,
             level,
             currentSlot.ReservedAfterLevel,
@@ -1036,6 +1027,14 @@ public sealed class SaveApplicationService : ISaveApplicationService
             personaSlotEdit.Endurance,
             personaSlotEdit.Agility,
             personaSlotEdit.Luck);
+
+    private static byte GetPersonaSlotUnknown0(
+        PersonaSlot currentSlot,
+        PersonaSlotEdit personaSlotEdit,
+        bool resetUnknown0ForBlankTarget) =>
+        resetUnknown0ForBlankTarget && currentSlot.PersonaId == 0 && personaSlotEdit.PersonaId != 0
+            ? (byte)0
+            : currentSlot.Unknown0;
 
     private static bool IsSupportedInventoryItem(P4GSaveLayout layout, ushort itemId) =>
         itemId < (ushort)layout.Inventory.Length &&

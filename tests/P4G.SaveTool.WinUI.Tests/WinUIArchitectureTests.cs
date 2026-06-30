@@ -830,7 +830,7 @@ public sealed class WinUIArchitectureTests
             "private bool ApplyEditorFields()");
         string refreshSocialLinksBody = GetSection(
             content,
-            "private void RefreshSocialLinksState(bool allowFallbackSelection = true)",
+            "private void RefreshSocialLinksState(bool allowFallbackSelection = false)",
             "private void RefreshInventoryState()");
 
         Assert.Contains("selectedInventoryCategoryId = null;", openBody, StringComparison.Ordinal);

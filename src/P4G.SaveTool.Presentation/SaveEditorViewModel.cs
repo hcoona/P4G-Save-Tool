@@ -396,6 +396,14 @@ public sealed class SaveEditorViewModel : ViewModelBase
 
     public SaveEditorOperationResult AddSocialLink(byte linkId)
     {
+        if (!SocialLinkRules.IsSupportedAddLinkId(linkId))
+        {
+            return FailOperation(
+                "P4GAPP016",
+                "Social link edit targets an unsupported link id.",
+                "SocialLinks");
+        }
+
         return ApplyEdits([new AddSocialLinkEdit(linkId)]);
     }
 

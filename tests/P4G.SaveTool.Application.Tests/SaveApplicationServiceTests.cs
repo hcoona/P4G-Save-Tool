@@ -728,13 +728,15 @@ public sealed class SaveApplicationServiceTests
         Assert.All(reopenedSave.State.CompendiumPersonaSlots, static slot => Assert.False(slot.Exists));
     }
 
-    [Fact]
-    public void ApplyEditsRejectsZeroSocialLinkId()
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)99)]
+    public void ApplyEditsRejectsUnsupportedSocialLinkAddIds(byte linkId)
     {
         SaveApplicationService service = new();
         WorkingSave save = OpenOrThrow(service, CreateSyntheticSave());
 
-        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new AddSocialLinkEdit(0)]);
+        SaveEditResult<WorkingSave> result = service.ApplyEdits(save, [new AddSocialLinkEdit(linkId)]);
 
         Assert.False(result.Succeeded);
         Assert.Null(result.Save);
@@ -742,6 +744,55 @@ public sealed class SaveApplicationServiceTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("P4GAPP016", diagnostic.Code);
         Assert.Equal("SocialLinks", diagnostic.Target);
+    }
+
+    [Fact]
+    public void WriteCanonicalizesKnownCompendiumPersonasByPersonaIdWithoutCompendiumEdits()
+    {
+        byte[] input = CreateSyntheticSave();
+        input.AsSpan(LegacyCompendiumPersonaSlotsOffset, LegacyCompendiumPersonaBlockPatchLength).Clear();
+        const int sourceSlotIndex = 10;
+        const int canonicalSlotIndex = 2;
+        int sourceOffset = LegacyCompendiumPersonaSlotsOffset + (sourceSlotIndex * LegacyCompendiumPersonaSlotStride);
+        int canonicalOffset = LegacyCompendiumPersonaSlotsOffset + (canonicalSlotIndex * LegacyCompendiumPersonaSlotStride);
+        WritePersonaSlotBytes(
+            input.AsSpan(sourceOffset, PersonaSlotBinaryCodec.BinaryLength),
+            new PersonaSlotSentinel(3, 0x33, 0x03030303, 0x3301));
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveWriteResult writeResult = service.Write(save);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)0, output[sourceOffset]);
+        Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(sourceOffset + 2, sizeof(ushort))));
+        Assert.Equal((byte)1, output[canonicalOffset]);
+        Assert.Equal((ushort)3, BinaryPrimitives.ReadUInt16LittleEndian(output.AsSpan(canonicalOffset + 2, sizeof(ushort))));
+        Assert.Equal((byte)0x33, output[canonicalOffset + 4]);
+        Assert.Equal(0x03030303u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(canonicalOffset + 8, sizeof(uint))));
+        AssertOnlyRangesChanged(input, output);
+    }
+
+    [Fact]
+    public void WriteCanonicalizesProtagonistAndPartyPersonaExistsBytesWithoutPersonaEdits()
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        byte[] input = CreateSyntheticSave();
+        int protagonistOffset = layout.ProtagonistPersonaSlots.Offset + (2 * layout.ProtagonistPersonaSlots.Stride) + layout.ProtagonistPersonaSlots.PersonaOffsetWithinStride;
+        int partyOffset = layout.PartyPersonaSlots.Offset + (2 * layout.PartyPersonaSlots.Stride) + layout.PartyPersonaSlots.PersonaOffsetWithinStride;
+        WritePersonaSlotBytes(input.AsSpan(protagonistOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0102, 0x12, 0x11111111, 0x1401, 0x7f));
+        WritePersonaSlotBytes(input.AsSpan(partyOffset, PersonaSlotBinaryCodec.BinaryLength), new PersonaSlotSentinel(0x0203, 0x23, 0x22222222, 0x2401, 0x80));
+        SaveApplicationService service = new();
+        WorkingSave save = OpenOrThrow(service, input);
+
+        SaveWriteResult writeResult = service.Write(save);
+
+        Assert.True(writeResult.Succeeded, FormatDiagnostics(writeResult.Diagnostics));
+        byte[] output = Assert.IsType<byte[]>(writeResult.Bytes);
+        Assert.Equal((byte)1, output[protagonistOffset]);
+        Assert.Equal((byte)1, output[partyOffset]);
+        AssertOnlyRangesChanged(input, output, (protagonistOffset, 1), (partyOffset, 1));
     }
 
     [Fact]
@@ -1913,10 +1964,9 @@ public sealed class SaveApplicationServiceTests
         params (int Offset, int Length)[] changedRanges)
     {
         List<(int Offset, int Length)> effectiveChangedRanges = [..changedRanges];
-        if (!effectiveChangedRanges.Contains((LegacySocialLinksOffset, LegacySocialLinksLength)))
-        {
-            effectiveChangedRanges.Add((LegacySocialLinksOffset, LegacySocialLinksLength));
-        }
+        AddRangeIfChanged(effectiveChangedRanges, expectedOriginal, actual, LegacySocialLinksOffset, LegacySocialLinksLength);
+        AddRangeIfChanged(effectiveChangedRanges, expectedOriginal, actual, LegacyCompendiumPersonaSlotsOffset, LegacyCompendiumPersonaBlockPatchLength);
+        AddPersonaExistsByteRangesIfChanged(effectiveChangedRanges, expectedOriginal, actual);
 
         Assert.Equal(expectedOriginal.Length, actual.Length);
         for (int index = 0; index < expectedOriginal.Length; index++)
@@ -1929,6 +1979,49 @@ public sealed class SaveApplicationServiceTests
 
             Assert.Equal(expectedOriginal[index], actual[index]);
         }
+    }
+
+    private static void AddPersonaExistsByteRangesIfChanged(
+        List<(int Offset, int Length)> ranges,
+        byte[] expectedOriginal,
+        byte[] actual)
+    {
+        P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);
+        AddPersonaExistsByteRangesIfChanged(ranges, expectedOriginal, actual, layout.ProtagonistPersonaSlots);
+        AddPersonaExistsByteRangesIfChanged(ranges, expectedOriginal, actual, layout.PartyPersonaSlots);
+    }
+
+    private static void AddPersonaExistsByteRangesIfChanged(
+        List<(int Offset, int Length)> ranges,
+        byte[] expectedOriginal,
+        byte[] actual,
+        PersonaBlockDescriptor block)
+    {
+        for (int slotIndex = 0; slotIndex < block.Count; slotIndex++)
+        {
+            int offset = block.Offset + (slotIndex * block.Stride) + block.PersonaOffsetWithinStride;
+            AddRangeIfChanged(ranges, expectedOriginal, actual, offset, 1);
+        }
+    }
+
+    private static void AddRangeIfChanged(
+        List<(int Offset, int Length)> ranges,
+        byte[] expectedOriginal,
+        byte[] actual,
+        int offset,
+        int length)
+    {
+        if (ranges.Contains((offset, length)) ||
+            offset < 0 ||
+            length <= 0 ||
+            offset + length > expectedOriginal.Length ||
+            offset + length > actual.Length ||
+            expectedOriginal.AsSpan(offset, length).SequenceEqual(actual.AsSpan(offset, length)))
+        {
+            return;
+        }
+
+        ranges.Add((offset, length));
     }
 
     private static void AssertReadOnlyListDoesNotExposeArray<T>(IReadOnlyList<T> collection, T replacement)

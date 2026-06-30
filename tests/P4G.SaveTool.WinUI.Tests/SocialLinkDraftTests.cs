@@ -127,6 +127,36 @@ public sealed class SocialLinkDraftTests
     }
 
     [Fact]
+    public void SocialLinkRowRefreshFindsSelectedRowBySlotAndLink()
+    {
+        IReadOnlyList<SocialLinkViewState> socialLinks =
+        [
+            new(0, 1, "First", string.Empty, 1, 0, 0),
+            new(1, 3, "Selected", string.Empty, 2, 1, 0),
+        ];
+        SocialLinkViewState refreshedSelectedLink = new(1, 3, "Selected", string.Empty, 6, 4, 0);
+
+        int rowIndex = MainWindow.ResolveSelectedSocialLinkRowIndex(socialLinks, refreshedSelectedLink);
+
+        Assert.Equal(1, rowIndex);
+    }
+
+    [Fact]
+    public void SocialLinkRowRefreshDoesNotFallbackWhenSelectionIsStale()
+    {
+        IReadOnlyList<SocialLinkViewState> socialLinks =
+        [
+            new(0, 1, "First", string.Empty, 1, 0, 0),
+            new(1, 3, "Selected", string.Empty, 2, 1, 0),
+        ];
+        SocialLinkViewState staleSelectedLink = new(9, 99, "Missing", string.Empty, 6, 4, 0);
+
+        int rowIndex = MainWindow.ResolveSelectedSocialLinkRowIndex(socialLinks, staleSelectedLink);
+
+        Assert.Equal(-1, rowIndex);
+    }
+
+    [Fact]
     public void SocialLinkDraftAfterApplyIsPreservedOnlyWhenBatchDoesNotTouchSocialLinks()
     {
         Assert.True(MainWindow.ShouldPreserveSelectedSocialLinkDraftAfterApply(Array.Empty<SaveEditCommand>()));

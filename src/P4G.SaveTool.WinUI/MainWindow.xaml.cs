@@ -842,6 +842,26 @@ public sealed partial class MainWindow : Window
         selectedSocialLinkLinkId = null;
     }
 
+    internal static int ResolveSelectedSocialLinkRowIndex(
+        IReadOnlyList<SocialLinkViewState> socialLinkRows,
+        SocialLinkViewState selectedLink)
+    {
+        ArgumentNullException.ThrowIfNull(socialLinkRows);
+        ArgumentNullException.ThrowIfNull(selectedLink);
+
+        for (int index = 0; index < socialLinkRows.Count; index++)
+        {
+            SocialLinkViewState socialLinkRow = socialLinkRows[index];
+            if (socialLinkRow.SlotIndex == selectedLink.SlotIndex &&
+                socialLinkRow.LinkId == selectedLink.LinkId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
     private SocialLinkDraftState? CaptureSelectedSocialLinkDraft()
     {
         if (!selectedSocialLinkIndex.HasValue || SocialLinkListView.SelectedItem is not SocialLinkViewState selectedLink)
@@ -858,6 +878,40 @@ public sealed partial class MainWindow : Window
 
     private SocialLinkViewState? GetSelectedSocialLinkViewState() =>
         ResolveSelectedSocialLinkViewState(viewModel.SocialLinks, selectedSocialLinkIndex, selectedSocialLinkLinkId);
+
+    private void RefreshSelectedSocialLinkRowSummary()
+    {
+        if (!selectedSocialLinkIndex.HasValue)
+        {
+            return;
+        }
+
+        SocialLinkViewState? selectedLink = GetSelectedSocialLinkViewState();
+        if (selectedLink is null)
+        {
+            return;
+        }
+
+        int rowIndex = ResolveSelectedSocialLinkRowIndex(socialLinkItems, selectedLink);
+        if (rowIndex < 0)
+        {
+            return;
+        }
+
+        suppressSocialLinkEvents = true;
+        try
+        {
+            socialLinkItems[rowIndex] = selectedLink;
+            SocialLinkListView.SelectedItem = selectedLink;
+        }
+        finally
+        {
+            suppressSocialLinkEvents = false;
+        }
+
+        selectedSocialLinkIndex = selectedLink.SlotIndex;
+        selectedSocialLinkLinkId = selectedLink.LinkId;
+    }
 
     private void RestoreSelectedSocialLinkDraft(SocialLinkDraftState socialLinkDraft)
     {
@@ -3534,7 +3588,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdits(edits, refreshAfterSuccess: false);
+        ApplyImmediateEdits(
+            edits,
+            refreshAfterSuccess: false,
+            refreshAfterSuccessAction: RefreshSelectedSocialLinkRowSummary);
     }
 
     private bool CanProcessImmediateEditEvent() =>
@@ -3554,7 +3611,10 @@ public sealed partial class MainWindow : Window
         ApplyImmediateEdits([createEdit()], refreshAfterSuccess);
     }
 
-    private void ApplyImmediateEdits(List<SaveEditCommand> edits, bool refreshAfterSuccess)
+    private void ApplyImmediateEdits(
+        List<SaveEditCommand> edits,
+        bool refreshAfterSuccess,
+        Action? refreshAfterSuccessAction = null)
     {
         if (!CanProcessImmediateEditEvent() || edits.Count == 0)
         {
@@ -3564,11 +3624,16 @@ public sealed partial class MainWindow : Window
         uiDiagnosticsOverride = null;
         SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
             () => viewModel.ApplyEdits(edits));
-        if (refreshAfterSuccess && result.Succeeded)
+        if (result.Succeeded)
         {
-            RefreshBasicStatsState();
-            RefreshSocialStatsState();
-            RefreshCalendarState();
+            if (refreshAfterSuccess)
+            {
+                RefreshBasicStatsState();
+                RefreshSocialStatsState();
+                RefreshCalendarState();
+            }
+
+            refreshAfterSuccessAction?.Invoke();
         }
 
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);

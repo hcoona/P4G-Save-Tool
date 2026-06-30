@@ -326,7 +326,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
                 return ApplyCompendiumClearAllEdit(state);
 
             case AddSocialLinkEdit addSocialLink:
-                if (addSocialLink.LinkId == 0)
+                if (!IsSupportedSocialLinkAddId(addSocialLink.LinkId))
                 {
                     diagnostics.Add(new SaveDiagnostic(
                         DiagnosticSeverity.Error,
@@ -534,18 +534,17 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
         AddPersonaSlotPatches(
             patches,
+            snapshot,
             snapshot.ProtagonistPersonaSlots,
             state.ProtagonistPersonaSlots,
             layout.ProtagonistPersonaSlots);
         AddPersonaSlotPatches(
             patches,
+            snapshot,
             snapshot.PartyPersonaSlots,
             state.PartyPersonaSlots,
             layout.PartyPersonaSlots);
-        if (!PersonaSlotsEqual(snapshot.CompendiumPersonaSlots, state.CompendiumPersonaSlots))
-        {
-            patches.Add(CreateCompendiumPersonaBlockPatch(layout.CompendiumPersonaSlots, state.CompendiumPersonaSlots));
-        }
+        patches.Add(CreateCompendiumPersonaBlockPatch(layout.CompendiumPersonaSlots, state.CompendiumPersonaSlots));
 
         return patches;
     }
@@ -708,6 +707,7 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
     private static void AddPersonaSlotPatches(
         List<SaveFieldPatch> patches,
+        SaveSnapshot snapshot,
         IReadOnlyList<PersonaSlot> snapshotSlots,
         IReadOnlyList<PersonaSlot> stateSlots,
         PersonaBlockDescriptor block)
@@ -715,20 +715,16 @@ public sealed class SaveApplicationService : ISaveApplicationService
         int slotCount = Math.Min(snapshotSlots.Count, stateSlots.Count);
         for (int slotIndex = 0; slotIndex < slotCount; slotIndex++)
         {
-            if (snapshotSlots[slotIndex].Equals(stateSlots[slotIndex]))
+            SaveFieldPatch patch = CreatePersonaSlotPatch(block, slotIndex, stateSlots[slotIndex]);
+            if (snapshotSlots[slotIndex].Equals(stateSlots[slotIndex]) &&
+                PersonaSlotPatchMatchesOriginalBytes(snapshot, block, slotIndex, patch))
             {
                 continue;
             }
 
-            patches.Add(CreatePersonaSlotPatch(block, slotIndex, stateSlots[slotIndex]));
+            patches.Add(patch);
         }
     }
-
-    private static bool PersonaSlotsEqual(
-        IReadOnlyList<PersonaSlot> left,
-        IReadOnlyList<PersonaSlot> right) =>
-        left.Count == right.Count &&
-        left.SequenceEqual(right);
 
     private static SaveFieldPatch CreatePersonaSlotPatch(
         PersonaBlockDescriptor block,
@@ -739,6 +735,16 @@ public sealed class SaveApplicationService : ISaveApplicationService
         return new SaveFieldPatch(
             $"{block.Name}[{slotIndex}]",
             writeResult.Bytes ?? Array.Empty<byte>());
+    }
+
+    private static bool PersonaSlotPatchMatchesOriginalBytes(
+        SaveSnapshot snapshot,
+        PersonaBlockDescriptor block,
+        int slotIndex,
+        SaveFieldPatch patch)
+    {
+        int offset = block.Offset + (slotIndex * block.Stride) + block.PersonaOffsetWithinStride;
+        return snapshot.OriginalBytes.Slice(offset, patch.ByteLength).Span.SequenceEqual(patch.Bytes.Span);
     }
 
     private static PersonaSlot NormalizePersonaSlotForLegacyWrite(PersonaSlot personaSlot, bool clearReservedAfterLevel) =>
@@ -837,6 +843,9 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
     private static int GetSocialLinkSlotCount(P4GSaveLayout layout) =>
         layout.SocialLinks.Length / SocialLinkSlotStride;
+
+    private static bool IsSupportedSocialLinkAddId(byte linkId) =>
+        SocialLinkRules.IsSupportedAddLinkId(linkId);
 
     private static bool CalendarEqual(WorkingSaveState state, SaveSnapshot snapshot) =>
         state.Day == snapshot.Day &&

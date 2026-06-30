@@ -1101,9 +1101,6 @@ public sealed class SaveEditorViewModelTests
                 AddSocialLinkEdit addSocialLink = Assert.IsType<AddSocialLinkEdit>(Assert.Single(edits));
                 return addSocialLink.LinkId switch
                 {
-                    0 => new SaveEditResult<WorkingSave>(
-                        null,
-                        [new SaveDiagnostic(DiagnosticSeverity.Error, "P4GAPP016", "Social link edit targets an unsupported link id.", "SocialLinks")]),
                     1 => new SaveEditResult<WorkingSave>(
                         null,
                         [new SaveDiagnostic(DiagnosticSeverity.Error, "P4GAPP017", "Social link edit targets a duplicate link id.", "SocialLinks")]),
@@ -1115,13 +1112,18 @@ public sealed class SaveEditorViewModelTests
         viewModel.OpenSave(ReadOnlyMemory<byte>.Empty);
 
         SaveEditorOperationResult zeroResult = viewModel.AddSocialLink(0);
+        SaveEditorOperationResult unknownResult = viewModel.AddSocialLink(99);
         SaveEditorOperationResult duplicateResult = viewModel.AddSocialLink(1);
 
         Assert.False(zeroResult.Succeeded);
+        Assert.False(unknownResult.Succeeded);
         Assert.False(duplicateResult.Succeeded);
         Assert.Equal("P4GAPP016", zeroResult.Diagnostics.Single().Code);
+        Assert.Equal("P4GAPP016", unknownResult.Diagnostics.Single().Code);
         Assert.Equal("P4GAPP017", duplicateResult.Diagnostics.Single().Code);
-        Assert.Equal(2, service.AppliedEdits.Count);
+        IReadOnlyList<SaveEditCommand> appliedEdits = Assert.Single(service.AppliedEdits);
+        AddSocialLinkEdit appliedAdd = Assert.IsType<AddSocialLinkEdit>(Assert.Single(appliedEdits));
+        Assert.Equal((byte)1, appliedAdd.LinkId);
     }
 
     [Fact]

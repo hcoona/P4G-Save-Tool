@@ -983,6 +983,7 @@ public sealed class WinUIArchitectureTests
         Assert.Equal(5, Regex.Count(xaml, Regex.Escape("ValueChanged=\"PersonaDraftControl_Changed\"")));
         Assert.Contains("private void PersonaDraftControl_Changed(object sender, TextChangedEventArgs e)", source, StringComparison.Ordinal);
         Assert.Contains("private void PersonaDraftControl_Changed(object sender, RangeBaseValueChangedEventArgs e)", source, StringComparison.Ordinal);
+        Assert.Contains("RefreshPersonaDraftDiagnostics();", refreshDraftBody, StringComparison.Ordinal);
         Assert.Contains("UpdateShellState();", refreshDraftBody, StringComparison.Ordinal);
         Assert.Contains("if (suppressPersonaEvents || viewModel is null || !viewModel.HasSave)", refreshDraftBody, StringComparison.Ordinal);
         Assert.Contains("ReadPersonaId(PersonaChoiceComboBox) != selectedSlot.PersonaId", hasPersonaDraftBody, StringComparison.Ordinal);

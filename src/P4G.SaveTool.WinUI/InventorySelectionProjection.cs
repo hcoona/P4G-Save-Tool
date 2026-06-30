@@ -52,6 +52,15 @@ internal static class InventorySelectionProjection
             return itemChoices;
         }
 
+        if (selectedItemId == 0)
+        {
+            selectedItem = itemChoices.FirstOrDefault(static item => item.IsPlaceholder);
+            if (selectedItem is not null)
+            {
+                return itemChoices;
+            }
+        }
+
         selectedItem = new InventoryItemChoiceViewState(
             selectedItemId,
             itemChoices.Count > 0 ? itemChoices[0].CategoryId : default,

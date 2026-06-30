@@ -193,6 +193,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        RefreshPersonaDraftDiagnostics();
         UpdateShellState();
     }
 
@@ -3279,7 +3280,7 @@ public sealed partial class MainWindow : Window
             }
         }
 
-        UpdateShellState();
+        RefreshPersonaDraftShellState();
     }
 
     private void PersonaSkillBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3289,7 +3290,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        UpdateShellState();
+        RefreshPersonaDraftShellState();
     }
 
     private void EquipmentCharacterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3791,6 +3792,47 @@ public sealed partial class MainWindow : Window
         uiDiagnosticsOverride = diagnostics;
         DisplayDiagnostics(diagnostics);
     }
+
+    private void RefreshPersonaDraftDiagnostics()
+    {
+        if (uiDiagnosticsOverride is null || !uiDiagnosticsOverride.Any(IsPersonaDraftDiagnostic))
+        {
+            return;
+        }
+
+        List<SaveDiagnostic> diagnostics = uiDiagnosticsOverride
+            .Where(static diagnostic => !IsPersonaDraftDiagnostic(diagnostic))
+            .ToList();
+
+        if (!TryBuildPersonaSlotEdit(out PersonaSlotEdit personaSlotEdit, out SaveDiagnostic personaDiagnostic))
+        {
+            diagnostics.Add(personaDiagnostic);
+        }
+        else if (selectedCompendiumSlotIndex.HasValue &&
+            (uint)selectedCompendiumSlotIndex.Value < (uint)viewModel.CompendiumPersonaSlots.Count)
+        {
+            PersonaSlotViewState currentCompendiumSlot = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value];
+            personaSlotEdit = PreserveCompendiumPersonaIdentity(currentCompendiumSlot, personaSlotEdit);
+            if (!TryValidateCompendiumPersonaExperienceChange(currentCompendiumSlot, personaSlotEdit, out SaveDiagnostic experienceDiagnostic))
+            {
+                diagnostics.Add(experienceDiagnostic);
+            }
+        }
+
+        if (diagnostics.Count == 0)
+        {
+            uiDiagnosticsOverride = null;
+            DisplayDiagnostics(viewModel.Diagnostics);
+            return;
+        }
+
+        uiDiagnosticsOverride = Array.AsReadOnly(diagnostics.ToArray());
+        DisplayDiagnostics(uiDiagnosticsOverride);
+    }
+
+    private static bool IsPersonaDraftDiagnostic(SaveDiagnostic diagnostic) =>
+        diagnostic.Code is "P4GWINUI014" or "P4GWINUI015" or "P4GWINUI016" or "P4GWINUI031" or "P4GWINUI032" ||
+        diagnostic.Target is "Persona.Xp" or "Persona.Skills" or "Persona.Level";
 
     private async Task ShowMessageAsync(string title, string message)
     {

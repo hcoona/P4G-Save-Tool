@@ -96,6 +96,25 @@ public sealed class InventorySelectionProjectionTests
     }
 
     [Fact]
+    public void EquipmentChoiceResolverMapsRawZeroToLegacyBlankChoice()
+    {
+        IReadOnlyList<InventoryItemChoiceViewState> itemChoices =
+        [
+            new InventoryItemChoiceViewState(256, (byte)ItemCategoryId.Armor, "Blank", true),
+            new InventoryItemChoiceViewState(257, (byte)ItemCategoryId.Armor, "Chain Mail"),
+        ];
+
+        IReadOnlyList<InventoryItemChoiceViewState> projectedChoices =
+            InventorySelectionProjection.ResolveEquipmentChoices(itemChoices, 0, out InventoryItemChoiceViewState? selectedItem);
+
+        Assert.NotNull(selectedItem);
+        Assert.Same(itemChoices, projectedChoices);
+        Assert.Equal((ushort)256, selectedItem!.ItemId);
+        Assert.Equal("Blank", selectedItem.Name);
+        Assert.True(selectedItem.IsPlaceholder);
+    }
+
+    [Fact]
     public void EquipmentChoiceResolverDoesNotDuplicateSupportedSelection()
     {
         IReadOnlyList<InventoryItemChoiceViewState> itemChoices =

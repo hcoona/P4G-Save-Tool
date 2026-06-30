@@ -73,11 +73,11 @@ public static class EquipmentItemRules
         }
     }
 
-    public static bool IsSupportedArmorItemId(ushort itemId) => IsInRanges(itemId, ArmorRanges);
+    public static bool IsSupportedArmorItemId(ushort itemId) => itemId == 0 || IsInRanges(itemId, ArmorRanges);
 
-    public static bool IsSupportedAccessoryItemId(ushort itemId) => IsInRanges(itemId, AccessoryRanges);
+    public static bool IsSupportedAccessoryItemId(ushort itemId) => itemId == 0 || IsInRanges(itemId, AccessoryRanges);
 
-    public static bool IsSupportedCostumeItemId(ushort itemId) => IsInRanges(itemId, CostumeRanges);
+    public static bool IsSupportedCostumeItemId(ushort itemId) => itemId == 0 || IsInRanges(itemId, CostumeRanges);
 
     private static bool IsInRanges(ushort itemId, ReadOnlySpan<(ushort Start, ushort End)> ranges)
     {

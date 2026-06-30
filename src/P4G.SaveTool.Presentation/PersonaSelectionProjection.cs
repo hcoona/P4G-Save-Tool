@@ -8,14 +8,6 @@ namespace P4G.SaveTool.Presentation;
 
 internal static class PersonaSelectionProjection
 {
-    private static readonly (ushort Start, ushort Length)[] legacyPersonaRanges =
-    [
-        (1, 42),
-        (44, 8),
-        (53, 127),
-        (182, 32),
-        (224, 26),
-    ];
     private static readonly ReadOnlyCollection<PersonaChoiceViewState> personas = CreatePersonaChoices();
     private static readonly ReadOnlyCollection<SkillChoiceViewState> skills = CreateSkillChoices();
 
@@ -55,14 +47,10 @@ internal static class PersonaSelectionProjection
 
     private static void AppendPersonaChoices(List<PersonaChoiceViewState> choices)
     {
-        foreach ((ushort Start, ushort Length) in legacyPersonaRanges)
+        foreach (ushort personaId in PersonaRules.EnumerateSupportedPersonaIds())
         {
-            int end = Start + Length;
-            for (ushort personaId = Start; personaId < end; personaId++)
-            {
-                PersonaCatalogEntry persona = P4GCatalog.PersonasById[personaId];
-                choices.Add(new PersonaChoiceViewState(persona.Id, persona.Name));
-            }
+            PersonaCatalogEntry persona = P4GCatalog.PersonasById[personaId];
+            choices.Add(new PersonaChoiceViewState(persona.Id, persona.Name));
         }
     }
 

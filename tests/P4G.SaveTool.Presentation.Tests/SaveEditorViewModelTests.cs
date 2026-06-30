@@ -406,6 +406,9 @@ public sealed class SaveEditorViewModelTests
         Assert.Contains(SaveEditorViewModel.GetArmorChoices(), static item => item.ItemId == 264);
         Assert.Contains(SaveEditorViewModel.GetAccessoryChoices(), static item => item.ItemId == 754);
         Assert.Contains(SaveEditorViewModel.GetCostumeChoices(), static item => item.ItemId == 2040);
+        Assert.Equal((ushort)256, SaveEditorViewModel.GetArmorChoices()[0].ItemId);
+        Assert.Equal((ushort)512, SaveEditorViewModel.GetAccessoryChoices()[0].ItemId);
+        Assert.Equal((ushort)1792, SaveEditorViewModel.GetCostumeChoices()[0].ItemId);
     }
 
     [Fact]

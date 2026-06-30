@@ -701,7 +701,8 @@ public sealed class SaveApplicationService : ISaveApplicationService
 
     private static bool IsCanonicalCompendiumPersonaId(ushort personaId, int slotCount) =>
         personaId is not 0 &&
-        personaId <= slotCount;
+        personaId <= slotCount &&
+        PersonaRules.IsSupportedPersonaId(personaId);
 
     private static SaveFieldPatch CreateCalendarPatch(
         SaveFieldDescriptor field,
@@ -973,6 +974,16 @@ public sealed class SaveApplicationService : ISaveApplicationService
         }
 
         bool personaIdChanged = currentSlot.PersonaId != personaSlotEdit.PersonaId;
+        if (personaIdChanged && !PersonaRules.IsSupportedPersonaId(personaSlotEdit.PersonaId))
+        {
+            diagnostics.Add(new SaveDiagnostic(
+                DiagnosticSeverity.Error,
+                "P4GAPP021",
+                "Persona slot edit targets an unsupported persona id.",
+                PersonaDiagnosticTarget));
+            return state;
+        }
+
         bool activatesBlankSlot = personaIdChanged && !currentSlot.Exists;
         if (!allowNonBlankLevelZero && personaSlotEdit.Level == 0 && !activatesBlankSlot)
         {

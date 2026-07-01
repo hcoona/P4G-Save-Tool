@@ -63,7 +63,6 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices8 = new();
     private readonly InventorySelectionState inventorySelectionState = new();
     private readonly SaveEditorRefreshCoordinator saveEditorRefreshCoordinator = new();
-    private readonly Brush? defaultMainCharacterLevelValueForeground;
     private readonly Brush? defaultPersonaLevelValueForeground;
     private readonly SolidColorBrush legacyLevelWarningForeground = new(Colors.Red);
     private string? startupOpenPath;
@@ -77,6 +76,7 @@ public sealed partial class MainWindow : Window
     private bool suppressSocialLinkEvents;
     private bool suppressImmediateEditEvents;
     private bool isWorkspaceRoutingInitialized;
+    private bool basicStatsWorkspacePageInitializedFromViewModel;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
@@ -92,6 +92,7 @@ public sealed partial class MainWindow : Window
     private byte? selectedSocialLinkLinkId;
     private byte? selectedPersonaMemberId;
     private int selectedPersonaSlotIndex;
+    private BasicStatsWorkspacePage? basicStatsWorkspacePage;
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -130,7 +131,6 @@ public sealed partial class MainWindow : Window
 
         viewModel = new SaveEditorViewModel(new SaveApplicationService());
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
-        defaultMainCharacterLevelValueForeground = MainCharacterLevelValueTextBlock.Foreground;
         defaultPersonaLevelValueForeground = PersonaLevelValueTextBlock.Foreground;
         SectionNavigationView.SelectedItem = JumpOverviewButton;
     }
@@ -197,6 +197,12 @@ public sealed partial class MainWindow : Window
         if (sectionTag == "DiagnosticsState")
         {
             NavigateToDiagnosticsWorkspace();
+            return;
+        }
+
+        if (sectionTag == "BasicStats")
+        {
+            NavigateToBasicStatsWorkspace();
             return;
         }
 
@@ -289,6 +295,52 @@ public sealed partial class MainWindow : Window
         WorkspaceFrame.BackStack.Clear();
     }
 
+    private void NavigateToBasicStatsWorkspace()
+    {
+        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
+
+        if (WorkspaceFrame.Content is BasicStatsWorkspacePage page)
+        {
+            ConfigureBasicStatsWorkspacePage(page);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(BasicStatsWorkspacePage)))
+        {
+            throw new InvalidOperationException("Could not navigate to the basic stats workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is BasicStatsWorkspacePage navigatedPage)
+        {
+            ConfigureBasicStatsWorkspacePage(navigatedPage);
+        }
+    }
+
+    private void ConfigureBasicStatsWorkspacePage(BasicStatsWorkspacePage page)
+    {
+        basicStatsWorkspacePage = page;
+        page.FamilyNameTextChanged -= FamilyNameTextBox_TextChanged;
+        page.FamilyNameTextChanged += FamilyNameTextBox_TextChanged;
+        page.GivenNameTextChanged -= GivenNameTextBox_TextChanged;
+        page.GivenNameTextChanged += GivenNameTextBox_TextChanged;
+        page.YenTextChanged -= YenTextBox_TextChanged;
+        page.YenTextChanged += YenTextBox_TextChanged;
+        page.MainCharacterLevelValueChanged -= MainCharacterLevelSlider_ValueChanged;
+        page.MainCharacterLevelValueChanged += MainCharacterLevelSlider_ValueChanged;
+        page.MainCharacterTotalExperienceTextChanged -= MainCharacterTotalExperienceTextBox_TextChanged;
+        page.MainCharacterTotalExperienceTextChanged += MainCharacterTotalExperienceTextBox_TextChanged;
+        page.MainCharacterCalculateFromLevelClick -= MainCharacterCalculateFromLevelButton_Click;
+        page.MainCharacterCalculateFromLevelClick += MainCharacterCalculateFromLevelButton_Click;
+
+        if (!basicStatsWorkspacePageInitializedFromViewModel)
+        {
+            RefreshBasicStatsState();
+        }
+
+        page.SetBasicStatsEnabled(CanEditBasicStats());
+    }
+
     private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e) =>
         throw new InvalidOperationException($"Could not navigate to workspace page {e.SourcePageType.FullName}.", e.Exception);
 
@@ -296,9 +348,6 @@ public sealed partial class MainWindow : Window
     {
         switch (sectionTag)
         {
-            case "BasicStats":
-                NavigateToSection(BasicStatsSectionHeader);
-                break;
             case "CalendarSocialStats":
                 NavigateToSection(CalendarSocialStatsSectionHeader);
                 break;
@@ -319,9 +368,6 @@ public sealed partial class MainWindow : Window
                 break;
         }
     }
-
-    private void JumpBasicStats_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(BasicStatsSectionHeader);
 
     private void JumpCalendarSocialStats_Click(object sender, RoutedEventArgs e) =>
         NavigateToSection(CalendarSocialStatsSectionHeader);
@@ -368,14 +414,35 @@ public sealed partial class MainWindow : Window
         UpdateShellState();
     }
 
-    private void MainCharacterCalculateFromLevelButton_Click(object sender, RoutedEventArgs e) =>
-        MainCharacterTotalExperienceTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)MainCharacterLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
+    private void MainCharacterCalculateFromLevelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (basicStatsWorkspacePage is null)
+        {
+            return;
+        }
 
-    private void UpdateMainCharacterLevelValueText() =>
-        UpdateLevelValueText(
-            MainCharacterLevelValueTextBlock,
-            MainCharacterLevelSlider.Value,
-            defaultMainCharacterLevelValueForeground);
+        basicStatsWorkspacePage.MainCharacterTotalExperienceText =
+            LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)basicStatsWorkspacePage.MainCharacterLevelRawValue)
+                .ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void UpdateMainCharacterLevelValueText()
+    {
+        if (basicStatsWorkspacePage is null)
+        {
+            return;
+        }
+
+        bool hasSave = viewModel is not null && viewModel.HasSave;
+        double level = basicStatsWorkspacePage.MainCharacterLevelRawValue;
+        basicStatsWorkspacePage.SetMainCharacterLevelValueText(hasSave
+            ? ((byte)Math.Round(level, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture)
+            : string.Empty);
+        basicStatsWorkspacePage.SetMainCharacterLevelValueForeground(
+            hasSave && IsLegacyLevelWarningValue(level)
+                ? legacyLevelWarningForeground
+                : basicStatsWorkspacePage.DefaultMainCharacterLevelValueForeground);
+    }
 
     private void UpdatePersonaLevelValueText() =>
         UpdateLevelValueText(
@@ -830,10 +897,10 @@ public sealed partial class MainWindow : Window
         List<SaveDiagnostic> validationDiagnostics = [];
         List<SaveEditCommand> batch = [];
 
-        string familyName = FamilyNameTextBox.Text ?? string.Empty;
-        string givenName = GivenNameTextBox.Text ?? string.Empty;
+        string familyName = GetCurrentFamilyNameText();
+        string givenName = GetCurrentGivenNameText();
 
-        if (uint.TryParse(YenTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsedYen))
+        if (uint.TryParse(GetCurrentYenText(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsedYen))
         {
             batch.Add(new SetYenEdit(parsedYen));
         }
@@ -843,8 +910,8 @@ public sealed partial class MainWindow : Window
         }
 
         batch.Add(new SetSaveNamesEdit(familyName, givenName));
-        batch.Add(new SetMainCharacterLevelEdit((byte)MainCharacterLevelSlider.Value));
-        if (uint.TryParse(MainCharacterTotalExperienceTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsedMainCharacterTotalExperience))
+        batch.Add(new SetMainCharacterLevelEdit((byte)GetCurrentMainCharacterLevelRawValue()));
+        if (uint.TryParse(GetCurrentMainCharacterTotalExperienceText(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsedMainCharacterTotalExperience))
         {
             batch.Add(new SetMainCharacterTotalExperienceEdit(parsedMainCharacterTotalExperience));
         }
@@ -1958,23 +2025,50 @@ public sealed partial class MainWindow : Window
 
     private void RefreshBasicStatsState()
     {
+        if (basicStatsWorkspacePage is null)
+        {
+            basicStatsWorkspacePageInitializedFromViewModel = false;
+            return;
+        }
+
         suppressImmediateEditEvents = true;
         try
         {
-            FamilyNameTextBox.Text = viewModel.FamilyName;
-            GivenNameTextBox.Text = viewModel.GivenName;
-            YenTextBox.Text = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
-            SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);
+            basicStatsWorkspacePage.FamilyNameText = viewModel.FamilyName;
+            basicStatsWorkspacePage.GivenNameText = viewModel.GivenName;
+            basicStatsWorkspacePage.YenText = viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            basicStatsWorkspacePage.SetMainCharacterLevelRawValue(viewModel.HasSave ? viewModel.MainCharacterLevel : 0);
             UpdateMainCharacterLevelValueText();
-            MainCharacterTotalExperienceTextBox.Text = viewModel.HasSave
+            basicStatsWorkspacePage.MainCharacterTotalExperienceText = viewModel.HasSave
                 ? viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture)
                 : string.Empty;
+            basicStatsWorkspacePageInitializedFromViewModel = true;
         }
         finally
         {
             suppressImmediateEditEvents = false;
         }
     }
+
+    private bool CanEditBasicStats() =>
+        viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
+
+    private string GetCurrentFamilyNameText() =>
+        basicStatsWorkspacePage?.FamilyNameText ?? viewModel.FamilyName;
+
+    private string GetCurrentGivenNameText() =>
+        basicStatsWorkspacePage?.GivenNameText ?? viewModel.GivenName;
+
+    private string GetCurrentYenText() =>
+        basicStatsWorkspacePage?.YenText ??
+        (viewModel.HasSave ? viewModel.Yen.ToString(CultureInfo.InvariantCulture) : string.Empty);
+
+    private double GetCurrentMainCharacterLevelRawValue() =>
+        basicStatsWorkspacePage?.MainCharacterLevelRawValue ?? (viewModel.HasSave ? viewModel.MainCharacterLevel : 0);
+
+    private string GetCurrentMainCharacterTotalExperienceText() =>
+        basicStatsWorkspacePage?.MainCharacterTotalExperienceText ??
+        (viewModel.HasSave ? viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture) : string.Empty);
 
     private void UpdateShellState()
     {
@@ -2006,12 +2100,7 @@ public sealed partial class MainWindow : Window
         JumpCompendiumButton.IsEnabled = canNavigateEditorSections;
         JumpInventoryButton.IsEnabled = canNavigateEditorSections;
         JumpDiagnosticsStateButton.IsEnabled = canNavigateEditorSections;
-        FamilyNameTextBox.IsEnabled = canEdit;
-        GivenNameTextBox.IsEnabled = canEdit;
-        YenTextBox.IsEnabled = canEdit;
-        MainCharacterLevelSlider.IsEnabled = canEdit;
-        MainCharacterTotalExperienceTextBox.IsEnabled = canEdit;
-        MainCharacterCalculateFromLevelButton.IsEnabled = canEdit;
+        basicStatsWorkspacePage?.SetBasicStatsEnabled(canEdit);
         CourageComboBox.IsEnabled = canEdit;
         KnowledgeComboBox.IsEnabled = canEdit;
         ExpressionComboBox.IsEnabled = canEdit;
@@ -2087,14 +2176,16 @@ public sealed partial class MainWindow : Window
             inventoryQuantityDraftDirty);
 
     private bool HasBasicStatsDraft() =>
-        !string.Equals(FamilyNameTextBox.Text ?? string.Empty, viewModel.FamilyName, StringComparison.Ordinal) ||
-        !string.Equals(GivenNameTextBox.Text ?? string.Empty, viewModel.GivenName, StringComparison.Ordinal) ||
-        !string.Equals(YenTextBox.Text ?? string.Empty, viewModel.Yen.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
-        (byte)MainCharacterLevelSlider.Value != viewModel.MainCharacterLevel ||
+        basicStatsWorkspacePage is not null &&
+        basicStatsWorkspacePageInitializedFromViewModel &&
+        (!string.Equals(GetCurrentFamilyNameText(), viewModel.FamilyName, StringComparison.Ordinal) ||
+        !string.Equals(GetCurrentGivenNameText(), viewModel.GivenName, StringComparison.Ordinal) ||
+        !string.Equals(GetCurrentYenText(), viewModel.Yen.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+        (byte)GetCurrentMainCharacterLevelRawValue() != viewModel.MainCharacterLevel ||
         !string.Equals(
-            MainCharacterTotalExperienceTextBox.Text ?? string.Empty,
+            GetCurrentMainCharacterTotalExperienceText(),
             viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture),
-            StringComparison.Ordinal);
+            StringComparison.Ordinal));
 
     private bool HasEquipmentDraft()
     {
@@ -3849,7 +3940,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!uint.TryParse(YenTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint yen))
+        if (!uint.TryParse(GetCurrentYenText(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint yen))
         {
             SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI006", "Yen must be an unsigned whole number.", "Yen")]);
             UpdateShellState();
@@ -3866,7 +3957,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!uint.TryParse(MainCharacterTotalExperienceTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint totalExperience))
+        if (!uint.TryParse(GetCurrentMainCharacterTotalExperienceText(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint totalExperience))
         {
             SetUiDiagnostics([CreateUiDiagnostic(
                 "P4GWINUI028",

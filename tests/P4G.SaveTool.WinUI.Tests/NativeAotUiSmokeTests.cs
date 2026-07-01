@@ -74,10 +74,12 @@ public sealed class NativeAotUiSmokeTests
                 AutomationElement? window = FindMainWindow(process.Id);
                 Assert.NotNull(window);
                 InvokeByAutomationId(window!, "JumpBasicStatsButton");
-                _ = await RunOnMtaThreadAsync(() => WaitForVisibleElement(window!, "CourageComboBox"));
+                _ = await RunOnMtaThreadAsync(() => WaitForVisibleElement(window!, "FamilyNameTextBox"));
                 Assert.Equal(string.Empty, GetValueByAutomationId(window!, "FamilyNameTextBox"));
                 Assert.Equal(string.Empty, GetValueByAutomationId(window!, "GivenNameTextBox"));
                 Assert.Equal("0", GetValueByAutomationId(window!, "YenTextBox"));
+                InvokeByAutomationId(window!, "JumpCalendarSocialStatsButton");
+                _ = await RunOnMtaThreadAsync(() => WaitForVisibleElement(window!, "CourageComboBox"));
                 Assert.True(GetElementByAutomationId(window!, "InventoryListView").Current.IsEnabled);
                 Assert.True(GetElementByAutomationId(window!, "SocialLinkListView").Current.IsEnabled);
                 Assert.True(GetElementByAutomationId(window!, "CompendiumListView").Current.IsEnabled);
@@ -131,6 +133,8 @@ public sealed class NativeAotUiSmokeTests
 
                 SetTextByAutomationId(window!, "YenTextBox", "invalid");
                 SetTextByAutomationId(window!, "MainCharacterTotalExperienceTextBox", "invalid");
+                InvokeByAutomationId(window!, "JumpCalendarSocialStatsButton");
+                _ = await RunOnMtaThreadAsync(() => WaitForVisibleElement(window!, "DayTextBox"));
                 SetTextByAutomationId(window!, "DayTextBox", "invalid");
                 SetTextByAutomationId(window!, "NextDayTextBox", "invalid");
                 _ = WaitForEnabledElement(window!, "ApplyButton");

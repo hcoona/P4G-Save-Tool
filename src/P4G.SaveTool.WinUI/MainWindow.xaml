@@ -115,48 +115,6 @@
               <Border Padding="16" VerticalAlignment="Top" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                 <StackPanel Spacing="8">
             <TextBlock
-              x:Name="BasicStatsSectionHeader"
-              Text="Basic / Stats"
-              Style="{ThemeResource SubtitleTextBlockStyle}"
-              />
-            <TextBox x:Name="FamilyNameTextBox" Header="Family name" MaxLength="9" IsEnabled="False" TextChanged="FamilyNameTextBox_TextChanged" automation:AutomationProperties.AutomationId="FamilyNameTextBox" automation:AutomationProperties.Name="Family name" />
-            <TextBox x:Name="GivenNameTextBox" Header="Given name" MaxLength="9" IsEnabled="False" TextChanged="GivenNameTextBox_TextChanged" automation:AutomationProperties.AutomationId="GivenNameTextBox" automation:AutomationProperties.Name="Given name" />
-            <TextBox x:Name="YenTextBox" Header="Yen" InputScope="Number" IsEnabled="False" TextChanged="YenTextBox_TextChanged" automation:AutomationProperties.AutomationId="YenTextBox" automation:AutomationProperties.Name="Yen" />
-            <TextBlock Text="Main character" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,4,0,0" />
-            <Grid ColumnSpacing="8">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
-              <TextBlock Text="LV" VerticalAlignment="Center" />
-              <Slider
-                x:Name="MainCharacterLevelSlider"
-                Grid.Column="1"
-                Minimum="0"
-                Maximum="255"
-                TickFrequency="1"
-                StepFrequency="1"
-                IsEnabled="False"
-                ValueChanged="MainCharacterLevelSlider_ValueChanged"
-                />
-              <TextBlock x:Name="MainCharacterLevelValueTextBlock" Grid.Column="2" VerticalAlignment="Center" />
-            </Grid>
-            <TextBox
-            x:Name="MainCharacterTotalExperienceTextBox"
-            Header="Total XP"
-            InputScope="Number"
-            IsEnabled="False"
-            TextChanged="MainCharacterTotalExperienceTextBox_TextChanged" />
-            <Button
-              x:Name="MainCharacterCalculateFromLevelButton"
-              Content="Calculate from level"
-              Click="MainCharacterCalculateFromLevelButton_Click"
-              IsEnabled="False"
-              automation:AutomationProperties.AutomationId="MainCharacterCalculateFromLevelButton"
-              automation:AutomationProperties.Name="Calculate main character total experience from level"
-              />
-            <TextBlock
               x:Name="CalendarSocialStatsSectionHeader"
               Text="Calendar / Social Stats"
               Style="{ThemeResource BodyStrongTextBlockStyle}"

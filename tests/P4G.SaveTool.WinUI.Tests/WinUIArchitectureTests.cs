@@ -538,17 +538,18 @@ public sealed class WinUIArchitectureTests
             "private void RefreshBasicStatsState()",
             "private void UpdateShellState()");
 
-        Assert.Contains("new SetMainCharacterLevelEdit((byte)MainCharacterLevelSlider.Value)", editBatchBody, StringComparison.Ordinal);
+        Assert.Contains("new SetMainCharacterLevelEdit((byte)GetCurrentMainCharacterLevelRawValue())", editBatchBody, StringComparison.Ordinal);
         Assert.Contains("new SetMainCharacterTotalExperienceEdit(parsedMainCharacterTotalExperience)", editBatchBody, StringComparison.Ordinal);
         Assert.Contains("P4GWINUI028", editBatchBody, StringComparison.Ordinal);
         Assert.Contains("LevelExperienceProjection.CalculateTotalExperienceFromLevel", content, StringComparison.Ordinal);
-        Assert.Contains("SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);", refreshBasicStatsBody, StringComparison.Ordinal);
+        Assert.Contains("basicStatsWorkspacePage.SetMainCharacterLevelRawValue(viewModel.HasSave ? viewModel.MainCharacterLevel : 0);", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.Contains("UpdateMainCharacterLevelValueText();", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("Math.Max(1d, viewModel.MainCharacterLevel)", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.Contains("SectionNavigationView.SelectedItem = JumpOverviewButton;", content, StringComparison.Ordinal);
         Assert.Contains("private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSelectedSection(sectionTag);", content, StringComparison.Ordinal);
-        Assert.Contains("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
+        Assert.Contains("NavigateToBasicStatsWorkspace();", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(CalendarSocialStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToOverviewWorkspace();", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToDiagnosticsWorkspace();", content, StringComparison.Ordinal);
@@ -593,10 +594,6 @@ public sealed class WinUIArchitectureTests
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
-        string mainCharacterLevelSlider = GetSection(
-            content,
-            "x:Name=\"MainCharacterLevelSlider\"",
-            "x:Name=\"MainCharacterLevelValueTextBlock\"");
 
         Assert.Contains("x:Name=\"SocialLinkListView\"", content, StringComparison.Ordinal);
         Assert.Contains("SelectionChanged=\"SocialLinkListView_SelectionChanged\"", content, StringComparison.Ordinal);
@@ -616,10 +613,6 @@ public sealed class WinUIArchitectureTests
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
-        string mainCharacterLevelSlider = GetSection(
-            content,
-            "x:Name=\"MainCharacterLevelSlider\"",
-            "x:Name=\"MainCharacterLevelValueTextBlock\"");
         string personaLevelSlider = GetSection(
             content,
             "x:Name=\"PersonaLevelSlider\"",
@@ -650,7 +643,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("<NavigationViewItem x:Name=\"JumpDiagnosticsStateButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Tag=\"DiagnosticsState\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("<Button x:Name=\"Jump", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"BasicStatsSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"BasicStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CalendarSocialStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", content, StringComparison.Ordinal);
@@ -659,18 +652,13 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"DiagnosticsListView\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CompendiumSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"InventorySectionHeader\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"YenTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"MainCharacterLevelSlider\"", content, StringComparison.Ordinal);
-        Assert.Contains("Minimum=\"0\"", mainCharacterLevelSlider, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"MainCharacterLevelValueTextBlock\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"MainCharacterTotalExperienceTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"MainCharacterCalculateFromLevelButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"MainCharacterCalculateFromLevelButton_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("ValueChanged=\"MainCharacterLevelSlider_ValueChanged\"", content, StringComparison.Ordinal);
-        Assert.Contains("MainCharacterCalculateFromLevelButton_Click", content, StringComparison.Ordinal);
-        Assert.Contains("MainCharacterLevelSlider_ValueChanged", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"YenTextBox\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"MainCharacterLevelSlider\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"MainCharacterLevelValueTextBlock\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"MainCharacterTotalExperienceTextBox\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"MainCharacterCalculateFromLevelButton\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PersonaCalculateFromLevelButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Minimum=\"0\"", personaLevelSlider, StringComparison.Ordinal);
         Assert.Contains("Click=\"PersonaCalculateFromLevelButton_Click\"", content, StringComparison.Ordinal);
@@ -682,14 +670,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("automation:AutomationProperties.AutomationId=\"JumpOverviewButton\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.Name=\"Overview\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("automation:AutomationProperties.AutomationId=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("automation:AutomationProperties.AutomationId=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("automation:AutomationProperties.AutomationId=\"YenTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("VerticalScrollBarVisibility=\"Disabled\"", content, StringComparison.Ordinal);
-        Assert.True(
-            content.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal) <
-            content.IndexOf("x:Name=\"BasicStatsSectionHeader\"", StringComparison.Ordinal));
         Assert.True(
             content.IndexOf("x:Name=\"JumpOverviewButton\"", StringComparison.Ordinal) <
             content.IndexOf("x:Name=\"JumpBasicStatsButton\"", StringComparison.Ordinal));
@@ -709,6 +691,10 @@ public sealed class WinUIArchitectureTests
             source,
             "private void EnsureLegacyWorkspaceRouted()",
             "private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)");
+        string selectedSectionBody = GetSection(
+            source,
+            "private void NavigateToSelectedSection(string sectionTag)",
+            "private void JumpCalendarSocialStats_Click(object sender, RoutedEventArgs e)");
 
         Assert.Contains("<Frame", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"WorkspaceFrame\"", xaml, StringComparison.Ordinal);
@@ -730,7 +716,14 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("if (sectionTag == \"DiagnosticsState\")", source, StringComparison.Ordinal);
         Assert.Contains("WorkspaceFrame.Navigate(typeof(DiagnosticsWorkspacePage), diagnosticsItems)", source, StringComparison.Ordinal);
         Assert.Contains("diagnosticsPage.SetDiagnosticsItems(diagnosticsItems);", source, StringComparison.Ordinal);
-        Assert.Equal(3, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
+        Assert.Contains("if (sectionTag == \"BasicStats\")", source, StringComparison.Ordinal);
+        Assert.Contains("NavigateToBasicStatsWorkspace();", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(BasicStatsWorkspacePage))", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureBasicStatsWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
+        Assert.Contains("basicStatsWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("case \"BasicStats\":", selectedSectionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("BasicStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
+        Assert.Equal(4, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
@@ -785,6 +778,67 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("<Slider", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"NoSaveEmptyStateBorder\"", mainWindowXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"NoSaveOpenButton\"", mainWindowXaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BasicStatsWorkspacePageOwnsBasicStatsEditorControls()
+    {
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "BasicStatsWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string source = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "BasicStatsWorkspacePage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowXaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowSource = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string configureBody = GetSection(
+            mainWindowSource,
+            "private void ConfigureBasicStatsWorkspacePage(BasicStatsWorkspacePage page)",
+            "private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)");
+
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.BasicStatsWorkspacePage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class BasicStatsWorkspacePage : Page", source, StringComparison.Ordinal);
+        Assert.Contains("NavigationCacheMode = NavigationCacheMode.Required;", source, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BasicStatsSectionHeader\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Basic / Stats\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"FamilyNameTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"FamilyNameTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"GivenNameTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"GivenNameTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"YenTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"YenTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MainCharacterLevelSlider\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Minimum=\"0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Maximum=\"255\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"MainCharacterLevelSlider\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Main character level\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MainCharacterLevelValueTextBlock\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MainCharacterTotalExperienceTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"MainCharacterTotalExperienceTextBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MainCharacterCalculateFromLevelButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"MainCharacterCalculateFromLevelButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("event TextChangedEventHandler? FamilyNameTextChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event TextChangedEventHandler? GivenNameTextChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event TextChangedEventHandler? YenTextChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event RangeBaseValueChangedEventHandler? MainCharacterLevelValueChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event TextChangedEventHandler? MainCharacterTotalExperienceTextChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event RoutedEventHandler? MainCharacterCalculateFromLevelClick", source, StringComparison.Ordinal);
+        Assert.Contains("internal string FamilyNameText", source, StringComparison.Ordinal);
+        Assert.Contains("internal double MainCharacterLevelRawValue", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetBasicStatsEnabled(bool isEnabled)", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetMainCharacterLevelRawValue(double rawLevel)", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetMainCharacterLevelValueText(string text)", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetMainCharacterLevelValueForeground(Brush? foreground)", source, StringComparison.Ordinal);
+        Assert.Contains("page.FamilyNameTextChanged -= FamilyNameTextBox_TextChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.FamilyNameTextChanged += FamilyNameTextBox_TextChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.MainCharacterLevelValueChanged -= MainCharacterLevelSlider_ValueChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.MainCharacterLevelValueChanged += MainCharacterLevelSlider_ValueChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.MainCharacterCalculateFromLevelClick -= MainCharacterCalculateFromLevelButton_Click;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.MainCharacterCalculateFromLevelClick += MainCharacterCalculateFromLevelButton_Click;", configureBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"BasicStatsSectionHeader\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"FamilyNameTextBox\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"GivenNameTextBox\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"YenTextBox\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"MainCharacterLevelSlider\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"MainCharacterTotalExperienceTextBox\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"MainCharacterCalculateFromLevelButton\"", mainWindowXaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -920,9 +974,10 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("CompendiumAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumListSlotIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumClearButton.IsEnabled = canEdit && compendiumItems.Count > 0;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("MainCharacterLevelSlider.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("MainCharacterTotalExperienceTextBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("MainCharacterCalculateFromLevelButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("basicStatsWorkspacePage?.SetBasicStatsEnabled(canEdit);", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("MainCharacterLevelSlider.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("MainCharacterTotalExperienceTextBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("MainCharacterCalculateFromLevelButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("PersonaCalculateFromLevelButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
     }
 
@@ -1355,6 +1410,7 @@ public sealed class WinUIArchitectureTests
     {
         string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
 
+        Assert.Contains("x:Name=\"CalendarSocialStatsSectionHeader\"", xaml);
         Assert.Contains("x:Name=\"CourageComboBox\"", xaml);
         Assert.Contains("x:Name=\"KnowledgeComboBox\"", xaml);
         Assert.Contains("x:Name=\"ExpressionComboBox\"", xaml);

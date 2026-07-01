@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+  <title id="title">P4G Save Tool WinUI shell redesign - left rail hybrid</title>
+  <desc id="desc">Phase 2 visual artifact for a Windows-native shell: menu and command surface, compact file state header, left section rail, primary editor surface, and structured diagnostics panel.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f3f3f3; }
+      .surface { fill: #ffffff; stroke: #e5e5e5; stroke-width: 1; }
+      .chrome { fill: #fafafa; }
+      .chrome2 { fill: #f7f7f7; }
+      .text { fill: #1b1b1b; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #5f5f5f; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; }
+      .semibold { font-weight: 600; }
+      .medium { font-weight: 500; }
+      .small { font-size: 12px; }
+      .body { font-size: 14px; }
+      .heading { font-size: 22px; font-weight: 600; }
+      .title { font-size: 18px; font-weight: 600; }
+      .caption { font-size: 11px; fill: #6b6b6b; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; }
+      .accent { fill: #005fb8; }
+      .accent-soft { fill: #e5f1fb; stroke: #60a5d8; stroke-width: 1; }
+      .warning { fill: #fff4ce; }
+      .success { fill: #dff6dd; }
+      .danger { fill: #fde7e9; }
+      .line { stroke: #e5e5e5; stroke-width: 1; }
+      .control { fill: #ffffff; stroke: #d1d1d1; stroke-width: 1; }
+      .disabled { fill: #f5f5f5; stroke: #d1d1d1; stroke-width: 1; }
+      .focus { fill: none; stroke: #000000; stroke-width: 1.5; stroke-dasharray: 2 2; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1440" height="960"/>
+
+  <text class="text title" x="40" y="38">Phase 2 - left rail hybrid shell</text>
+  <text class="muted body" x="40" y="62">Local visual artifact replacing Figma after MCP quota block. Evidence target: shell silhouette, command hierarchy, section navigation, content layering, structured diagnostics, and Fluent sizing.</text>
+
+  <g id="window" transform="translate(40 90)">
+    <rect class="bg" x="0" y="0" width="1360" height="820" rx="10"/>
+
+    <!-- MenuBar -->
+    <rect class="chrome2" x="0" y="0" width="1360" height="40"/>
+    <text class="text body" x="16" y="25">File</text>
+    <text class="text body" x="72" y="25">Help</text>
+
+    <!-- Command surface -->
+    <rect class="chrome" x="0" y="40" width="1360" height="60"/>
+    <g transform="translate(16 52)">
+      <rect class="control" x="0" y="0" width="122" height="36" rx="6"/>
+      <text class="text body medium" x="14" y="23">Open save...</text>
+      <rect class="control" x="132" y="0" width="116" height="36" rx="6"/>
+      <text class="text body medium" x="146" y="23">Apply edits</text>
+      <rect class="accent" x="258" y="0" width="78" height="36" rx="6"/>
+      <text class="body medium" x="284" y="23" fill="#ffffff" font-family="Segoe UI Variable, Segoe UI, Arial">Save</text>
+      <rect class="control" x="346" y="0" width="104" height="36" rx="6"/>
+      <text class="text body medium" x="360" y="23">Save as...</text>
+      <text class="caption" x="470" y="23">Primary workflow commands stay visible; secondary actions overflow or remain in menu.</text>
+      <rect class="control" x="1264" y="0" width="64" height="36" rx="6"/>
+      <text class="text body medium" x="1278" y="23">About</text>
+    </g>
+
+    <!-- File state header -->
+    <rect class="surface" x="0" y="100" width="1360" height="68"/>
+    <text class="muted small" x="24" y="126">Current save</text>
+    <text class="text body medium" x="24" y="148">data0001.bin</text>
+    <rect class="warning" x="382" y="119" width="112" height="28" rx="14"/>
+    <text class="text small medium" x="396" y="137">Unsaved edits</text>
+    <rect class="success" x="506" y="119" width="80" height="28" rx="14"/>
+    <text class="text small medium" x="522" y="137">Writable</text>
+    <rect class="warning" x="1228" y="119" width="104" height="28" rx="14"/>
+    <text class="text small medium" x="1244" y="137">2 warnings</text>
+
+    <!-- Body layer -->
+    <g transform="translate(24 188)">
+      <!-- Left rail -->
+      <rect class="surface" x="0" y="0" width="208" height="604" rx="8"/>
+      <text class="caption" x="16" y="24">Sections</text>
+      <g transform="translate(12 40)">
+        <rect class="accent-soft" x="0" y="0" width="184" height="40" rx="6"/>
+        <text class="text body semibold" x="12" y="25">Basic / Stats</text>
+        <rect class="control" x="0" y="48" width="184" height="40" rx="6"/>
+        <text class="text body" x="12" y="73">Calendar</text>
+        <rect class="control" x="0" y="96" width="184" height="40" rx="6"/>
+        <text class="text body" x="12" y="121">Social Links</text>
+        <rect class="control" x="0" y="144" width="184" height="40" rx="6"/>
+        <text class="text body" x="12" y="169">Party / Persona</text>
+          <rect class="focus" x="3" y="147" width="178" height="34" rx="4"/>
+        <rect class="control" x="0" y="192" width="184" height="40" rx="6"/>
+        <text class="text body" x="12" y="217">Equipment</text>
+        <rect class="control" x="0" y="240" width="184" height="40" rx="6"/>
+        <text class="text body" x="12" y="265">Compendium</text>
+        <rect class="control" x="0" y="288" width="184" height="40" rx="6"/>
+        <text class="text body" x="12" y="313">Inventory</text>
+        <rect class="control" x="0" y="336" width="184" height="40" rx="6"/>
+        <text class="text body" x="12" y="361">Diagnostics  !</text>
+      </g>
+
+      <!-- Primary editor -->
+      <g transform="translate(224 0)">
+        <text class="text heading" x="0" y="26">Basic / Stats</text>
+        <text class="muted body" x="0" y="50">Dense editor content uses grouped surfaces, visible labels, and explicit apply/save staging.</text>
+
+        <rect class="surface" x="0" y="72" width="744" height="188" rx="8"/>
+        <text class="text title" x="16" y="102">Player identity</text>
+        <text class="muted small" x="16" y="124">Draft edits remain visible until Apply edits.</text>
+        <g transform="translate(16 142)">
+          <text class="muted small" x="0" y="0">Family name</text>
+          <rect class="control" x="0" y="8" width="164" height="34" rx="4"/>
+          <text class="text body" x="10" y="30">Narukami</text>
+          <text class="muted small" x="176" y="0">Given name</text>
+          <rect class="control" x="176" y="8" width="164" height="34" rx="4"/>
+          <text class="text body" x="186" y="30">Yu</text>
+          <text class="muted small" x="352" y="0">Yen</text>
+          <rect class="control" x="352" y="8" width="164" height="34" rx="4" stroke="#8a6d00"/>
+          <text class="text body" x="362" y="30">124,500</text>
+          <text class="muted small" x="528" y="0">Level</text>
+          <rect class="control" x="528" y="8" width="164" height="34" rx="4"/>
+          <text class="text body" x="538" y="30">62</text>
+        </g>
+        <rect class="warning" x="16" y="208" width="712" height="36" rx="6"/>
+        <text class="text small" x="28" y="231">Yen exceeds the legacy editor warning threshold. Review before saving.</text>
+
+        <rect class="surface" x="0" y="276" width="744" height="182" rx="8"/>
+        <text class="text title" x="16" y="306">Stats cluster</text>
+        <text class="muted small" x="16" y="328">Aligned rows, compact density, 34px input surfaces, and visible labels.</text>
+        <g transform="translate(16 350)">
+          <text class="muted small" x="0" y="0">HP</text>
+          <rect class="control" x="0" y="8" width="164" height="34" rx="4"/>
+          <text class="text body" x="10" y="30">421</text>
+          <text class="muted small" x="176" y="0">SP</text>
+          <rect class="control" x="176" y="8" width="164" height="34" rx="4"/>
+          <text class="text body" x="186" y="30">276</text>
+          <text class="muted small" x="352" y="0">Courage</text>
+          <rect class="control" x="352" y="8" width="164" height="34" rx="4"/>
+          <text class="text body" x="362" y="30">Rank 4</text>
+          <text class="muted small" x="528" y="0">Knowledge</text>
+          <rect class="control" x="528" y="8" width="164" height="34" rx="4"/>
+          <text class="text body" x="538" y="30">Rank 5</text>
+        </g>
+        <g transform="translate(16 416)">
+          <text class="muted small" x="0" y="0">Save slot ID</text>
+          <rect class="disabled" x="0" y="8" width="164" height="34" rx="4"/>
+          <text class="muted body" x="10" y="30">Read-only: 01</text>
+          <text class="caption" x="176" y="30">Read-only fields are inspectable but not editable; this differs from disabled commands.</text>
+        </g>
+
+        <rect class="surface" x="0" y="474" width="744" height="108" rx="8"/>
+        <text class="text title" x="16" y="504">Apply edits checkpoint</text>
+        <text class="muted small" x="16" y="526">Apply edits remains distinct from Save so users inspect diagnostics first.</text>
+        <rect class="control" x="16" y="540" width="116" height="36" rx="6"/>
+        <text class="text body medium" x="30" y="563">Apply edits</text>
+        <rect class="disabled" x="144" y="540" width="78" height="36" rx="6"/>
+        <text class="muted body medium" x="170" y="563">Save</text>
+        <text class="caption" x="236" y="563">Save is disabled until edits are applied.</text>
+      </g>
+
+      <!-- Diagnostics panel -->
+      <g transform="translate(984 0)">
+        <rect class="surface" x="0" y="0" width="328" height="604" rx="8"/>
+        <text class="text title" x="16" y="32">Diagnostics</text>
+        <text class="muted small" x="16" y="54">Severity, code, target, and message are structured.</text>
+
+        <rect class="warning" x="16" y="78" width="296" height="92" rx="6"/>
+        <text class="text small semibold" x="28" y="104">Warning  P4G001 / Yen</text>
+        <text class="text body" x="28" y="128">Value exceeds legacy warning range.</text>
+        <text class="caption" x="28" y="150">Action: review before saving</text>
+
+        <rect class="surface" x="16" y="186" width="296" height="92" rx="6"/>
+        <text class="text small semibold" x="28" y="212">Info  P4G014 / Compendium</text>
+        <text class="text body" x="28" y="236">Unknown persona is preserved.</text>
+        <text class="caption" x="28" y="258">No action needed</text>
+
+        <rect class="danger" x="16" y="294" width="296" height="92" rx="6"/>
+        <text class="text small semibold" x="28" y="320">Blocked  P4G090 / Save</text>
+        <text class="text body" x="28" y="344">Apply edits before saving.</text>
+        <text class="caption" x="28" y="366">State is not communicated by color alone</text>
+      </g>
+    </g>
+  </g>
+
+  <g id="evidence" transform="translate(40 925)">
+    <text class="caption" x="0" y="0">Evidence notes: left rail avoids horizontal jump-button scrolling; command buttons are 36px high; nav rows are 40px high; inputs are 34px high; focus ring is shown on Party / Persona; Save slot ID shows read-only state; diagnostics are structured.</text>
+  </g>
+</svg>

@@ -32,6 +32,7 @@ public sealed class WinUIArchitectureTests
 
     private const string CsWinRTPackageName = "Microsoft.Windows.CsWinRT";
     private const string CsWinRTWindowsMetadataPackageName = "Microsoft.Windows.SDK.CPP";
+    private const string SettingsControlsPackageName = "CommunityToolkit.WinUI.Controls.SettingsControls";
     private const string CsWinRTWindowsMetadataPath = @"$(NuGetPackageRoot)\microsoft.windows.sdk.cpp\$(CsWinRTWindowsMetadataPackageVersion)\c";
     private const string RequiredCsWinRTWindowsMetadataPackageVersion = "10.0.22000.196";
     private const string RequiredCsWinRTWindowsMetadataPlatformVersion = "10.0.22000.0";
@@ -91,17 +92,17 @@ public sealed class WinUIArchitectureTests
         AssertHandlerRefreshesShellState(content, "InventoryListView_SelectionChanged", "RefreshInventoryState();");
         AssertHandlerRefreshesShellState(content, "InventoryCategoryComboBox_SelectionChanged", "RefreshInventoryState();");
         AssertHandlerRefreshesShellState(content, "InventoryItemComboBox_SelectionChanged", "RefreshInventoryState();");
-        AssertInventoryHandlerAutoAppliesBeforeClearingDraft(listHandlerBody);
-        AssertInventoryHandlerAutoAppliesBeforeClearingDraft(categoryHandlerBody);
-        AssertInventoryHandlerAutoAppliesBeforeClearingDraft(itemHandlerBody);
-        Assert.Contains("TryAutoAddSelectedInventoryItem();", categoryHandlerBody, StringComparison.Ordinal);
-        Assert.Contains("TryAutoAddSelectedInventoryItem();", itemHandlerBody, StringComparison.Ordinal);
+        AssertInventoryHandlerGuardsDraftBeforeClearingDraft(listHandlerBody);
+        AssertInventoryHandlerGuardsDraftBeforeClearingDraft(categoryHandlerBody);
+        AssertInventoryHandlerGuardsDraftBeforeClearingDraft(itemHandlerBody);
+        Assert.Contains("TrySelectExistingInventoryEntry();", categoryHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("TrySelectExistingInventoryEntry();", itemHandlerBody, StringComparison.Ordinal);
         Assert.Contains("inventorySelectionState.RememberCategoryItem(selectedItem.CategoryId, selectedItem.ItemId);", itemHandlerBody, StringComparison.Ordinal);
         AssertHandlerRefreshesShellState(content, "EquipmentCharacterComboBox_SelectionChanged", "RefreshEquipmentState();");
-        Assert.Contains("ApplyEquipmentSelection(EquipmentWeaponComboBox", content, StringComparison.Ordinal);
-        Assert.Contains("ApplyEquipmentSelection(EquipmentArmorComboBox", content, StringComparison.Ordinal);
-        Assert.Contains("ApplyEquipmentSelection(EquipmentAccessoryComboBox", content, StringComparison.Ordinal);
-        Assert.Contains("ApplyEquipmentSelection(EquipmentCostumeComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("TrackEquipmentDraftSelection(EquipmentWeaponComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("TrackEquipmentDraftSelection(EquipmentArmorComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("TrackEquipmentDraftSelection(EquipmentAccessoryComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("TrackEquipmentDraftSelection(EquipmentCostumeComboBox", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -168,10 +169,10 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("PersonaChoiceComboBox.ItemsSource = SaveEditorViewModel.GetPersonaChoices", restoreCompendiumDraftBody, StringComparison.Ordinal);
         Assert.Equal(1, Regex.Count(content, Regex.Escape("PersonaChoiceComboBox.ItemsSource =")));
         Assert.Contains("PersonaChoiceComboBox.IsEnabled = canEdit && !selectedCompendiumSlotIndex.HasValue;", content, StringComparison.Ordinal);
-        AssertPersonaSelectionHandlerAppliesDraftBeforeRefresh(personaMemberHandlerBody);
-        AssertPersonaSelectionHandlerAppliesDraftBeforeRefresh(personaSlotHandlerBody);
-        AssertPersonaSelectionHandlerAppliesDraftBeforeRefresh(compendiumListHandlerBody);
-        AssertPersonaSelectionHandlerAppliesDraftBeforeRefresh(compendiumAddHandlerBody);
+        AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(personaMemberHandlerBody);
+        AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(personaSlotHandlerBody);
+        AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(compendiumListHandlerBody);
+        AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(compendiumAddHandlerBody);
         Assert.Contains("viewModel.ProtagonistPersonaSlots[selectedPersonaSlotIndex]", addPersonaBody, StringComparison.Ordinal);
     }
 
@@ -187,10 +188,10 @@ public sealed class WinUIArchitectureTests
         string addBody = GetSection(
             content,
             "private void SocialLinkAddComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
-            "private bool TryApplySelectedSocialLinkDraftBeforeOperation()");
+            "private bool TryGuardSelectedSocialLinkDraftBeforeOperation()");
         string autoApplyBody = GetSection(
             content,
-            "private bool TryApplySelectedSocialLinkDraftBeforeOperation()",
+            "private bool TryGuardSelectedSocialLinkDraftBeforeOperation()",
             "private void RestoreSocialLinkListSelection()");
         string deleteBody = GetSection(
             content,
@@ -202,23 +203,25 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("SocialLinkAddComboBox_SelectionChanged", content, StringComparison.Ordinal);
         Assert.DoesNotContain("SocialLinkApplyButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDeleteButton_Click", content, StringComparison.Ordinal);
-        Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryGuardSelectedSocialLinkDraftBeforeOperation())", selectionBody, StringComparison.Ordinal);
         Assert.Contains("RestoreSocialLinkListSelection();", selectionBody, StringComparison.Ordinal);
-        Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", addBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryGuardSelectedSocialLinkDraftBeforeOperation())", addBody, StringComparison.Ordinal);
         Assert.Contains("ResetSocialLinkAddChoice();", addBody, StringComparison.Ordinal);
-        Assert.Contains("RefreshSocialLinksState(allowFallbackSelection: selectedSocialLinkIndex.HasValue);", addBody, StringComparison.Ordinal);
+        Assert.Contains("TrackEditorDraft();", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshSocialLinksState(allowFallbackSelection: selectedSocialLinkIndex.HasValue);", addBody, StringComparison.Ordinal);
         Assert.DoesNotContain("selectedSocialLinkIndex = selectedLink.SlotIndex;", addBody, StringComparison.Ordinal);
         Assert.DoesNotContain("selectedSocialLinkLinkId = selectedLink.LinkId;", addBody, StringComparison.Ordinal);
-        Assert.Contains("if (!TryApplySelectedSocialLinkDraftBeforeOperation())", deleteBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryGuardSelectedSocialLinkDraftBeforeOperation())", deleteBody, StringComparison.Ordinal);
         Assert.Contains("if (!TryAppendSelectedSocialLinkEdits(edits, validationDiagnostics))", autoApplyBody, StringComparison.Ordinal);
         Assert.Contains("SetUiDiagnostics(validationDiagnostics);", autoApplyBody, StringComparison.Ordinal);
-        Assert.Contains("viewModel.ApplyEdits(edits)", autoApplyBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("viewModel.ApplyEdits(edits)", autoApplyBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SetSocialLinkLevel(", autoApplyBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SetSocialLinkProgress(", autoApplyBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SetSocialLinkFlag(", autoApplyBody, StringComparison.Ordinal);
-        Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", addBody, StringComparison.Ordinal);
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", deleteBody, StringComparison.Ordinal);
-        Assert.Contains("AddSocialLink(", content, StringComparison.Ordinal);
+        Assert.Contains("AddSocialLinkEdit", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("viewModel.AddSocialLink", addBody, StringComparison.Ordinal);
         Assert.Contains("RemoveSocialLink(", content, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshSocialLinkDraftPreservingSelection(", addBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshSocialLinkDraftPreservingSelection(", deleteBody, StringComparison.Ordinal);
@@ -286,19 +289,21 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("UpdateShellState();", addBody, StringComparison.Ordinal);
         Assert.Contains("RefreshCompendiumDraftPreservingSelection(", removeBody, StringComparison.Ordinal);
         Assert.Contains("RefreshCompendiumDraftPreservingSelection(", clearBody, StringComparison.Ordinal);
-        Assert.Contains("if (!TryApplySelectedPersonaDraftBeforeOperation())", removeBody, StringComparison.Ordinal);
-        Assert.Contains("if (!TryApplySelectedPersonaDraftBeforeOperation())", clearBody, StringComparison.Ordinal);
-        Assert.True(removeBody.IndexOf("if (!TryApplySelectedPersonaDraftBeforeOperation())", StringComparison.Ordinal) < removeBody.IndexOf("uiDiagnosticsOverride = null;", StringComparison.Ordinal));
-        Assert.True(clearBody.IndexOf("if (!TryApplySelectedPersonaDraftBeforeOperation())", StringComparison.Ordinal) < clearBody.IndexOf("uiDiagnosticsOverride = null;", StringComparison.Ordinal));
+        Assert.Contains("if (!TryGuardSelectedPersonaDraftBeforeOperation())", removeBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryGuardSelectedPersonaDraftBeforeOperation())", clearBody, StringComparison.Ordinal);
+        Assert.True(removeBody.IndexOf("if (!TryGuardSelectedPersonaDraftBeforeOperation())", StringComparison.Ordinal) < removeBody.IndexOf("uiDiagnosticsOverride = null;", StringComparison.Ordinal));
+        Assert.True(clearBody.IndexOf("if (!TryGuardSelectedPersonaDraftBeforeOperation())", StringComparison.Ordinal) < clearBody.IndexOf("uiDiagnosticsOverride = null;", StringComparison.Ordinal));
         Assert.Contains("if (result.Succeeded)", helperBody, StringComparison.Ordinal);
         Assert.Contains("clearSelectedCompendiumSlotIndex();", helperBody, StringComparison.Ordinal);
         Assert.Contains("refreshFromViewModelPreservingInventoryQuantityDraft(!result.Succeeded);", helperBody, StringComparison.Ordinal);
-        Assert.Contains("SelectOrAddCompendiumPersona(", content, StringComparison.Ordinal);
         Assert.Contains("TryResolveCompendiumPersonaAddTarget(", content, StringComparison.Ordinal);
-        Assert.Contains("SelectOrAddCompendiumPersonaCore(", content, StringComparison.Ordinal);
+        Assert.Contains("SetCompendiumPersonaSlotEdit", content, StringComparison.Ordinal);
+        Assert.Contains("TrackEditorDraft();", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectOrAddCompendiumPersona(", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectOrAddCompendiumPersonaCore(", addBody, StringComparison.Ordinal);
         Assert.Contains("ResolveSelectedPersonaSlotIndexForProtagonistView(", content, StringComparison.Ordinal);
-        Assert.Contains("int? selectedCompendiumSlotIndexBeforeMutation = selectedCompendiumSlotIndex;", addBody, StringComparison.Ordinal);
-        Assert.Contains("ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("int? selectedCompendiumSlotIndexBeforeMutation = selectedCompendiumSlotIndex;", addBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(", addBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft(preserveSelectedCompendiumDraft: true);", addBody, StringComparison.Ordinal);
         Assert.Contains("ClearCompendiumPersonaSlot(", content, StringComparison.Ordinal);
         Assert.Contains("ClearCompendiumPersonaSlots(", content, StringComparison.Ordinal);
@@ -391,7 +396,7 @@ public sealed class WinUIArchitectureTests
             "private async Task ReportOpenFailureAsync(string source, string message)");
 
         Assert.Contains("if (!await ConfirmOverwriteSaveAsync(targetPath))", saveBody, StringComparison.Ordinal);
-        Assert.True(saveBody.IndexOf("if (!await ConfirmOverwriteSaveAsync(targetPath))", StringComparison.Ordinal) < saveBody.IndexOf("if (!ApplyEditorFields())", StringComparison.Ordinal));
+        Assert.True(saveBody.IndexOf("if (!await ConfirmOverwriteSaveAsync(targetPath))", StringComparison.Ordinal) < saveBody.IndexOf("if (HasPendingEditorDrafts())", StringComparison.Ordinal));
 
         Assert.Contains("await ShowConfirmationAsync(", socialLinkDeleteBody, StringComparison.Ordinal);
         Assert.Contains("await ShowConfirmationAsync(", compendiumRemoveBody, StringComparison.Ordinal);
@@ -540,6 +545,9 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.Contains("UpdateMainCharacterLevelValueText();", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("Math.Max(1d, viewModel.MainCharacterLevel)", refreshBasicStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SectionNavigationView.SelectedItem = JumpBasicStatsButton;", content, StringComparison.Ordinal);
+        Assert.Contains("private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)", content, StringComparison.Ordinal);
+        Assert.Contains("NavigateToSelectedSection(sectionTag);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(CalendarSocialStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(DiagnosticsStateSectionHeader);", content, StringComparison.Ordinal);
@@ -563,7 +571,7 @@ public sealed class WinUIArchitectureTests
             "private void SocialStatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
         string dayBody = GetSection(
             content,
-            "private void ApplyImmediateDayEdit(string text, bool isNextDay)",
+            "private void TrackDayDraftEdit(string text, bool isNextDay)",
             "private void PhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
         string socialLinkTextBody = GetSection(
             content,
@@ -615,22 +623,27 @@ public sealed class WinUIArchitectureTests
             "x:Name=\"PersonaLevelSlider\"",
             "x:Name=\"PersonaLevelValueTextBlock\"");
 
-        Assert.Contains("x:Name=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpBasicStats_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"JumpCalendarSocialStatsButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpCalendarSocialStats_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"JumpSocialLinksButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpSocialLinks_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"JumpPartyPersonaButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpPartyPersona_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"JumpEquipmentButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpEquipment_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"JumpCompendiumButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpCompendium_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"JumpInventoryButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpInventory_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"JumpDiagnosticsStateButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("Click=\"JumpDiagnosticsState_Click\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationView", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SectionNavigationView\"", content, StringComparison.Ordinal);
+        Assert.Contains("SelectionChanged=\"SectionNavigationView_SelectionChanged\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationView.MenuItems>", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"BasicStats\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpCalendarSocialStatsButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"CalendarSocialStats\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpSocialLinksButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"SocialLinks\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpPartyPersonaButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"PartyPersona\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpEquipmentButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"Equipment\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpCompendiumButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"Compendium\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpInventoryButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"Inventory\"", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpDiagnosticsStateButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"DiagnosticsState\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Button x:Name=\"Jump", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"BasicStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CalendarSocialStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
@@ -658,15 +671,15 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("ValueChanged=\"PersonaLevelSlider_ValueChanged\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("ElementName=MainCharacterLevelSlider", content, StringComparison.Ordinal);
         Assert.DoesNotContain("ElementName=PersonaLevelSlider", content, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"SectionNavigationView\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"YenTextBox\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"SectionNavigationRail\"", content, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("VerticalScrollBarVisibility=\"Disabled\"", content, StringComparison.Ordinal);
         Assert.True(
-            content.IndexOf("x:Name=\"SectionNavigationRail\"", StringComparison.Ordinal) <
+            content.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal) <
             content.IndexOf("x:Name=\"BasicStatsSectionHeader\"", StringComparison.Ordinal));
     }
 
@@ -774,27 +787,27 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
-    public void MainWindowEquipmentEditsRefreshOnlyEquipmentState()
+    public void MainWindowEquipmentSelectionChangesOnlyTrackDrafts()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
         string methodBody = GetSection(
             content,
-            "private void ApplyEquipmentSelection(",
+            "private void TrackEquipmentDraftSelection(ComboBox comboBox)",
             "private bool TryReadInventoryQuantity(");
-        string propertyChangedBody = GetSection(
+        string editBatchBody = GetSection(
             content,
-            "private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)",
-            "private async Task RunBusyAsync(Func<Task<BusyOperationCompletion>> operation)");
-
-        Assert.Contains("RefreshEquipmentState();", methodBody, StringComparison.Ordinal);
-        Assert.Contains("DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);", methodBody, StringComparison.Ordinal);
-        Assert.Contains("UpdateShellState();", methodBody, StringComparison.Ordinal);
+            "private void AddSelectedEquipmentEdits(",
+            "private static void AddEquipmentEdit(");
+        Assert.Contains("TrackEditorDraft();", methodBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetEquipped", methodBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshEquipmentState();", methodBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModel();", methodBody, StringComparison.Ordinal);
-        Assert.Contains("preservePersonaEditorStateDuringEquipmentRefresh", methodBody, StringComparison.Ordinal);
-        Assert.Contains("if (preservePersonaEditorStateDuringEquipmentRefresh)", propertyChangedBody, StringComparison.Ordinal);
-        Assert.Contains("RefreshEquipmentState();", propertyChangedBody, StringComparison.Ordinal);
-        Assert.Contains("return;", propertyChangedBody, StringComparison.Ordinal);
+        Assert.Contains("new SetEquippedWeaponEdit", editBatchBody, StringComparison.Ordinal);
+        Assert.Contains("new SetEquippedArmorEdit", editBatchBody, StringComparison.Ordinal);
+        Assert.Contains("new SetEquippedAccessoryEdit", editBatchBody, StringComparison.Ordinal);
+        Assert.Contains("new SetEquippedCostumeEdit", editBatchBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("preservePersonaEditorStateDuringEquipmentRefresh", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -862,10 +875,12 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("ShouldPreserveSelectedCompendiumDraftAfterApply(edits)", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.Contains("RefreshFromViewModelPreservingInventoryQuantityDraft(", applyEditorFieldsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshFromViewModelPreservingInventoryQuantityDraft();", applyEditorFieldsBody, StringComparison.Ordinal);
-        Assert.Contains("if (!ApplyEditorFields())", saveBody, StringComparison.Ordinal);
+        Assert.Contains("if (HasPendingEditorDrafts())", saveBody, StringComparison.Ordinal);
+        Assert.Contains("P4GWINUI037", saveBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("ApplyEditorFields()", saveBody, StringComparison.Ordinal);
         Assert.True(
             saveBody.IndexOf("targetPath = forcePicker || string.IsNullOrWhiteSpace(currentFilePath)", StringComparison.Ordinal) <
-            saveBody.IndexOf("if (!ApplyEditorFields())", StringComparison.Ordinal));
+            saveBody.IndexOf("if (HasPendingEditorDrafts())", StringComparison.Ordinal));
         Assert.DoesNotContain("CreateBlankSave", saveBody, StringComparison.Ordinal);
         Assert.DoesNotContain("RestoreNoSaveStateAfterFailedBlankSave", saveBody, StringComparison.Ordinal);
         Assert.Contains("if (string.IsNullOrWhiteSpace(targetPath))", saveBody, StringComparison.Ordinal);
@@ -919,7 +934,7 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
-    public void MainWindowImmediateZeroQuantityInventoryEditSuppressesAutoSelectLikeDelete()
+    public void MainWindowImmediateInventoryQuantityEditOnlyTracksDraft()
     {
         string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -928,9 +943,10 @@ public sealed class WinUIArchitectureTests
             "private void InventoryQuantityTextBox_TextChanged(",
             "private void FamilyNameTextBox_TextChanged(");
 
-        Assert.Contains("if (quantity == 0)", methodBody, StringComparison.Ordinal);
-        Assert.Contains("inventorySelectionState.DisableAutoSelectAfterDelete();", methodBody, StringComparison.Ordinal);
-        Assert.Contains("RefreshInventoryState();", methodBody, StringComparison.Ordinal);
+        Assert.Contains("inventoryQuantityDraftDirty = true;", methodBody, StringComparison.Ordinal);
+        Assert.Contains("TryReadInventoryQuantity(out _)", methodBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetInventoryItemQuantity(", methodBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshInventoryState();", methodBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1023,11 +1039,58 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"StateTextBlock\"", xaml);
         Assert.True(
             xaml.IndexOf("x:Name=\"FilePathTextBlock\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"SectionNavigationRail\"", StringComparison.Ordinal));
+            xaml.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal));
         Assert.Contains("DragOperationDeferral deferral = e.GetDeferral();", dropBody, StringComparison.Ordinal);
         Assert.Contains("deferral.Complete();", dropBody, StringComparison.Ordinal);
         Assert.True(dropBody.IndexOf("DragOperationDeferral deferral = e.GetDeferral();", StringComparison.Ordinal) < dropBody.IndexOf("await e.DataView.GetStorageItemsAsync()", StringComparison.Ordinal));
         Assert.True(dropBody.IndexOf("await RunBusyAsync(() => OpenSaveFileFromPathAsync(openPath, \"Drop\"))", StringComparison.Ordinal) < dropBody.IndexOf("deferral.Complete();", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MainWindowXamlUsesGalleryShellControlsForStatusAndHierarchy()
+    {
+        string winUiDirectory = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(winUiDirectory, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string source = File.ReadAllText(Path.Combine(winUiDirectory, "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string updateShellStateBody = GetSection(
+            source,
+            "private void UpdateShellState()",
+            "private bool HasPendingEditorDrafts()");
+        string displayDiagnosticsBody = GetSection(
+            source,
+            "private void DisplayDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)",
+            "private void SetUiDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)");
+        string applyButtonBody = GetSection(
+            source,
+            "private async void ApplyButton_Click(object sender, RoutedEventArgs e)",
+            "private async void SaveButton_Click(object sender, RoutedEventArgs e)");
+
+        Assert.Contains("xmlns:controls=\"using:CommunityToolkit.WinUI.Controls\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<controls:SettingsCard", xaml, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Current save\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<InfoBar", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ShellStatusInfoBar\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"ShellStatusInfoBar\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<ProgressBar", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ShellBusyProgressBar\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsIndeterminate=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.True(
+            xaml.IndexOf("x:Name=\"ShellStatusInfoBar\"", StringComparison.Ordinal) <
+            xaml.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal));
+        Assert.True(
+            xaml.IndexOf("x:Name=\"ShellBusyProgressBar\"", StringComparison.Ordinal) <
+            xaml.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal));
+
+        Assert.Contains("UpdateShellStatusInfoBar(uiDiagnosticsOverride ?? viewModel.Diagnostics);", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellStatusInfoBar(diagnostics);", displayDiagnosticsBody, StringComparison.Ordinal);
+        Assert.Contains("ShellBusyProgressBar.Visibility = isOperationBusy ? Visibility.Visible : Visibility.Collapsed;", source, StringComparison.Ordinal);
+        Assert.Contains("ShellStatusInfoBar.Title = \"Busy\";", source, StringComparison.Ordinal);
+        Assert.Contains("ShellStatusInfoBar.Title = \"Dirty draft\";", source, StringComparison.Ordinal);
+        Assert.Contains("ShellStatusInfoBar.Title = \"Ready to save\";", source, StringComparison.Ordinal);
+        Assert.Contains("SaveDiagnostic? primaryDiagnostic = GetPrimaryShellDiagnostic(diagnostics);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SectionNavigationView.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("JumpBasicStatsButton.IsEnabled = canNavigateEditorSections;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("await RunBusyAsync(", applyButtonBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1055,15 +1118,17 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("automation:AutomationProperties.AutomationId=\"NoSaveOpenButton\"", noSaveSection, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SaveEditorScrollViewer\" Visibility=\"Collapsed\"", xaml, StringComparison.Ordinal);
         Assert.True(
-            xaml.IndexOf("x:Name=\"NoSaveEmptyStateBorder\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"SectionNavigationRail\"", StringComparison.Ordinal));
+            xaml.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal) <
+            xaml.IndexOf("x:Name=\"NoSaveEmptyStateBorder\"", StringComparison.Ordinal));
 
         Assert.Contains("bool hasSave = viewModel.HasSave;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("NoSaveOpenButton.IsEnabled = !isBusy && !startupRefreshPending;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("NoSaveEmptyStateBorder.Visibility = hasSave ? Visibility.Collapsed : Visibility.Visible;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SaveEditorScrollViewer.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SectionNavigationRail.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("bool canNavigateEditorSections = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("JumpDiagnosticsStateButton.IsEnabled = canNavigateEditorSections;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SectionNavigationRail.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1607,6 +1672,7 @@ public sealed class WinUIArchitectureTests
         string[] directPackageReferences = GetPackageIncludes(project, "PackageReference");
         Assert.Contains(CsWinRTPackageName, directPackageReferences);
         Assert.Contains(CsWinRTWindowsMetadataPackageName, directPackageReferences);
+        Assert.Contains(SettingsControlsPackageName, directPackageReferences);
 
         XDocument centralPackages = XDocument.Load(Path.Combine(FindRepositoryRoot(), "Directory.Packages.props"));
         string packageVersion = GetRequiredPackageVersion(centralPackages, CsWinRTPackageName);
@@ -1617,6 +1683,7 @@ public sealed class WinUIArchitectureTests
         Assert.Equal(
             RequiredCsWinRTWindowsMetadataPackageVersion,
             GetRequiredPackageVersion(centralPackages, CsWinRTWindowsMetadataPackageName));
+        Assert.Equal("8.2.251219", GetRequiredPackageVersion(centralPackages, SettingsControlsPackageName));
     }
 
     [Fact]
@@ -1876,13 +1943,13 @@ public sealed class WinUIArchitectureTests
         Assert.True(shellIndex > refreshIndex, $"{methodName} must update shell state after refreshing state.");
     }
 
-    private static void AssertInventoryHandlerAutoAppliesBeforeClearingDraft(string handlerBody)
+    private static void AssertInventoryHandlerGuardsDraftBeforeClearingDraft(string handlerBody)
     {
-        int autoApplyIndex = handlerBody.IndexOf("if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())", StringComparison.Ordinal);
+        int autoApplyIndex = handlerBody.IndexOf("if (!TryGuardSelectedInventoryQuantityDraftBeforeOperation())", StringComparison.Ordinal);
         int clearDraftIndex = handlerBody.IndexOf("inventoryQuantityDraftDirty = false;", StringComparison.Ordinal);
 
-        Assert.True(autoApplyIndex >= 0, "Inventory selection handlers must auto-apply dirty quantity drafts before changing selection.");
-        Assert.True(clearDraftIndex < 0 || autoApplyIndex < clearDraftIndex, "Inventory drafts must be applied before they are cleared.");
+        Assert.True(autoApplyIndex >= 0, "Inventory selection handlers must guard dirty quantity drafts before changing selection.");
+        Assert.True(clearDraftIndex < 0 || autoApplyIndex < clearDraftIndex, "Inventory drafts must be guarded before they are cleared.");
         Assert.Contains("RestoreInventorySelectionAfterBlockedDraft();", handlerBody, StringComparison.Ordinal);
     }
 
@@ -1901,14 +1968,14 @@ public sealed class WinUIArchitectureTests
         Assert.True(returnIndex > updateIndex, $"{diagnosticCode} branch must return after refreshing shell state.");
     }
 
-    private static void AssertPersonaSelectionHandlerAppliesDraftBeforeRefresh(string handlerBody)
+    private static void AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(string handlerBody)
     {
-        int autoApplyIndex = handlerBody.IndexOf("if (!TryApplySelectedPersonaDraftBeforeOperation())", StringComparison.Ordinal);
+        int autoApplyIndex = handlerBody.IndexOf("if (!TryGuardSelectedPersonaDraftBeforeOperation())", StringComparison.Ordinal);
         int refreshIndex = handlerBody.IndexOf("RefreshPersonaState();", StringComparison.Ordinal);
 
-        Assert.True(autoApplyIndex >= 0, "Persona selection handlers must apply dirty persona drafts before changing selection.");
+        Assert.True(autoApplyIndex >= 0, "Persona selection handlers must guard dirty persona drafts before changing selection.");
         Assert.Contains("RestorePersonaSelectionAfterBlockedDraft();", handlerBody, StringComparison.Ordinal);
-        Assert.True(refreshIndex < 0 || autoApplyIndex < refreshIndex, "Persona drafts must be applied before refreshing the persona editor.");
+        Assert.True(refreshIndex < 0 || autoApplyIndex < refreshIndex, "Persona drafts must be guarded before refreshing the persona editor.");
     }
 
     private static string GetWinUIProjectFile()

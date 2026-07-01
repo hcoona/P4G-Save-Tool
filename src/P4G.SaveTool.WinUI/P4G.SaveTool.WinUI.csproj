@@ -29,6 +29,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
     <PackageReference Include="Microsoft.Windows.CsWinRT" />
     <PackageReference Include="Microsoft.Windows.SDK.CPP" ExcludeAssets="all" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />

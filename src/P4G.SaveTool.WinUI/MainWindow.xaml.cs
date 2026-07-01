@@ -72,7 +72,6 @@ public sealed partial class MainWindow : Window
     private bool suppressSocialLinkEvents;
     private bool suppressImmediateEditEvents;
     private bool preserveEditorTextDuringInventoryRefresh;
-    private bool preservePersonaEditorStateDuringEquipmentRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
     private bool refreshEditableFieldsAfterStartupOpen;
@@ -124,15 +123,19 @@ public sealed partial class MainWindow : Window
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         defaultMainCharacterLevelValueForeground = MainCharacterLevelValueTextBlock.Foreground;
         defaultPersonaLevelValueForeground = PersonaLevelValueTextBlock.Foreground;
+        SectionNavigationView.SelectedItem = JumpBasicStatsButton;
     }
 
     private async void OpenButton_Click(object sender, RoutedEventArgs e) =>
         await RunBusyAsync(OpenSaveFileAsync);
 
-    private void ApplyButton_Click(object sender, RoutedEventArgs e)
-    {
-        _ = ApplyEditorFields();
-    }
+    private async void ApplyButton_Click(object sender, RoutedEventArgs e) =>
+        await RunBusyAsync(
+            () =>
+            {
+                _ = ApplyEditorFields();
+                return Task.FromResult(BusyOperationCompletion.PreserveEditorState);
+            });
 
     private async void SaveButton_Click(object sender, RoutedEventArgs e) =>
         await RunBusyAsync(() => SaveAsync(forcePicker: false));
@@ -146,9 +149,49 @@ public sealed partial class MainWindow : Window
     private void MainCharacterLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         UpdateMainCharacterLevelValueText();
-        ApplyImmediateEdit(
-            () => new SetMainCharacterLevelEdit((byte)MainCharacterLevelSlider.Value),
-            refreshAfterSuccess: false);
+        TrackEditorDraft();
+    }
+
+    private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (args.SelectedItem is not NavigationViewItem selectedItem ||
+            selectedItem.Tag is not string sectionTag)
+        {
+            return;
+        }
+
+        NavigateToSelectedSection(sectionTag);
+    }
+
+    private void NavigateToSelectedSection(string sectionTag)
+    {
+        switch (sectionTag)
+        {
+            case "BasicStats":
+                NavigateToSection(BasicStatsSectionHeader);
+                break;
+            case "CalendarSocialStats":
+                NavigateToSection(CalendarSocialStatsSectionHeader);
+                break;
+            case "SocialLinks":
+                NavigateToSection(SocialLinksSectionHeader);
+                break;
+            case "PartyPersona":
+                NavigateToSection(PartyPersonaSectionHeader);
+                break;
+            case "Equipment":
+                NavigateToSection(EquipmentSectionHeader);
+                break;
+            case "Compendium":
+                NavigateToSection(CompendiumSectionHeader);
+                break;
+            case "Inventory":
+                NavigateToSection(InventorySectionHeader);
+                break;
+            case "DiagnosticsState":
+                NavigateToSection(DiagnosticsStateSectionHeader);
+                break;
+        }
     }
 
     private void JumpBasicStats_Click(object sender, RoutedEventArgs e) =>
@@ -271,14 +314,6 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (preservePersonaEditorStateDuringEquipmentRefresh)
-        {
-            RefreshEquipmentState();
-            DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-            UpdateShellState();
-            return;
-        }
-
         if (saveEditorRefreshCoordinator.IsFullRefreshSuppressed)
         {
             DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
@@ -297,6 +332,7 @@ public sealed partial class MainWindow : Window
         }
 
         UpdateShellState();
+        await Task.Yield();
         BusyOperationCompletion completion = BusyOperationCompletion.RefreshViewModel;
         try
         {
@@ -465,8 +501,10 @@ public sealed partial class MainWindow : Window
             return BusyOperationCompletion.PreserveEditorState;
         }
 
-        if (!ApplyEditorFields())
+        if (HasPendingEditorDrafts())
         {
+            SetUiDiagnostics([CreateUiDiagnostic("P4GWINUI037", "Apply edits before saving.", "Save")]);
+            UpdateShellState();
             return BusyOperationCompletion.PreserveEditorState;
         }
 
@@ -683,6 +721,7 @@ public sealed partial class MainWindow : Window
         AddPartyMemberValue(PartySlot0ComboBox, 0, batch, validationDiagnostics);
         AddPartyMemberValue(PartySlot1ComboBox, 1, batch, validationDiagnostics);
         AddPartyMemberValue(PartySlot2ComboBox, 2, batch, validationDiagnostics);
+        AddSelectedEquipmentEdits(batch, validationDiagnostics);
         AppendGroup4Edits(
             viewModel.SocialStats,
             viewModel.Calendar,
@@ -700,6 +739,8 @@ public sealed partial class MainWindow : Window
             validationDiagnostics);
         AddPersonaEdit(batch, validationDiagnostics);
         TryAppendSelectedSocialLinkEdits(batch, validationDiagnostics);
+        TryAppendSocialLinkAddEdit(batch, validationDiagnostics);
+        TryAppendCompendiumAddEdit(batch, validationDiagnostics);
         TryAppendSelectedInventoryQuantityEdit(
             inventoryQuantityDraftDirty,
             selectedInventoryItemId,
@@ -726,6 +767,67 @@ public sealed partial class MainWindow : Window
             "P4GWINUI007",
             $"Select a party member for slot {slotIndex + 1}.",
             $"PartyMembers[{slotIndex}]"));
+    }
+
+    private void AddSelectedEquipmentEdits(List<SaveEditCommand> edits, List<SaveDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        EquipmentCharacterViewState? selectedCharacter = GetSelectedEquipmentCharacterViewState();
+        if (selectedCharacter is null)
+        {
+            return;
+        }
+
+        AddEquipmentEdit(
+            EquipmentWeaponComboBox,
+            selectedCharacter.WeaponItemId,
+            "Equipment.Weapon",
+            itemId => new SetEquippedWeaponEdit(selectedCharacter.CharacterId, itemId),
+            edits,
+            diagnostics);
+        AddEquipmentEdit(
+            EquipmentArmorComboBox,
+            selectedCharacter.ArmorItemId,
+            "Equipment.Armor",
+            itemId => new SetEquippedArmorEdit(selectedCharacter.CharacterId, itemId),
+            edits,
+            diagnostics);
+        AddEquipmentEdit(
+            EquipmentAccessoryComboBox,
+            selectedCharacter.AccessoryItemId,
+            "Equipment.Accessory",
+            itemId => new SetEquippedAccessoryEdit(selectedCharacter.CharacterId, itemId),
+            edits,
+            diagnostics);
+        AddEquipmentEdit(
+            EquipmentCostumeComboBox,
+            selectedCharacter.CostumeItemId,
+            "Equipment.Costume",
+            itemId => new SetEquippedCostumeEdit(selectedCharacter.CharacterId, itemId),
+            edits,
+            diagnostics);
+    }
+
+    private static void AddEquipmentEdit(
+        ComboBox comboBox,
+        ushort currentItemId,
+        string diagnosticTarget,
+        Func<ushort, SaveEditCommand> createEdit,
+        List<SaveEditCommand> edits,
+        List<SaveDiagnostic> diagnostics)
+    {
+        if (comboBox.SelectedItem is not InventoryItemChoiceViewState selectedItem)
+        {
+            diagnostics.Add(CreateUiDiagnostic("P4GWINUI038", "Select an equipment item.", diagnosticTarget));
+            return;
+        }
+
+        if (selectedItem.ItemId != currentItemId)
+        {
+            edits.Add(createEdit(selectedItem.ItemId));
+        }
     }
 
     private void AddPersonaEdit(List<SaveEditCommand> edits, List<SaveDiagnostic> diagnostics)
@@ -1079,6 +1181,51 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
+    private bool TryAppendSocialLinkAddEdit(List<SaveEditCommand> edits, List<SaveDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        if (SocialLinkAddComboBox.SelectedItem is not SocialLinkChoiceViewState selectedChoice ||
+            selectedChoice.IsPlaceholder)
+        {
+            return true;
+        }
+
+        edits.Add(new AddSocialLinkEdit(selectedChoice.LinkId));
+        return true;
+    }
+
+    private bool TryAppendCompendiumAddEdit(List<SaveEditCommand> edits, List<SaveDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        if (CompendiumAddComboBox.SelectedItem is not PersonaChoiceViewState selectedChoice ||
+            selectedChoice.PersonaId == 0)
+        {
+            return true;
+        }
+
+        if (!TryResolveCompendiumPersonaAddTarget(
+                viewModel.CompendiumPersonaSlots,
+                selectedChoice.PersonaId,
+                out int slotIndex,
+                out bool existingSlot,
+                out SaveDiagnostic? diagnostic))
+        {
+            diagnostics.Add(diagnostic!);
+            return false;
+        }
+
+        if (!existingSlot)
+        {
+            edits.Add(new SetCompendiumPersonaSlotEdit(slotIndex, CreateDefaultCompendiumPersonaSlotEdit(selectedChoice.PersonaId)));
+        }
+
+        return true;
+    }
+
     internal static bool TryAppendSelectedInventoryQuantityEdit(
         bool quantityDraftDirty,
         ushort? selectedInventoryItemId,
@@ -1190,58 +1337,6 @@ public sealed partial class MainWindow : Window
             allowNonBlankLevelZero: selectedCompendiumSlotIndex.HasValue);
     }
 
-    private SaveEditorOperationResult SelectOrAddCompendiumPersona(PersonaChoiceViewState selectedChoice) =>
-        SelectOrAddCompendiumPersonaCore(
-            viewModel.CompendiumPersonaSlots,
-            selectedChoice,
-            viewModel.SetCompendiumPersonaSlot,
-            slotIndex =>
-            {
-                selectedCompendiumListSlotIndex = slotIndex;
-                selectedCompendiumSlotIndex = slotIndex;
-            });
-
-    internal static SaveEditorOperationResult SelectOrAddCompendiumPersonaCore(
-        IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots,
-        PersonaChoiceViewState selectedChoice,
-        Func<int, PersonaSlotEdit, SaveEditorOperationResult> setCompendiumPersonaSlot,
-        Action<int> setSelectedCompendiumSlotIndex)
-    {
-        ArgumentNullException.ThrowIfNull(compendiumPersonaSlots);
-        ArgumentNullException.ThrowIfNull(selectedChoice);
-        ArgumentNullException.ThrowIfNull(setCompendiumPersonaSlot);
-        ArgumentNullException.ThrowIfNull(setSelectedCompendiumSlotIndex);
-
-        if (selectedChoice.PersonaId == 0)
-        {
-            return new SaveEditorOperationResult(true, []);
-        }
-
-        if (!TryResolveCompendiumPersonaAddTarget(
-                compendiumPersonaSlots,
-                selectedChoice.PersonaId,
-                out int slotIndex,
-                out bool existingSlot,
-                out SaveDiagnostic? diagnostic))
-        {
-            return new SaveEditorOperationResult(false, [diagnostic!]);
-        }
-
-        if (existingSlot)
-        {
-            setSelectedCompendiumSlotIndex(slotIndex);
-            return new SaveEditorOperationResult(true, []);
-        }
-
-        SaveEditorOperationResult result = setCompendiumPersonaSlot(slotIndex, CreateDefaultCompendiumPersonaSlotEdit(selectedChoice.PersonaId));
-        if (result.Succeeded)
-        {
-            setSelectedCompendiumSlotIndex(slotIndex);
-        }
-
-        return result;
-    }
-
     internal static bool TryResolveCompendiumPersonaAddTarget(
         IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots,
         ushort personaId,
@@ -1296,6 +1391,47 @@ public sealed partial class MainWindow : Window
 
         diagnostic = CreateUiDiagnostic("P4GWINUI027", "No free compendium slots are available.", "Compendium");
         return false;
+    }
+
+    internal static SaveEditorOperationResult SelectOrAddCompendiumPersonaCore(
+        IReadOnlyList<PersonaSlotViewState> compendiumPersonaSlots,
+        PersonaChoiceViewState selectedChoice,
+        Func<int, PersonaSlotEdit, SaveEditorOperationResult> setCompendiumPersonaSlot,
+        Action<int> setSelectedCompendiumSlotIndex)
+    {
+        ArgumentNullException.ThrowIfNull(compendiumPersonaSlots);
+        ArgumentNullException.ThrowIfNull(selectedChoice);
+        ArgumentNullException.ThrowIfNull(setCompendiumPersonaSlot);
+        ArgumentNullException.ThrowIfNull(setSelectedCompendiumSlotIndex);
+
+        if (selectedChoice.PersonaId == 0)
+        {
+            return new SaveEditorOperationResult(true, []);
+        }
+
+        if (!TryResolveCompendiumPersonaAddTarget(
+                compendiumPersonaSlots,
+                selectedChoice.PersonaId,
+                out int slotIndex,
+                out bool existingSlot,
+                out SaveDiagnostic? diagnostic))
+        {
+            return new SaveEditorOperationResult(false, [diagnostic!]);
+        }
+
+        if (existingSlot)
+        {
+            setSelectedCompendiumSlotIndex(slotIndex);
+            return new SaveEditorOperationResult(true, []);
+        }
+
+        SaveEditorOperationResult result = setCompendiumPersonaSlot(slotIndex, CreateDefaultCompendiumPersonaSlotEdit(selectedChoice.PersonaId));
+        if (result.Succeeded)
+        {
+            setSelectedCompendiumSlotIndex(slotIndex);
+        }
+
+        return result;
     }
 
     internal static bool TryBuildPersonaSlotEditCore(
@@ -1713,6 +1849,7 @@ public sealed partial class MainWindow : Window
         bool canSave = canEdit && viewModel.IsDirty && viewModel.CanWrite && !hasPendingEditorDrafts;
         bool canSaveAs = canSave;
         Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;
+        bool canNavigateEditorSections = canEdit;
 
         FileOpenMenuItem.IsEnabled = !isBusy && !startupRefreshPending;
         OpenButton.IsEnabled = !isBusy && !startupRefreshPending;
@@ -1724,7 +1861,14 @@ public sealed partial class MainWindow : Window
         FileSaveAsMenuItem.IsEnabled = canSaveAs;
         NoSaveEmptyStateBorder.Visibility = hasSave ? Visibility.Collapsed : Visibility.Visible;
         SaveEditorScrollViewer.Visibility = editorVisibility;
-        SectionNavigationRail.Visibility = editorVisibility;
+        JumpBasicStatsButton.IsEnabled = canNavigateEditorSections;
+        JumpCalendarSocialStatsButton.IsEnabled = canNavigateEditorSections;
+        JumpSocialLinksButton.IsEnabled = canNavigateEditorSections;
+        JumpPartyPersonaButton.IsEnabled = canNavigateEditorSections;
+        JumpEquipmentButton.IsEnabled = canNavigateEditorSections;
+        JumpCompendiumButton.IsEnabled = canNavigateEditorSections;
+        JumpInventoryButton.IsEnabled = canNavigateEditorSections;
+        JumpDiagnosticsStateButton.IsEnabled = canNavigateEditorSections;
         FamilyNameTextBox.IsEnabled = canEdit;
         GivenNameTextBox.IsEnabled = canEdit;
         YenTextBox.IsEnabled = canEdit;
@@ -1785,12 +1929,20 @@ public sealed partial class MainWindow : Window
 
         FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);
         StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, hasPendingEditorDrafts, viewModel.IsDirty, viewModel.CanWrite);
+        UpdateShellStatusInfoBar(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateWindowTitle();
     }
 
     private bool HasPendingEditorDrafts() =>
         viewModel.HasSave &&
-        (HasBasicStatsDraft() || HasGroup4Draft() || HasSelectedSocialLinkDraft() || HasPersonaDraft() || inventoryQuantityDraftDirty);
+        (HasBasicStatsDraft() ||
+            HasEquipmentDraft() ||
+            HasGroup4Draft() ||
+            HasSocialLinkAddDraft() ||
+            HasSelectedSocialLinkDraft() ||
+            HasCompendiumAddDraft() ||
+            HasPersonaDraft() ||
+            inventoryQuantityDraftDirty);
 
     private bool HasBasicStatsDraft() =>
         !string.Equals(FamilyNameTextBox.Text ?? string.Empty, viewModel.FamilyName, StringComparison.Ordinal) ||
@@ -1801,6 +1953,24 @@ public sealed partial class MainWindow : Window
             MainCharacterTotalExperienceTextBox.Text ?? string.Empty,
             viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture),
             StringComparison.Ordinal);
+
+    private bool HasEquipmentDraft()
+    {
+        EquipmentCharacterViewState? selectedCharacter = GetSelectedEquipmentCharacterViewState();
+        return selectedCharacter is not null &&
+            (ReadEquipmentItemId(EquipmentWeaponComboBox) != selectedCharacter.WeaponItemId ||
+                ReadEquipmentItemId(EquipmentArmorComboBox) != selectedCharacter.ArmorItemId ||
+                ReadEquipmentItemId(EquipmentAccessoryComboBox) != selectedCharacter.AccessoryItemId ||
+                ReadEquipmentItemId(EquipmentCostumeComboBox) != selectedCharacter.CostumeItemId);
+    }
+
+    private EquipmentCharacterViewState? GetSelectedEquipmentCharacterViewState() =>
+        selectedEquipmentCharacterId.HasValue
+            ? viewModel.EquipmentCharacters.FirstOrDefault(character => character.CharacterId == selectedEquipmentCharacterId.Value)
+            : null;
+
+    private static ushort? ReadEquipmentItemId(ComboBox comboBox) =>
+        comboBox.SelectedItem is InventoryItemChoiceViewState selectedItem ? selectedItem.ItemId : null;
 
     private bool HasGroup4Draft()
     {
@@ -1832,6 +2002,14 @@ public sealed partial class MainWindow : Window
             (!string.Equals(SocialLinkLevelTextBox.Text ?? string.Empty, selectedLink.Level.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
                 !string.Equals(SocialLinkProgressTextBox.Text ?? string.Empty, selectedLink.Progress.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
     }
+
+    private bool HasSocialLinkAddDraft() =>
+        SocialLinkAddComboBox.SelectedItem is SocialLinkChoiceViewState selectedChoice &&
+        !selectedChoice.IsPlaceholder;
+
+    private bool HasCompendiumAddDraft() =>
+        CompendiumAddComboBox.SelectedItem is PersonaChoiceViewState selectedChoice &&
+        selectedChoice.PersonaId != 0;
 
     private bool HasPersonaDraft()
     {
@@ -2285,7 +2463,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedSocialLinkDraftBeforeOperation())
+        if (!TryGuardSelectedSocialLinkDraftBeforeOperation())
         {
             RestoreSocialLinkListSelection();
             UpdateShellState();
@@ -2320,30 +2498,19 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        byte addLinkId = selectedChoice.LinkId;
-        if (!TryApplySelectedSocialLinkDraftBeforeOperation())
+        if (!TryGuardSelectedSocialLinkDraftBeforeOperation())
         {
             ResetSocialLinkAddChoice();
             UpdateShellState();
             return;
         }
 
-        uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => viewModel.AddSocialLink(addLinkId));
-        RefreshSocialLinksState(allowFallbackSelection: selectedSocialLinkIndex.HasValue);
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        UpdateShellState();
-        if (!result.Succeeded)
-        {
-            SetUiDiagnostics(result.Diagnostics);
-            _ = ShowMessageAsync("Social link add failed", FormatDiagnostics(result.Diagnostics));
-        }
+        TrackEditorDraft();
     }
 
-    private bool TryApplySelectedSocialLinkDraftBeforeOperation()
+    private bool TryGuardSelectedSocialLinkDraftBeforeOperation()
     {
-        if (!viewModel.HasSave || !selectedSocialLinkIndex.HasValue)
+        if (!viewModel.HasSave || !selectedSocialLinkIndex.HasValue || !HasSelectedSocialLinkDraft())
         {
             return true;
         }
@@ -2356,17 +2523,11 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => viewModel.ApplyEdits(edits));
-        if (!result.Succeeded)
-        {
-            SetUiDiagnostics(result.Diagnostics);
-            return false;
-        }
-
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        return true;
+        SetUiDiagnostics([CreateUiDiagnostic(
+            "P4GWINUI034",
+            "Apply the selected social link draft before changing social link selection.",
+            "SocialLinks")]);
+        return false;
     }
 
     private void RestoreSocialLinkListSelection()
@@ -2409,7 +2570,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedSocialLinkDraftBeforeOperation())
+        if (!TryGuardSelectedSocialLinkDraftBeforeOperation())
         {
             UpdateShellState();
             return;
@@ -2450,7 +2611,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
@@ -2482,7 +2643,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
@@ -2528,7 +2689,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
@@ -2555,25 +2716,29 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        uiDiagnosticsOverride = null;
-        int? selectedCompendiumSlotIndexBeforeMutation = selectedCompendiumSlotIndex;
-        bool selectedCompendiumSlotMatchedRequestedPersonaBeforeMutation =
-            selectedCompendiumSlotIndexBeforeMutation.HasValue &&
-            selectedCompendiumSlotIndexBeforeMutation.Value < viewModel.CompendiumPersonaSlots.Count &&
-            viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndexBeforeMutation.Value].PersonaId == selectedChoice.PersonaId;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => SelectOrAddCompendiumPersona(selectedChoice));
-        RefreshFromViewModelPreservingInventoryQuantityDraft(
-            preserveSelectedCompendiumDraft: ShouldPreserveSelectedCompendiumDraftAfterSelectOrAdd(
-                selectedCompendiumSlotIndexBeforeMutation,
-                selectedCompendiumSlotIndex,
-                result.Succeeded,
-                selectedCompendiumSlotMatchedRequestedPersonaBeforeMutation));
-        if (!result.Succeeded)
+        if (!TryResolveCompendiumPersonaAddTarget(
+                viewModel.CompendiumPersonaSlots,
+                selectedChoice.PersonaId,
+                out int slotIndex,
+                out bool existingSlot,
+                out SaveDiagnostic? diagnostic))
         {
-            SetUiDiagnostics(result.Diagnostics);
-            _ = ShowMessageAsync("Compendium add failed", FormatDiagnostics(result.Diagnostics));
+            SetUiDiagnostics([diagnostic!]);
+            UpdateShellState();
+            return;
         }
+
+        if (existingSlot)
+        {
+            selectedCompendiumListSlotIndex = slotIndex;
+            selectedCompendiumSlotIndex = slotIndex;
+            ResetCompendiumAddChoice();
+            RefreshPersonaState();
+            UpdateShellState();
+            return;
+        }
+
+        TrackEditorDraft();
     }
 
     private async void CompendiumRemoveButton_Click(object sender, RoutedEventArgs e)
@@ -2590,7 +2755,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
@@ -2625,6 +2790,19 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void ResetCompendiumAddChoice()
+    {
+        suppressCompendiumEvents = true;
+        try
+        {
+            CompendiumAddComboBox.SelectedItem = compendiumAddChoices.FirstOrDefault(static choice => choice.PersonaId == 0);
+        }
+        finally
+        {
+            suppressCompendiumEvents = false;
+        }
+    }
+
     private async void CompendiumClearButton_Click(object sender, RoutedEventArgs e)
     {
         if (!viewModel.HasSave)
@@ -2633,7 +2811,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
@@ -3000,7 +3178,7 @@ public sealed partial class MainWindow : Window
         return entry?.Quantity ?? (byte)1;
     }
 
-    private bool TryApplySelectedInventoryQuantityDraftBeforeOperation()
+    private bool TryGuardSelectedInventoryQuantityDraftBeforeOperation()
     {
         if (!viewModel.HasSave || !inventoryQuantityDraftDirty || !selectedInventoryItemId.HasValue)
         {
@@ -3012,24 +3190,17 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => viewModel.SetInventoryItemQuantity(selectedInventoryItemId.Value, quantity));
-        if (!result.Succeeded)
-        {
-            SetUiDiagnostics(result.Diagnostics);
-            return false;
-        }
-
-        inventoryQuantityDraftDirty = false;
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        return true;
+        SetUiDiagnostics([CreateUiDiagnostic(
+            "P4GWINUI035",
+            "Apply the selected inventory quantity draft before changing inventory selection.",
+            "Inventory.Quantity")]);
+        return false;
     }
 
     private void RestoreInventorySelectionAfterBlockedDraft() =>
         RefreshFromViewModelPreservingInventoryQuantityDraft();
 
-    private bool TryAutoAddSelectedInventoryItem()
+    private bool TrySelectExistingInventoryEntry()
     {
         if (!selectedInventoryItemId.HasValue)
         {
@@ -3043,22 +3214,15 @@ public sealed partial class MainWindow : Window
             return true;
         }
 
-        uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => viewModel.SetInventoryItemQuantity(selectedInventoryItemId.Value, 1));
-        if (result.Succeeded)
-        {
-            selectedInventoryEntryId = selectedInventoryItemId.Value;
-            return true;
-        }
-
-        SetUiDiagnostics(result.Diagnostics);
-        return false;
+        selectedInventoryEntryId = null;
+        return true;
     }
 
-    private bool TryApplySelectedPersonaDraftBeforeOperation()
+    private bool TryGuardSelectedPersonaDraftBeforeOperation()
     {
-        if (!viewModel.HasSave || (!selectedCompendiumSlotIndex.HasValue && !selectedPersonaMemberId.HasValue))
+        if (!viewModel.HasSave ||
+            (!selectedCompendiumSlotIndex.HasValue && !selectedPersonaMemberId.HasValue) ||
+            !HasPersonaDraft())
         {
             return true;
         }
@@ -3077,17 +3241,11 @@ public sealed partial class MainWindow : Window
             return true;
         }
 
-        uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => viewModel.ApplyEdits(edits));
-        if (!result.Succeeded)
-        {
-            SetUiDiagnostics(result.Diagnostics);
-            return false;
-        }
-
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        return true;
+        SetUiDiagnostics([CreateUiDiagnostic(
+            "P4GWINUI036",
+            "Apply the selected persona draft before changing persona selection.",
+            "Persona")]);
+        return false;
     }
 
     private void RestorePersonaSelectionAfterBlockedDraft()
@@ -3134,7 +3292,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())
+        if (!TryGuardSelectedInventoryQuantityDraftBeforeOperation())
         {
             RestoreInventorySelectionAfterBlockedDraft();
             UpdateShellState();
@@ -3164,7 +3322,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())
+        if (!TryGuardSelectedInventoryQuantityDraftBeforeOperation())
         {
             RestoreInventorySelectionAfterBlockedDraft();
             UpdateShellState();
@@ -3178,7 +3336,7 @@ public sealed partial class MainWindow : Window
             selectedInventoryItemId = null;
             selectedInventoryEntryId = null;
             RefreshInventoryState();
-            _ = TryAutoAddSelectedInventoryItem();
+            _ = TrySelectExistingInventoryEntry();
             RefreshInventoryState();
             DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
             UpdateShellState();
@@ -3192,7 +3350,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedInventoryQuantityDraftBeforeOperation())
+        if (!TryGuardSelectedInventoryQuantityDraftBeforeOperation())
         {
             RestoreInventorySelectionAfterBlockedDraft();
             UpdateShellState();
@@ -3209,7 +3367,7 @@ public sealed partial class MainWindow : Window
                 ? null
                 : viewModel.InventoryEntries.FirstOrDefault(entry => entry.ItemId == selectedItem.ItemId);
             selectedInventoryEntryId = selectedEntry?.ItemId;
-            _ = TryAutoAddSelectedInventoryItem();
+            _ = TrySelectExistingInventoryEntry();
 
             RefreshInventoryState();
             DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
@@ -3338,7 +3496,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
@@ -3381,7 +3539,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!TryApplySelectedPersonaDraftBeforeOperation())
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
@@ -3435,6 +3593,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!TryGuardSelectedEquipmentDraftBeforeOperation())
+        {
+            RestoreEquipmentSelectionAfterBlockedDraft();
+            UpdateShellState();
+            return;
+        }
+
         if (EquipmentCharacterComboBox.SelectedItem is not EquipmentCharacterViewState selectedCharacter)
         {
             selectedEquipmentCharacterId = null;
@@ -3448,57 +3613,54 @@ public sealed partial class MainWindow : Window
     }
 
     private void EquipmentWeaponComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ApplyEquipmentSelection(EquipmentWeaponComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedWeapon(characterId, itemId), "Equipment.Weapon");
+        TrackEquipmentDraftSelection(EquipmentWeaponComboBox);
 
     private void EquipmentArmorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ApplyEquipmentSelection(EquipmentArmorComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedArmor(characterId, itemId), "Equipment.Armor");
+        TrackEquipmentDraftSelection(EquipmentArmorComboBox);
 
     private void EquipmentAccessoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ApplyEquipmentSelection(EquipmentAccessoryComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedAccessory(characterId, itemId), "Equipment.Accessory");
+        TrackEquipmentDraftSelection(EquipmentAccessoryComboBox);
 
     private void EquipmentCostumeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ApplyEquipmentSelection(EquipmentCostumeComboBox, static (viewModel, characterId, itemId) => viewModel.SetEquippedCostume(characterId, itemId), "Equipment.Costume");
+        TrackEquipmentDraftSelection(EquipmentCostumeComboBox);
 
-    private void ApplyEquipmentSelection(
-        ComboBox comboBox,
-        Func<SaveEditorViewModel, int, ushort, SaveEditorOperationResult> apply,
-        string diagnosticTarget)
+    private bool TryGuardSelectedEquipmentDraftBeforeOperation()
     {
-        if (suppressEquipmentEvents)
+        if (!HasEquipmentDraft())
         {
-            return;
+            return true;
         }
 
-        if (!selectedEquipmentCharacterId.HasValue)
-        {
-            return;
-        }
+        SetUiDiagnostics([CreateUiDiagnostic(
+            "P4GWINUI039",
+            "Apply the selected equipment draft before changing equipment character.",
+            "Equipment")]);
+        return false;
+    }
 
-        if (comboBox.SelectedItem is not InventoryItemChoiceViewState selectedItem)
-        {
-            return;
-        }
-
-        uiDiagnosticsOverride = null;
-        preservePersonaEditorStateDuringEquipmentRefresh = true;
-        SaveEditorOperationResult result;
+    private void RestoreEquipmentSelectionAfterBlockedDraft()
+    {
+        suppressEquipmentEvents = true;
         try
         {
-            result = apply(viewModel, selectedEquipmentCharacterId.Value, selectedItem.ItemId);
+            EquipmentCharacterComboBox.SelectedItem = GetSelectedEquipmentCharacterViewState();
         }
         finally
         {
-            preservePersonaEditorStateDuringEquipmentRefresh = false;
+            suppressEquipmentEvents = false;
+        }
+    }
+
+    private void TrackEquipmentDraftSelection(ComboBox comboBox)
+    {
+        if (suppressEquipmentEvents ||
+            !selectedEquipmentCharacterId.HasValue ||
+            comboBox.SelectedItem is not InventoryItemChoiceViewState)
+        {
+            return;
         }
 
-        RefreshEquipmentState();
-        DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
-        UpdateShellState();
-        if (!result.Succeeded)
-        {
-            SetUiDiagnostics(result.Diagnostics);
-            _ = ShowMessageAsync($"{diagnosticTarget} update failed", FormatDiagnostics(result.Diagnostics));
-        }
+        TrackEditorDraft();
     }
 
     private bool TryReadInventoryQuantity(out byte quantity)
@@ -3521,49 +3683,22 @@ public sealed partial class MainWindow : Window
         }
 
         inventoryQuantityDraftDirty = true;
-        if (!TryReadInventoryQuantity(out byte quantity))
+        if (!TryReadInventoryQuantity(out _))
         {
             UpdateShellState();
             return;
         }
 
         uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => viewModel.SetInventoryItemQuantity(selectedInventoryItemId.Value, quantity));
-        if (!result.Succeeded)
-        {
-            SetUiDiagnostics(result.Diagnostics);
-            UpdateShellState();
-            return;
-        }
-
-        inventoryQuantityDraftDirty = false;
-        if (quantity == 0)
-        {
-            inventorySelectionState.DisableAutoSelectAfterDelete();
-            selectedInventoryCategoryId = null;
-            selectedInventoryItemId = null;
-            selectedInventoryEntryId = null;
-        }
-        else
-        {
-            selectedInventoryEntryId = selectedInventoryItemId.Value;
-        }
-
-        RefreshInventoryState();
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateShellState();
     }
 
     private void FamilyNameTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
-        ApplyImmediateEdit(
-            () => new SetSaveNamesEdit(FamilyNameTextBox.Text ?? string.Empty, GivenNameTextBox.Text ?? string.Empty),
-            refreshAfterSuccess: false);
+        TrackEditorDraft();
 
     private void GivenNameTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
-        ApplyImmediateEdit(
-            () => new SetSaveNamesEdit(FamilyNameTextBox.Text ?? string.Empty, GivenNameTextBox.Text ?? string.Empty),
-            refreshAfterSuccess: false);
+        TrackEditorDraft();
 
     private void YenTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
@@ -3579,7 +3714,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdit(() => new SetYenEdit(yen), refreshAfterSuccess: false);
+        TrackEditorDraft();
     }
 
     private void MainCharacterTotalExperienceTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -3599,7 +3734,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdit(() => new SetMainCharacterTotalExperienceEdit(totalExperience), refreshAfterSuccess: false);
+        TrackEditorDraft();
     }
 
     private void SocialStatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3611,27 +3746,27 @@ public sealed partial class MainWindow : Window
 
         if (ReferenceEquals(sender, CourageComboBox))
         {
-            ApplyImmediateSocialStatEdit(CourageComboBox, 0);
+            TrackSocialStatDraftEdit(CourageComboBox, 0);
         }
         else if (ReferenceEquals(sender, KnowledgeComboBox))
         {
-            ApplyImmediateSocialStatEdit(KnowledgeComboBox, 1);
+            TrackSocialStatDraftEdit(KnowledgeComboBox, 1);
         }
         else if (ReferenceEquals(sender, ExpressionComboBox))
         {
-            ApplyImmediateSocialStatEdit(ExpressionComboBox, 4);
+            TrackSocialStatDraftEdit(ExpressionComboBox, 4);
         }
         else if (ReferenceEquals(sender, UnderstandingComboBox))
         {
-            ApplyImmediateSocialStatEdit(UnderstandingComboBox, 3);
+            TrackSocialStatDraftEdit(UnderstandingComboBox, 3);
         }
         else if (ReferenceEquals(sender, DiligenceComboBox))
         {
-            ApplyImmediateSocialStatEdit(DiligenceComboBox, 2);
+            TrackSocialStatDraftEdit(DiligenceComboBox, 2);
         }
     }
 
-    private void ApplyImmediateSocialStatEdit(ComboBox comboBox, int statIndex)
+    private void TrackSocialStatDraftEdit(ComboBox comboBox, int statIndex)
     {
         if (comboBox.SelectedItem is not SocialStatRankChoiceViewState selectedRank)
         {
@@ -3644,16 +3779,16 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdit(() => new SetSocialStatRankEdit(statIndex, selectedRank.Rank), refreshAfterSuccess: true);
+        TrackEditorDraft();
     }
 
     private void DayTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
-        ApplyImmediateDayEdit(DayTextBox.Text ?? string.Empty, false);
+        TrackDayDraftEdit(DayTextBox.Text ?? string.Empty, false);
 
     private void NextDayTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
-        ApplyImmediateDayEdit(NextDayTextBox.Text ?? string.Empty, true);
+        TrackDayDraftEdit(NextDayTextBox.Text ?? string.Empty, true);
 
-    private void ApplyImmediateDayEdit(string text, bool isNextDay)
+    private void TrackDayDraftEdit(string text, bool isNextDay)
     {
         if (!CanProcessImmediateEditEvent())
         {
@@ -3670,9 +3805,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdit(
-            () => isNextDay ? new SetNextDayEdit(day) : new SetDayEdit(day),
-            refreshAfterSuccess: false);
+        TrackEditorDraft();
     }
 
     private void PhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3682,7 +3815,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediatePhaseEdit(PhaseComboBox, viewModel.Calendar.DayPhaseId, false);
+        TrackPhaseDraftEdit(PhaseComboBox, viewModel.Calendar.DayPhaseId, false);
     }
 
     private void NextPhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3692,10 +3825,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediatePhaseEdit(NextPhaseComboBox, viewModel.Calendar.NextDayPhaseId, true);
+        TrackPhaseDraftEdit(NextPhaseComboBox, viewModel.Calendar.NextDayPhaseId, true);
     }
 
-    private void ApplyImmediatePhaseEdit(ComboBox comboBox, int currentPhaseId, bool isNextPhase)
+    private void TrackPhaseDraftEdit(ComboBox comboBox, int currentPhaseId, bool isNextPhase)
     {
         if (comboBox.SelectedItem is not CalendarPhaseChoiceViewState selectedPhase)
         {
@@ -3708,21 +3841,19 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdit(
-            () => isNextPhase ? new SetNextDayPhaseEdit(selectedPhase.PhaseId) : new SetDayPhaseEdit(selectedPhase.PhaseId),
-            refreshAfterSuccess: false);
+        TrackEditorDraft();
     }
 
     private void PartySlot0ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ApplyImmediatePartyMemberEdit(PartySlot0ComboBox, 0);
+        TrackPartyMemberDraftEdit(PartySlot0ComboBox, 0);
 
     private void PartySlot1ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ApplyImmediatePartyMemberEdit(PartySlot1ComboBox, 1);
+        TrackPartyMemberDraftEdit(PartySlot1ComboBox, 1);
 
     private void PartySlot2ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        ApplyImmediatePartyMemberEdit(PartySlot2ComboBox, 2);
+        TrackPartyMemberDraftEdit(PartySlot2ComboBox, 2);
 
-    private void ApplyImmediatePartyMemberEdit(ComboBox comboBox, int slotIndex)
+    private void TrackPartyMemberDraftEdit(ComboBox comboBox, int slotIndex)
     {
         if (!CanProcessImmediateEditEvent() ||
             comboBox.SelectedItem is not PartyConfigurationChoiceViewState selectedMember)
@@ -3730,7 +3861,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdit(() => new SetPartyMemberEdit(slotIndex, selectedMember.MemberValue), refreshAfterSuccess: false);
+        TrackEditorDraft();
     }
 
     private void SocialLinkTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -3749,10 +3880,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ApplyImmediateEdits(
-            edits,
-            refreshAfterSuccess: false,
-            refreshAfterSuccessAction: RefreshSelectedSocialLinkRowSummary);
+        TrackEditorDraft();
     }
 
     private bool CanProcessImmediateEditEvent() =>
@@ -3762,47 +3890,16 @@ public sealed partial class MainWindow : Window
         !isBusy &&
         !refreshEditableFieldsAfterStartupOpen;
 
-    private void ApplyImmediateEdit(Func<SaveEditCommand> createEdit, bool refreshAfterSuccess)
+    private void TrackEditorDraft()
     {
         if (!CanProcessImmediateEditEvent())
         {
             return;
         }
 
-        ApplyImmediateEdits([createEdit()], refreshAfterSuccess);
-    }
-
-    private void ApplyImmediateEdits(
-        List<SaveEditCommand> edits,
-        bool refreshAfterSuccess,
-        Action? refreshAfterSuccessAction = null)
-    {
-        if (!CanProcessImmediateEditEvent() || edits.Count == 0)
-        {
-            return;
-        }
-
         uiDiagnosticsOverride = null;
-        SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
-            () => viewModel.ApplyEdits(edits));
-        if (result.Succeeded)
-        {
-            if (refreshAfterSuccess)
-            {
-                RefreshBasicStatsState();
-                RefreshSocialStatsState();
-                RefreshCalendarState();
-            }
-
-            refreshAfterSuccessAction?.Invoke();
-        }
-
         DisplayDiagnostics(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateShellState();
-        if (!result.Succeeded)
-        {
-            SetUiDiagnostics(result.Diagnostics);
-        }
     }
 
     internal static bool TryReadInventoryQuantityText(
@@ -3901,6 +3998,102 @@ public sealed partial class MainWindow : Window
     private static void NavigateToSection(FrameworkElement target) =>
         target.StartBringIntoView();
 
+    private void UpdateShellStatusInfoBar(IReadOnlyList<SaveDiagnostic> diagnostics)
+    {
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        bool startupRefreshPending = refreshEditableFieldsAfterStartupOpen;
+        bool isOperationBusy = isBusy || startupRefreshPending;
+        ShellBusyProgressBar.IsIndeterminate = isOperationBusy;
+        ShellBusyProgressBar.Visibility = isOperationBusy ? Visibility.Visible : Visibility.Collapsed;
+        ShellStatusInfoBar.IsOpen = true;
+
+        if (isOperationBusy)
+        {
+            ShellStatusInfoBar.Severity = InfoBarSeverity.Informational;
+            ShellStatusInfoBar.Title = "Busy";
+            ShellStatusInfoBar.Message = startupRefreshPending
+                ? "Loading editor fields for the opened save."
+                : "Working on the save file.";
+            return;
+        }
+
+        SaveDiagnostic? primaryDiagnostic = GetPrimaryShellDiagnostic(diagnostics);
+        if (primaryDiagnostic is not null)
+        {
+            ShellStatusInfoBar.Severity = ToInfoBarSeverity(primaryDiagnostic.Severity);
+            ShellStatusInfoBar.Title = $"{primaryDiagnostic.Severity} {primaryDiagnostic.Code}";
+            ShellStatusInfoBar.Message = FormatShellDiagnosticMessage(primaryDiagnostic);
+            return;
+        }
+
+        bool hasSave = viewModel.HasSave;
+        bool hasPendingEditorDrafts = HasPendingEditorDrafts();
+        if (!hasSave)
+        {
+            ShellStatusInfoBar.Severity = InfoBarSeverity.Informational;
+            ShellStatusInfoBar.Title = "No save open";
+            ShellStatusInfoBar.Message = "Open or drop a Persona 4 Golden .bin save to begin editing.";
+            return;
+        }
+
+        if (hasPendingEditorDrafts)
+        {
+            ShellStatusInfoBar.Severity = InfoBarSeverity.Warning;
+            ShellStatusInfoBar.Title = "Dirty draft";
+            ShellStatusInfoBar.Message = "Apply edits before saving so the pending field changes are staged.";
+            return;
+        }
+
+        if (viewModel.IsDirty && viewModel.CanWrite)
+        {
+            ShellStatusInfoBar.Severity = InfoBarSeverity.Success;
+            ShellStatusInfoBar.Title = "Ready to save";
+            ShellStatusInfoBar.Message = "Applied changes are staged and can be written to disk.";
+            return;
+        }
+
+        if (viewModel.IsDirty)
+        {
+            ShellStatusInfoBar.Severity = InfoBarSeverity.Informational;
+            ShellStatusInfoBar.Title = "Write pending";
+            ShellStatusInfoBar.Message = "Applied changes are waiting for save acknowledgement.";
+            return;
+        }
+
+        ShellStatusInfoBar.Severity = InfoBarSeverity.Informational;
+        ShellStatusInfoBar.Title = "Loaded clean";
+        ShellStatusInfoBar.Message = "No unapplied changes.";
+    }
+
+    private static SaveDiagnostic? GetPrimaryShellDiagnostic(IReadOnlyList<SaveDiagnostic> diagnostics) =>
+        diagnostics.OrderByDescending(static diagnostic => GetDiagnosticPriority(diagnostic.Severity)).FirstOrDefault();
+
+    private static int GetDiagnosticPriority(DiagnosticSeverity severity) =>
+        severity switch
+        {
+            DiagnosticSeverity.Error => 3,
+            DiagnosticSeverity.Warning => 2,
+            DiagnosticSeverity.Info => 1,
+            _ => 0,
+        };
+
+    private static InfoBarSeverity ToInfoBarSeverity(DiagnosticSeverity severity) =>
+        severity switch
+        {
+            DiagnosticSeverity.Error => InfoBarSeverity.Error,
+            DiagnosticSeverity.Warning => InfoBarSeverity.Warning,
+            _ => InfoBarSeverity.Informational,
+        };
+
+    private static string FormatShellDiagnosticMessage(SaveDiagnostic diagnostic) =>
+        string.IsNullOrWhiteSpace(diagnostic.Target)
+            ? diagnostic.Message
+            : $"{diagnostic.Target}: {diagnostic.Message}";
+
     private void DisplayDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)
     {
         IReadOnlyList<DiagnosticListItemViewState> diagnosticItems = DiagnosticListItemViewState.FromDiagnostics(diagnostics);
@@ -3911,6 +4104,8 @@ public sealed partial class MainWindow : Window
             {
                 diagnosticsItems.Add(diagnosticItem);
             }
+
+            UpdateShellStatusInfoBar(diagnostics);
         }
 
         if (DispatcherQueue.HasThreadAccess)

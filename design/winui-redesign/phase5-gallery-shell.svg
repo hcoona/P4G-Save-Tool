@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <style>
+      .page { fill: #f6f6f6; }
+      .surface { fill: #ffffff; stroke: #d8d8d8; stroke-width: 1; }
+      .surface2 { fill: #fbfbfb; stroke: #e3e3e3; stroke-width: 1; }
+      .nav { fill: #f3f3f3; stroke: #dddddd; stroke-width: 1; }
+      .selected { fill: #e8f1ff; stroke: #8ab4f8; stroke-width: 1; }
+      .accent { fill: #0067c0; }
+      .disabled { fill: #f3f3f3; stroke: #e2e2e2; stroke-width: 1; }
+      .warning { fill: #fff8e5; stroke: #f2c94c; stroke-width: 1; }
+      .success { fill: #eef8ee; stroke: #8bcf8b; stroke-width: 1; }
+      .text { fill: #1a1a1a; font-family: "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #616161; font-family: "Segoe UI", Arial, sans-serif; }
+      .caption { fill: #6b6b6b; font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; }
+      .title { font-family: "Segoe UI", Arial, sans-serif; font-size: 28px; font-weight: 600; }
+      .subtitle { font-family: "Segoe UI", Arial, sans-serif; font-size: 18px; font-weight: 600; }
+      .body { font-family: "Segoe UI", Arial, sans-serif; font-size: 14px; }
+      .small { font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; }
+      .semibold { font-weight: 600; }
+    </style>
+  </defs>
+
+  <rect class="page" x="0" y="0" width="1440" height="900"/>
+  <text class="text title" x="40" y="48">Phase 5 - WinUI Gallery-informed shell</text>
+  <text class="muted body" x="40" y="76">Use Gallery/WinUI/Toolkit controls instead of custom chrome: NavigationView shell, page header, InfoBar, SettingsCard-style rows, and Gallery card resources.</text>
+
+  <g id="loaded-editor" transform="translate(40 112)">
+    <rect class="surface" x="0" y="0" width="650" height="700" rx="10"/>
+    <text class="text subtitle" x="0" y="-16">Loaded editor state</text>
+
+    <rect class="nav" x="0" y="0" width="172" height="700" rx="10"/>
+    <text class="muted small" x="18" y="34">NavigationView</text>
+    <rect class="selected" x="12" y="58" width="148" height="38" rx="6"/>
+    <text class="text body semibold" x="24" y="82">Basic / Stats</text>
+    <text class="muted body" x="24" y="126">Calendar</text>
+    <text class="muted body" x="24" y="170">Social Links</text>
+    <text class="muted body" x="24" y="214">Party / Persona</text>
+    <text class="muted body" x="24" y="258">Equipment</text>
+    <text class="muted body" x="24" y="302">Compendium</text>
+    <text class="muted body" x="24" y="346">Inventory</text>
+    <text class="muted body" x="24" y="390">Diagnostics</text>
+    <text class="caption" x="16" y="668">Gallery: NavigationView</text>
+    <text class="caption" x="16" y="684">SelectionChanged + static items</text>
+
+    <text class="text title" x="204" y="46">Basic / Stats</text>
+    <text class="muted body" x="204" y="72">Edit identity, money, level, calendar, and social stat values.</text>
+
+    <rect class="warning" x="204" y="96" width="410" height="54" rx="6"/>
+    <text class="text body semibold" x="220" y="119">Dirty draft</text>
+    <text class="muted small" x="220" y="138">Apply edits before saving. InfoBar is shell-level, not buried in diagnostics.</text>
+
+    <g transform="translate(204 174)">
+      <rect class="surface2" x="0" y="0" width="410" height="92" rx="6"/>
+      <text class="text body semibold" x="16" y="28">Current save</text>
+      <text class="muted small" x="16" y="50">data0001.bin</text>
+      <rect class="success" x="300" y="18" width="86" height="30" rx="15"/>
+      <text class="text small semibold" x="320" y="38">Writable</text>
+      <text class="caption" x="16" y="76">SettingsCard-style row: header, description, action/status slot.</text>
+    </g>
+
+    <g transform="translate(204 286)">
+      <rect class="surface2" x="0" y="0" width="410" height="176" rx="6"/>
+      <text class="text subtitle" x="16" y="34">Player identity</text>
+      <rect class="surface" x="16" y="54" width="178" height="42" rx="4"/>
+      <text class="muted small" x="28" y="72">Family name</text>
+      <rect class="surface" x="210" y="54" width="178" height="42" rx="4"/>
+      <text class="muted small" x="222" y="72">Given name</text>
+      <rect class="surface" x="16" y="114" width="178" height="42" rx="4"/>
+      <text class="muted small" x="28" y="132">Yen</text>
+      <text class="caption" x="210" y="132">Numeric fields map to NumberBox</text>
+      <text class="caption" x="210" y="148">only where parsing remains equivalent.</text>
+    </g>
+
+    <g transform="translate(204 482)">
+      <rect class="surface2" x="0" y="0" width="410" height="146" rx="6"/>
+      <text class="text subtitle" x="16" y="34">Diagnostics</text>
+      <text class="muted small" x="16" y="58">Persistent card/pane using structured severity, code, target, message.</text>
+      <rect class="warning" x="16" y="78" width="378" height="42" rx="4"/>
+      <text class="text small semibold" x="28" y="98">Warning P4GWINUI006</text>
+      <text class="muted small" x="28" y="114">Yen must be numeric.</text>
+    </g>
+
+    <rect class="accent" x="418" y="646" width="92" height="34" rx="6"/>
+    <text x="436" y="668" fill="#fff" font-family="Segoe UI, Arial, sans-serif" font-size="14">Apply edits</text>
+    <rect class="disabled" x="522" y="646" width="72" height="34" rx="6"/>
+    <text class="muted body" x="544" y="668">Save</text>
+  </g>
+
+  <g id="empty-state" transform="translate(750 112)">
+    <rect class="surface" x="0" y="0" width="650" height="330" rx="10"/>
+    <text class="text subtitle" x="0" y="-16">No-file state</text>
+    <rect class="nav" x="0" y="0" width="172" height="330" rx="10"/>
+    <text class="muted small" x="18" y="34">NavigationView</text>
+    <text class="muted body" x="24" y="82">Basic / Stats</text>
+    <text class="muted body" x="24" y="126">Inventory</text>
+    <text class="muted body" x="24" y="170">Diagnostics</text>
+    <text class="caption" x="16" y="300">Disabled until save open.</text>
+
+    <text class="text title" x="204" y="54">P4G Save Tool</text>
+    <text class="muted body" x="204" y="82">Open a Persona 4 Golden .bin save to begin editing.</text>
+    <rect class="surface2" x="204" y="112" width="380" height="142" rx="8"/>
+    <text class="text subtitle" x="226" y="152">Open a Persona 4 Golden save</text>
+    <text class="muted body" x="226" y="180">Drop a save file here, or choose Open save.</text>
+    <rect class="accent" x="226" y="204" width="112" height="34" rx="6"/>
+    <text x="247" y="226" fill="#fff" font-family="Segoe UI, Arial, sans-serif" font-size="14">Open save...</text>
+    <text class="caption" x="204" y="292">Gallery pattern: empty fallback message + visible CTA, not a disabled raw form.</text>
+  </g>
+
+  <g id="busy-state" transform="translate(750 500)">
+    <rect class="surface" x="0" y="0" width="650" height="230" rx="10"/>
+    <text class="text subtitle" x="0" y="-16">Busy / save state</text>
+    <text class="text title" x="28" y="54">Inventory</text>
+    <rect class="surface2" x="28" y="82" width="594" height="72" rx="8"/>
+    <text class="text body semibold" x="44" y="110">Saving data0001.bin</text>
+    <rect class="surface" x="44" y="126" width="540" height="4" rx="2"/>
+    <rect class="accent" x="44" y="126" width="216" height="4" rx="2"/>
+    <text class="muted small" x="44" y="146">ProgressBar + disabled commands keeps the shell readable during file work.</text>
+    <rect class="surface2" x="28" y="174" width="594" height="36" rx="6"/>
+    <text class="caption" x="44" y="194">Evidence: Gallery ItemPage uses PageHeader + ScrollViewer padding;</text>
+    <text class="caption" x="44" y="210">SettingsPage uses SettingsCard spacing; InfoBar sample is shell-level status.</text>
+  </g>
+
+  <text class="caption" x="40" y="848">Implementation mapping: NavigationView replaces the custom section button rail; InfoBar replaces buried-only shell status;</text>
+  <text class="caption" x="40" y="866">SettingsCard/SettingsExpander-style rows replace raw StackPanel clusters; NumberBox replaces numeric TextBox only where parsing semantics remain equivalent.</text>
+</svg>

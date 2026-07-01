@@ -74,6 +74,7 @@ when exact tokens do not cover a future UI change.
 | Existing persistence writes a temp file and uses File.Replace without a backup file. | `src\P4G.SaveTool.WinUI\SafeFilePersistence.cs:24-42`, `src\P4G.SaveTool.WinUI\SafeFilePersistence.cs:55-64` |
 | A previous premature UI pass added CommandBar/InfoBar chrome to the old dense form but did not establish Fluent visual quality. Future work must design the shell, states, hierarchy, and layout before implementation. | Current redesign evidence summary, 2026-06-30 |
 | The Windows UI Kit / Windows Design Kit for Figma is an official Microsoft design resource with UI components, navigation, dialog, layout patterns, styles, and tokens; direct community file access may require Figma authentication. | <https://learn.microsoft.com/en-us/windows/apps/design/downloads/#windows-ui-kit>, <https://www.figma.com/community/file/1440832812269040007> |
+| WinUI Gallery is the concrete implementation reference for this app's WinUI shell patterns: `NavigationView` for app navigation, page headers with 36 epx page padding, `InfoBar` for shell-visible status, SettingsCard/SettingsExpander-style rows for structured settings/editor surfaces, and semantic card resources. | `C:\Users\zhang\.copilot\session-state\b37e0b6a-5a7f-4352-be55-99be5afabbf4\files\WinUI-Gallery\WinUIGallery\Pages\ItemPage.xaml:37-64`, `C:\Users\zhang\.copilot\session-state\b37e0b6a-5a7f-4352-be55-99be5afabbf4\files\WinUI-Gallery\WinUIGallery\Pages\SettingsPage.xaml:28-58`, `C:\Users\zhang\.copilot\session-state\b37e0b6a-5a7f-4352-be55-99be5afabbf4\files\WinUI-Gallery\WinUIGallery\Styles\Grid.xaml:4-26`, `winui-search.exe get gallery-navigationview-1 toolkit-settingsexpander-4 gallery-infobar-1` |
 
 ### Layered UX and UI workflow
 
@@ -248,9 +249,11 @@ surface edge to text:
 - The existing two-column editor is acceptable for Large widths. If a future
   responsive pass targets Medium or Small widths, collapse to one column and
   keep section navigation reachable without horizontal scrolling.
-- Use jump buttons, `SelectorBar`, or a compact `NavigationView` only when they
-  serve the current editor structure. Do not add `NavigationView` just because a
-  desktop app has sections.
+- For the current eight-section editor, prefer a real `NavigationView` over a
+  custom button rail. The section list is now structural app navigation, not a
+  transient jump strip; preserve the same section-jump behavior but let
+  `NavigationView` provide selected, disabled, keyboard, and accessibility
+  behavior.
 - Use `TabView` only if the product gains multiple save sessions/documents or
   independent editor tabs.
 
@@ -359,6 +362,13 @@ Official basis:
   individual controls to the existing dense form is insufficient unless the
   shell silhouette, hierarchy, spacing, states, and accessibility are designed
   together.
+- Do not invent custom shell controls when a WinUI Gallery, Windows App SDK, or
+  Windows Community Toolkit control fits. Before writing XAML, map the surface
+  to the existing control: `NavigationView` for section navigation, `InfoBar`
+  for shell status, `ContentDialog` for blocking decisions, `ProgressBar` for
+  busy work, `NumberBox` for numeric entry when parsing behavior can be
+  preserved, and SettingsCard/SettingsExpander-style rows for card-like editor
+  groups.
 - Use Windows UI Kit / Windows Design Kit Figma patterns as the design starting
   point when creating shell, navigation, dialog, layout, component, style, or
   token evidence.

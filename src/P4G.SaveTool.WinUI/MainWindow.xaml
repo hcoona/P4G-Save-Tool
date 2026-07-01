@@ -115,48 +115,6 @@
               <Border Padding="16" VerticalAlignment="Top" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                 <StackPanel Spacing="8">
             <TextBlock
-              x:Name="CalendarSocialStatsSectionHeader"
-              Text="Calendar / Social Stats"
-              Style="{ThemeResource BodyStrongTextBlockStyle}"
-              Margin="0,4,0,0"
-              />
-            <ComboBox x:Name="CourageComboBox" Header="Courage" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
-            </ComboBox>
-            <ComboBox x:Name="KnowledgeComboBox" Header="Knowledge" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
-            </ComboBox>
-            <ComboBox x:Name="ExpressionComboBox" Header="Expression" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
-            </ComboBox>
-            <ComboBox x:Name="UnderstandingComboBox" Header="Understanding" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
-            </ComboBox>
-            <ComboBox x:Name="DiligenceComboBox" Header="Diligence" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="SocialStatComboBox_SelectionChanged">
-              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Text="Calendar" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-            <Grid ColumnSpacing="8">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-              <TextBox x:Name="DayTextBox" Header="Day" InputScope="Number" IsEnabled="False" Width="120" TextChanged="DayTextBox_TextChanged" />
-              <ComboBox x:Name="PhaseComboBox" Grid.Column="1" Header="Phase" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="PhaseComboBox_SelectionChanged">
-                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
-              </ComboBox>
-            </Grid>
-            <Grid ColumnSpacing="8">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-              <TextBox x:Name="NextDayTextBox" Header="Next day" InputScope="Number" IsEnabled="False" Width="120" TextChanged="NextDayTextBox_TextChanged" />
-              <ComboBox x:Name="NextPhaseComboBox" Grid.Column="1" Header="Next phase" IsEnabled="False" IsTextSearchEnabled="True" SelectionChanged="NextPhaseComboBox_SelectionChanged">
-                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
-              </ComboBox>
-            </Grid>
-            <TextBlock
               x:Name="SocialLinksSectionHeader"
               Text="Social Links"
               Style="{ThemeResource BodyStrongTextBlockStyle}"

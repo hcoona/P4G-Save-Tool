@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+  x:Class="P4G.SaveTool.WinUI.CalendarSocialStatsWorkspacePage"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="d">
+
+  <Border
+    Margin="16"
+    Padding="16"
+    VerticalAlignment="Top"
+    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+    BorderThickness="1"
+    CornerRadius="8">
+    <StackPanel Spacing="16">
+      <TextBlock
+        x:Name="CalendarSocialStatsSectionHeader"
+        Text="Calendar / Social Stats"
+        Style="{ThemeResource SubtitleTextBlockStyle}" />
+
+      <Grid ColumnSpacing="16" RowSpacing="16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border
+          Padding="16"
+          Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+          BorderThickness="1"
+          CornerRadius="8">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Social stats" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+            <Grid ColumnSpacing="8" RowSpacing="8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <ComboBox
+                x:Name="CourageComboBox"
+                Header="Courage"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="SocialStatComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="CourageComboBox"
+                automation:AutomationProperties.Name="Courage">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox
+                x:Name="KnowledgeComboBox"
+                Grid.Column="1"
+                Header="Knowledge"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="SocialStatComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="KnowledgeComboBox"
+                automation:AutomationProperties.Name="Knowledge">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox
+                x:Name="ExpressionComboBox"
+                Grid.Row="1"
+                Header="Expression"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="SocialStatComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="ExpressionComboBox"
+                automation:AutomationProperties.Name="Expression">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox
+                x:Name="UnderstandingComboBox"
+                Grid.Row="1"
+                Grid.Column="1"
+                Header="Understanding"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="SocialStatComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="UnderstandingComboBox"
+                automation:AutomationProperties.Name="Understanding">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox
+                x:Name="DiligenceComboBox"
+                Grid.Row="2"
+                Header="Diligence"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="SocialStatComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="DiligenceComboBox"
+                automation:AutomationProperties.Name="Diligence">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border
+          Grid.Column="1"
+          Padding="16"
+          Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+          BorderThickness="1"
+          CornerRadius="8">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Calendar" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+            <Grid ColumnSpacing="8" RowSpacing="8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <TextBox
+                x:Name="DayTextBox"
+                Header="Day"
+                InputScope="Number"
+                IsEnabled="False"
+                Width="120"
+                TextChanged="DayTextBox_TextChanged"
+                automation:AutomationProperties.AutomationId="DayTextBox"
+                automation:AutomationProperties.Name="Day" />
+              <ComboBox
+                x:Name="PhaseComboBox"
+                Grid.Column="1"
+                Header="Phase"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="PhaseComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="PhaseComboBox"
+                automation:AutomationProperties.Name="Phase">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBox
+                x:Name="NextDayTextBox"
+                Grid.Row="1"
+                Header="Next day"
+                InputScope="Number"
+                IsEnabled="False"
+                Width="120"
+                TextChanged="NextDayTextBox_TextChanged"
+                automation:AutomationProperties.AutomationId="NextDayTextBox"
+                automation:AutomationProperties.Name="Next day" />
+              <ComboBox
+                x:Name="NextPhaseComboBox"
+                Grid.Row="1"
+                Grid.Column="1"
+                Header="Next phase"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="NextPhaseComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="NextPhaseComboBox"
+                automation:AutomationProperties.Name="Next phase">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </StackPanel>
+  </Border>
+</Page>

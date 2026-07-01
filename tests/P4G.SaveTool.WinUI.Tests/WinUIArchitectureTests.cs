@@ -550,7 +550,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("NavigateToSelectedSection(sectionTag);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToBasicStatsWorkspace();", content, StringComparison.Ordinal);
         Assert.DoesNotContain("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
-        Assert.Contains("NavigateToSection(CalendarSocialStatsSectionHeader);", content, StringComparison.Ordinal);
+        Assert.Contains("NavigateToCalendarSocialStatsWorkspace();", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigateToSection(CalendarSocialStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToOverviewWorkspace();", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToDiagnosticsWorkspace();", content, StringComparison.Ordinal);
         Assert.DoesNotContain("NavigateToSection(DiagnosticsStateSectionHeader);", content, StringComparison.Ordinal);
@@ -571,11 +572,11 @@ public sealed class WinUIArchitectureTests
         string mainCharacterExperienceBody = GetSection(
             content,
             "private void MainCharacterTotalExperienceTextBox_TextChanged(object sender, TextChangedEventArgs e)",
-            "private void SocialStatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+            "private void CalendarSocialStatsWorkspacePage_SocialStatSelectionChanged(");
         string dayBody = GetSection(
             content,
             "private void TrackDayDraftEdit(string text, bool isNextDay)",
-            "private void PhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)");
+            "private void CalendarSocialStatsWorkspacePage_PhaseSelectionChanged(");
         string socialLinkTextBody = GetSection(
             content,
             "private void SocialLinkTextBox_TextChanged(object sender, TextChangedEventArgs e)",
@@ -644,7 +645,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("Tag=\"DiagnosticsState\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("<Button x:Name=\"Jump", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"BasicStatsSectionHeader\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"CalendarSocialStatsSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"CalendarSocialStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"EquipmentSectionHeader\"", content, StringComparison.Ordinal);
@@ -694,7 +695,7 @@ public sealed class WinUIArchitectureTests
         string selectedSectionBody = GetSection(
             source,
             "private void NavigateToSelectedSection(string sectionTag)",
-            "private void JumpCalendarSocialStats_Click(object sender, RoutedEventArgs e)");
+            "private void JumpSocialLinks_Click(object sender, RoutedEventArgs e)");
 
         Assert.Contains("<Frame", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"WorkspaceFrame\"", xaml, StringComparison.Ordinal);
@@ -721,9 +722,19 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("WorkspaceFrame.Navigate(typeof(BasicStatsWorkspacePage))", source, StringComparison.Ordinal);
         Assert.Contains("ConfigureBasicStatsWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
         Assert.Contains("basicStatsWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.Contains("if (sectionTag == \"CalendarSocialStats\")", source, StringComparison.Ordinal);
+        Assert.Contains("NavigateToCalendarSocialStatsWorkspace();", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(CalendarSocialStatsWorkspacePage))", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureCalendarSocialStatsWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.True(
+            source.IndexOf("if (sectionTag == \"CalendarSocialStats\")", StringComparison.Ordinal) <
+            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
         Assert.DoesNotContain("case \"BasicStats\":", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("BasicStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.Equal(4, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
+        Assert.DoesNotContain("case \"CalendarSocialStats\":", selectedSectionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("CalendarSocialStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
+        Assert.Equal(5, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
@@ -839,6 +850,74 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"MainCharacterLevelSlider\"", mainWindowXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"MainCharacterTotalExperienceTextBox\"", mainWindowXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"MainCharacterCalculateFromLevelButton\"", mainWindowXaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CalendarSocialStatsWorkspacePageOwnsCalendarSocialStatsEditorControls()
+    {
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "CalendarSocialStatsWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string source = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "CalendarSocialStatsWorkspacePage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowXaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowSource = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string configureBody = GetSection(
+            mainWindowSource,
+            "private void ConfigureCalendarSocialStatsWorkspacePage(CalendarSocialStatsWorkspacePage page)",
+            "private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)");
+
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.CalendarSocialStatsWorkspacePage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class CalendarSocialStatsWorkspacePage : Page", source, StringComparison.Ordinal);
+        Assert.Contains("NavigationCacheMode = NavigationCacheMode.Required;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ScrollViewer", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("{x:Bind", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CalendarSocialStatsSectionHeader\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Calendar / Social Stats\"", xaml, StringComparison.Ordinal);
+
+        string[] interactiveControlNames =
+        [
+            "CourageComboBox",
+            "KnowledgeComboBox",
+            "ExpressionComboBox",
+            "UnderstandingComboBox",
+            "DiligenceComboBox",
+            "DayTextBox",
+            "PhaseComboBox",
+            "NextDayTextBox",
+            "NextPhaseComboBox",
+        ];
+
+        foreach (string controlName in interactiveControlNames)
+        {
+            Assert.Contains($"x:Name=\"{controlName}\"", xaml, StringComparison.Ordinal);
+            Assert.Contains($"automation:AutomationProperties.AutomationId=\"{controlName}\"", xaml, StringComparison.Ordinal);
+            Assert.DoesNotContain($"x:Name=\"{controlName}\"", mainWindowXaml, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("automation:AutomationProperties.Name=\"Courage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Knowledge\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Expression\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Understanding\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Diligence\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Day\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Phase\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Next day\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Next phase\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<ComboBox.ItemTemplate><DataTemplate><TextBlock Text=\"{Binding}\" /></DataTemplate></ComboBox.ItemTemplate>", xaml, StringComparison.Ordinal);
+
+        Assert.Contains("event EventHandler<SocialStatSelectionChangedEventArgs>? SocialStatSelectionChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event EventHandler<CalendarDayTextChangedEventArgs>? DayTextChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event EventHandler<CalendarPhaseSelectionChangedEventArgs>? PhaseSelectionChanged", source, StringComparison.Ordinal);
+        Assert.Contains("internal SocialStatRankChoiceViewState? GetSocialStatSelectedRank(int statIndex)", source, StringComparison.Ordinal);
+        Assert.Contains("internal CalendarPhaseChoiceViewState? GetCalendarPhaseSelectedChoice(bool isNextPhase)", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetCalendarSocialStatsEnabled(bool isEnabled)", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetSocialStatSelection(", source, StringComparison.Ordinal);
+        Assert.Contains("internal void ClearSocialStatChoices(int statIndex)", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetCalendarPhaseSelection(", source, StringComparison.Ordinal);
+        Assert.Contains("internal void ClearCalendarPhaseChoices(bool isNextPhase)", source, StringComparison.Ordinal);
+        Assert.Contains("page.SocialStatSelectionChanged += CalendarSocialStatsWorkspacePage_SocialStatSelectionChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.DayTextChanged += CalendarSocialStatsWorkspacePage_DayTextChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.PhaseSelectionChanged += CalendarSocialStatsWorkspacePage_PhaseSelectionChanged;", configureBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"CalendarSocialStatsSectionHeader\"", mainWindowXaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1406,32 +1485,31 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
-    public void MainWindowXamlExposesSocialStatsAndCalendarEditorSurface()
+    public void MainWindowXamlKeepsSocialStatsAndCalendarOutOfLegacyHost()
     {
         string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
 
-        Assert.Contains("x:Name=\"CalendarSocialStatsSectionHeader\"", xaml);
-        Assert.Contains("x:Name=\"CourageComboBox\"", xaml);
-        Assert.Contains("x:Name=\"KnowledgeComboBox\"", xaml);
-        Assert.Contains("x:Name=\"ExpressionComboBox\"", xaml);
-        Assert.Contains("x:Name=\"UnderstandingComboBox\"", xaml);
-        Assert.Contains("x:Name=\"DiligenceComboBox\"", xaml);
-        Assert.Contains("x:Name=\"DayTextBox\"", xaml);
-        Assert.Contains("x:Name=\"PhaseComboBox\"", xaml);
-        Assert.Contains("x:Name=\"NextDayTextBox\"", xaml);
-        Assert.Contains("x:Name=\"NextPhaseComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"CalendarSocialStatsSectionHeader\"", xaml);
+        Assert.DoesNotContain("x:Name=\"CourageComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"KnowledgeComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"ExpressionComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"UnderstandingComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"DiligenceComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"DayTextBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"PhaseComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"NextDayTextBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"NextPhaseComboBox\"", xaml);
+        Assert.Contains("x:Name=\"SocialLinksSectionHeader\"", xaml);
     }
 
     [Fact]
-    public void MainWindowXamlWiresApplyButtonForSocialStatsAndCalendarEdits()
+    public void MainWindowXamlWiresApplyButtonForWorkspaceEdits()
     {
         string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
 
         Assert.Contains("x:Name=\"ApplyButton\"", xaml);
         Assert.Contains("Click=\"ApplyButton_Click\"", xaml);
-        Assert.Contains("x:Name=\"CourageComboBox\"", xaml);
-        Assert.Contains("x:Name=\"DayTextBox\"", xaml);
-        Assert.Contains("x:Name=\"NextPhaseComboBox\"", xaml);
+        Assert.Contains("x:Name=\"WorkspaceFrame\"", xaml);
     }
 
     [Fact]
@@ -1447,13 +1525,21 @@ public sealed class WinUIArchitectureTests
             content,
             "internal static bool TryBuildSocialLinkEdits(",
             "internal static bool TryReadSocialLinkField(");
+        string group4InputsBody = GetSection(
+            content,
+            "private Group4EditInputs GetCurrentGroup4EditInputs()",
+            "private SocialStatRankChoiceViewState? GetCurrentSocialStatRankChoice(int statIndex)");
+        string hasGroup4DraftBody = GetSection(
+            content,
+            "private bool HasGroup4Draft()",
+            "private bool HasSelectedSocialLinkDraft()");
         string tryReadSocialLinkFieldBody = GetSection(
             content,
             "internal static bool TryReadSocialLinkField(",
             "private string BuildPersonaSummary()");
 
         Assert.Contains("Group4EditBatchBuilder.TryBuild(", content, StringComparison.Ordinal);
-        Assert.Contains("CreateGroup4EditInputs(", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.Contains("CreateGroup4EditInputs(", content, StringComparison.Ordinal);
         Assert.Contains("AppendGroup4Edits(", tryBuildEditBatchBody, StringComparison.Ordinal);
         Assert.Contains("TryAppendSelectedSocialLinkEdits(batch, validationDiagnostics);", tryBuildEditBatchBody, StringComparison.Ordinal);
         Assert.Contains("TryFinalizeEditBatch(", tryBuildEditBatchBody, StringComparison.Ordinal);
@@ -1464,15 +1550,20 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("if (!levelIsValid || !progressIsValid)", tryBuildSocialLinkEditsBody, StringComparison.Ordinal);
         Assert.Contains("diagnostics.Add(CreateUiDiagnostic(\"P4GWINUI024\",", tryReadSocialLinkFieldBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SetUiDiagnostics(", tryReadSocialLinkFieldBody, StringComparison.Ordinal);
-        Assert.Contains("CourageComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
-        Assert.Contains("KnowledgeComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
-        Assert.Contains("ExpressionComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
-        Assert.Contains("UnderstandingComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
-        Assert.Contains("DiligenceComboBox.SelectedItem as SocialStatRankChoiceViewState", content, StringComparison.Ordinal);
-        Assert.Contains("DayTextBox.Text ?? string.Empty", content, StringComparison.Ordinal);
-        Assert.Contains("PhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState", content, StringComparison.Ordinal);
-        Assert.Contains("NextDayTextBox.Text ?? string.Empty", content, StringComparison.Ordinal);
-        Assert.Contains("NextPhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState", content, StringComparison.Ordinal);
+        Assert.Contains("GetCurrentGroup4EditInputs()", tryBuildEditBatchBody, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(0)", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(1)", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(4)", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(3)", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(2)", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.DayText", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.GetCalendarPhaseSelectedChoice(false)", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.NextDayText", content, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.GetCalendarPhaseSelectedChoice(true)", content, StringComparison.Ordinal);
+        Assert.Contains("GetCurrentSocialStatRankChoice(0)", group4InputsBody, StringComparison.Ordinal);
+        Assert.Contains("GetCurrentCalendarPhaseChoice(viewModel.Calendar.DayPhaseId)", group4InputsBody, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage is null", hasGroup4DraftBody, StringComparison.Ordinal);
+        Assert.Contains("!calendarSocialStatsWorkspacePageInitializedFromViewModel", hasGroup4DraftBody, StringComparison.Ordinal);
         Assert.Contains("RefreshSocialStatsState();", content, StringComparison.Ordinal);
         Assert.Contains("RefreshCalendarState();", content, StringComparison.Ordinal);
     }
@@ -1754,33 +1845,33 @@ public sealed class WinUIArchitectureTests
         string refreshCalendarBody = GetSection(
             content,
             "private void RefreshCalendarState()",
-            "private void RefreshInventoryState()");
+            "private void RefreshSocialLinksState(");
 
         Assert.Contains("RefreshSocialStatsState();", refreshEditableFieldsBody, StringComparison.Ordinal);
         Assert.Contains("RefreshCalendarState();", refreshEditableFieldsBody, StringComparison.Ordinal);
 
-        Assert.Contains("SetSocialStatSelection(CourageComboBox, 0);", refreshSocialStatsBody, StringComparison.Ordinal);
-        Assert.Contains("SetSocialStatSelection(KnowledgeComboBox, 1);", refreshSocialStatsBody, StringComparison.Ordinal);
-        Assert.Contains("SetSocialStatSelection(ExpressionComboBox, 4);", refreshSocialStatsBody, StringComparison.Ordinal);
-        Assert.Contains("SetSocialStatSelection(UnderstandingComboBox, 3);", refreshSocialStatsBody, StringComparison.Ordinal);
-        Assert.Contains("SetSocialStatSelection(DiligenceComboBox, 2);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(0);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(1);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(4);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(3);", refreshSocialStatsBody, StringComparison.Ordinal);
+        Assert.Contains("SetSocialStatSelection(2);", refreshSocialStatsBody, StringComparison.Ordinal);
 
-        Assert.Contains("DayTextBox.Text = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);", refreshCalendarBody, StringComparison.Ordinal);
-        Assert.Contains("NextDayTextBox.Text = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);", refreshCalendarBody, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.DayText = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);", refreshCalendarBody, StringComparison.Ordinal);
+        Assert.Contains("calendarSocialStatsWorkspacePage.NextDayText = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);", refreshCalendarBody, StringComparison.Ordinal);
         Assert.Contains(
-            "PhaseComboBox.Items.Clear();",
+            "SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase)",
             refreshCalendarBody,
             StringComparison.Ordinal);
         Assert.Contains(
-            "PhaseComboBox.Items.Add(choice);",
+            "calendarSocialStatsWorkspacePage.SetCalendarPhaseSelection(false, phaseChoices, selectedPhase);",
             refreshCalendarBody,
             StringComparison.Ordinal);
         Assert.Contains(
-            "NextPhaseComboBox.Items.Clear();",
+            "SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase)",
             refreshCalendarBody,
             StringComparison.Ordinal);
         Assert.Contains(
-            "NextPhaseComboBox.Items.Add(choice);",
+            "calendarSocialStatsWorkspacePage.SetCalendarPhaseSelection(true, nextPhaseChoices, selectedNextPhase);",
             refreshCalendarBody,
             StringComparison.Ordinal);
     }

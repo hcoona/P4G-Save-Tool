@@ -77,6 +77,7 @@ public sealed partial class MainWindow : Window
     private bool suppressImmediateEditEvents;
     private bool isWorkspaceRoutingInitialized;
     private bool basicStatsWorkspacePageInitializedFromViewModel;
+    private bool calendarSocialStatsWorkspacePageInitializedFromViewModel;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
@@ -93,6 +94,7 @@ public sealed partial class MainWindow : Window
     private byte? selectedPersonaMemberId;
     private int selectedPersonaSlotIndex;
     private BasicStatsWorkspacePage? basicStatsWorkspacePage;
+    private CalendarSocialStatsWorkspacePage? calendarSocialStatsWorkspacePage;
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -203,6 +205,12 @@ public sealed partial class MainWindow : Window
         if (sectionTag == "BasicStats")
         {
             NavigateToBasicStatsWorkspace();
+            return;
+        }
+
+        if (sectionTag == "CalendarSocialStats")
+        {
+            NavigateToCalendarSocialStatsWorkspace();
             return;
         }
 
@@ -341,6 +349,47 @@ public sealed partial class MainWindow : Window
         page.SetBasicStatsEnabled(CanEditBasicStats());
     }
 
+    private void NavigateToCalendarSocialStatsWorkspace()
+    {
+        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
+
+        if (WorkspaceFrame.Content is CalendarSocialStatsWorkspacePage page)
+        {
+            ConfigureCalendarSocialStatsWorkspacePage(page);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(CalendarSocialStatsWorkspacePage)))
+        {
+            throw new InvalidOperationException("Could not navigate to the calendar and social stats workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is CalendarSocialStatsWorkspacePage navigatedPage)
+        {
+            ConfigureCalendarSocialStatsWorkspacePage(navigatedPage);
+        }
+    }
+
+    private void ConfigureCalendarSocialStatsWorkspacePage(CalendarSocialStatsWorkspacePage page)
+    {
+        calendarSocialStatsWorkspacePage = page;
+        page.SocialStatSelectionChanged -= CalendarSocialStatsWorkspacePage_SocialStatSelectionChanged;
+        page.SocialStatSelectionChanged += CalendarSocialStatsWorkspacePage_SocialStatSelectionChanged;
+        page.DayTextChanged -= CalendarSocialStatsWorkspacePage_DayTextChanged;
+        page.DayTextChanged += CalendarSocialStatsWorkspacePage_DayTextChanged;
+        page.PhaseSelectionChanged -= CalendarSocialStatsWorkspacePage_PhaseSelectionChanged;
+        page.PhaseSelectionChanged += CalendarSocialStatsWorkspacePage_PhaseSelectionChanged;
+
+        if (!calendarSocialStatsWorkspacePageInitializedFromViewModel)
+        {
+            RefreshSocialStatsState();
+            RefreshCalendarState();
+        }
+
+        page.SetCalendarSocialStatsEnabled(CanEditCalendarSocialStats());
+    }
+
     private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e) =>
         throw new InvalidOperationException($"Could not navigate to workspace page {e.SourcePageType.FullName}.", e.Exception);
 
@@ -348,9 +397,6 @@ public sealed partial class MainWindow : Window
     {
         switch (sectionTag)
         {
-            case "CalendarSocialStats":
-                NavigateToSection(CalendarSocialStatsSectionHeader);
-                break;
             case "SocialLinks":
                 NavigateToSection(SocialLinksSectionHeader);
                 break;
@@ -368,9 +414,6 @@ public sealed partial class MainWindow : Window
                 break;
         }
     }
-
-    private void JumpCalendarSocialStats_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(CalendarSocialStatsSectionHeader);
 
     private void JumpSocialLinks_Click(object sender, RoutedEventArgs e) =>
         NavigateToSection(SocialLinksSectionHeader);
@@ -929,16 +972,7 @@ public sealed partial class MainWindow : Window
         AppendGroup4Edits(
             viewModel.SocialStats,
             viewModel.Calendar,
-            CreateGroup4EditInputs(
-                CourageComboBox.SelectedItem as SocialStatRankChoiceViewState,
-                KnowledgeComboBox.SelectedItem as SocialStatRankChoiceViewState,
-                ExpressionComboBox.SelectedItem as SocialStatRankChoiceViewState,
-                UnderstandingComboBox.SelectedItem as SocialStatRankChoiceViewState,
-                DiligenceComboBox.SelectedItem as SocialStatRankChoiceViewState,
-                DayTextBox.Text ?? string.Empty,
-                PhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState,
-                NextDayTextBox.Text ?? string.Empty,
-                NextPhaseComboBox.SelectedItem as CalendarPhaseChoiceViewState),
+            GetCurrentGroup4EditInputs(),
             batch,
             validationDiagnostics);
         AddPersonaEdit(batch, validationDiagnostics);
@@ -2053,6 +2087,9 @@ public sealed partial class MainWindow : Window
     private bool CanEditBasicStats() =>
         viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
 
+    private bool CanEditCalendarSocialStats() =>
+        viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
+
     private string GetCurrentFamilyNameText() =>
         basicStatsWorkspacePage?.FamilyNameText ?? viewModel.FamilyName;
 
@@ -2069,6 +2106,65 @@ public sealed partial class MainWindow : Window
     private string GetCurrentMainCharacterTotalExperienceText() =>
         basicStatsWorkspacePage?.MainCharacterTotalExperienceText ??
         (viewModel.HasSave ? viewModel.MainCharacterTotalExperience.ToString(CultureInfo.InvariantCulture) : string.Empty);
+
+    private Group4EditInputs GetCurrentGroup4EditInputs()
+    {
+        if (calendarSocialStatsWorkspacePage is not null &&
+            calendarSocialStatsWorkspacePageInitializedFromViewModel)
+        {
+            return CreateGroup4EditInputs(
+                calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(0),
+                calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(1),
+                calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(4),
+                calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(3),
+                calendarSocialStatsWorkspacePage.GetSocialStatSelectedRank(2),
+                calendarSocialStatsWorkspacePage.DayText,
+                calendarSocialStatsWorkspacePage.GetCalendarPhaseSelectedChoice(false),
+                calendarSocialStatsWorkspacePage.NextDayText,
+                calendarSocialStatsWorkspacePage.GetCalendarPhaseSelectedChoice(true));
+        }
+
+        if (!viewModel.HasSave)
+        {
+            return CreateGroup4EditInputs(null, null, null, null, null, string.Empty, null, string.Empty, null);
+        }
+
+        return CreateGroup4EditInputs(
+            GetCurrentSocialStatRankChoice(0),
+            GetCurrentSocialStatRankChoice(1),
+            GetCurrentSocialStatRankChoice(4),
+            GetCurrentSocialStatRankChoice(3),
+            GetCurrentSocialStatRankChoice(2),
+            viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture),
+            GetCurrentCalendarPhaseChoice(viewModel.Calendar.DayPhaseId),
+            viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture),
+            GetCurrentCalendarPhaseChoice(viewModel.Calendar.NextDayPhaseId));
+    }
+
+    private SocialStatRankChoiceViewState? GetCurrentSocialStatRankChoice(int statIndex)
+    {
+        if (!viewModel.HasSave || (uint)statIndex >= (uint)viewModel.SocialStats.Count)
+        {
+            return null;
+        }
+
+        _ = SaveEditorViewModel.GetSocialStatChoices(
+            statIndex,
+            viewModel.SocialStats[statIndex].Points,
+            out SocialStatRankChoiceViewState selectedChoice);
+        return selectedChoice;
+    }
+
+    private CalendarPhaseChoiceViewState? GetCurrentCalendarPhaseChoice(int phaseId)
+    {
+        if (!viewModel.HasSave)
+        {
+            return null;
+        }
+
+        _ = SaveEditorViewModel.GetCalendarPhaseChoices(phaseId, out CalendarPhaseChoiceViewState selectedChoice);
+        return selectedChoice;
+    }
 
     private void UpdateShellState()
     {
@@ -2101,15 +2197,7 @@ public sealed partial class MainWindow : Window
         JumpInventoryButton.IsEnabled = canNavigateEditorSections;
         JumpDiagnosticsStateButton.IsEnabled = canNavigateEditorSections;
         basicStatsWorkspacePage?.SetBasicStatsEnabled(canEdit);
-        CourageComboBox.IsEnabled = canEdit;
-        KnowledgeComboBox.IsEnabled = canEdit;
-        ExpressionComboBox.IsEnabled = canEdit;
-        UnderstandingComboBox.IsEnabled = canEdit;
-        DiligenceComboBox.IsEnabled = canEdit;
-        DayTextBox.IsEnabled = canEdit;
-        PhaseComboBox.IsEnabled = canEdit;
-        NextDayTextBox.IsEnabled = canEdit;
-        NextPhaseComboBox.IsEnabled = canEdit;
+        calendarSocialStatsWorkspacePage?.SetCalendarSocialStatsEnabled(canEdit);
         SocialLinkListView.IsEnabled = canEdit;
         SocialLinkAddComboBox.IsEnabled = canEdit;
         SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
@@ -2207,20 +2295,23 @@ public sealed partial class MainWindow : Window
 
     private bool HasGroup4Draft()
     {
-        if (!viewModel.HasSave || viewModel.SocialStats.Count < 5)
+        if (!viewModel.HasSave ||
+            viewModel.SocialStats.Count < 5 ||
+            calendarSocialStatsWorkspacePage is null ||
+            !calendarSocialStatsWorkspacePageInitializedFromViewModel)
         {
             return false;
         }
 
-        return HasSocialStatDraft(CourageComboBox, 0) ||
-            HasSocialStatDraft(KnowledgeComboBox, 1) ||
-            HasSocialStatDraft(ExpressionComboBox, 4) ||
-            HasSocialStatDraft(UnderstandingComboBox, 3) ||
-            HasSocialStatDraft(DiligenceComboBox, 2) ||
-            !string.Equals(DayTextBox.Text ?? string.Empty, viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
-            HasCalendarPhaseDraft(PhaseComboBox, viewModel.Calendar.DayPhaseId) ||
-            !string.Equals(NextDayTextBox.Text ?? string.Empty, viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
-            HasCalendarPhaseDraft(NextPhaseComboBox, viewModel.Calendar.NextDayPhaseId);
+        return HasSocialStatDraft(0) ||
+            HasSocialStatDraft(1) ||
+            HasSocialStatDraft(4) ||
+            HasSocialStatDraft(3) ||
+            HasSocialStatDraft(2) ||
+            !string.Equals(calendarSocialStatsWorkspacePage.DayText, viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+            HasCalendarPhaseDraft(false, viewModel.Calendar.DayPhaseId) ||
+            !string.Equals(calendarSocialStatsWorkspacePage.NextDayText, viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+            HasCalendarPhaseDraft(true, viewModel.Calendar.NextDayPhaseId);
     }
 
     private bool HasSelectedSocialLinkDraft()
@@ -2296,55 +2387,50 @@ public sealed partial class MainWindow : Window
             : null;
     }
 
-    private bool HasSocialStatDraft(ComboBox comboBox, int statIndex) =>
-        comboBox.SelectedItem is SocialStatRankChoiceViewState selectedRank &&
+    private bool HasSocialStatDraft(int statIndex) =>
+        calendarSocialStatsWorkspacePage?.GetSocialStatSelectedRank(statIndex) is SocialStatRankChoiceViewState selectedRank &&
         !ShouldSkipSocialStatEdit(viewModel.SocialStats[statIndex], selectedRank);
 
-    private static bool HasCalendarPhaseDraft(ComboBox comboBox, int currentPhaseId) =>
-        comboBox.SelectedItem is CalendarPhaseChoiceViewState selectedPhase &&
+    private bool HasCalendarPhaseDraft(bool isNextPhase, int currentPhaseId) =>
+        calendarSocialStatsWorkspacePage?.GetCalendarPhaseSelectedChoice(isNextPhase) is CalendarPhaseChoiceViewState selectedPhase &&
         !ShouldSkipCalendarPhaseEdit(currentPhaseId, selectedPhase);
 
     private void RefreshSocialStatsState()
     {
         TraceStartup("RefreshSocialStatsState enter");
-        if (!viewModel.HasSave || viewModel.SocialStats.Count == 0)
+        if (calendarSocialStatsWorkspacePage is null)
         {
-            ClearSocialStatChoices(CourageComboBox);
-            ClearSocialStatChoices(KnowledgeComboBox);
-            ClearSocialStatChoices(ExpressionComboBox);
-            ClearSocialStatChoices(UnderstandingComboBox);
-            ClearSocialStatChoices(DiligenceComboBox);
-            CourageComboBox.SelectedItem = null;
-            KnowledgeComboBox.SelectedItem = null;
-            ExpressionComboBox.SelectedItem = null;
-            UnderstandingComboBox.SelectedItem = null;
-            DiligenceComboBox.SelectedItem = null;
+            calendarSocialStatsWorkspacePageInitializedFromViewModel = false;
             return;
         }
 
-        SetSocialStatSelection(CourageComboBox, 0);
-        SetSocialStatSelection(KnowledgeComboBox, 1);
-        SetSocialStatSelection(ExpressionComboBox, 4);
-        SetSocialStatSelection(UnderstandingComboBox, 3);
-        SetSocialStatSelection(DiligenceComboBox, 2);
+        if (!viewModel.HasSave || viewModel.SocialStats.Count < 5)
+        {
+            ClearSocialStatChoices(0);
+            ClearSocialStatChoices(1);
+            ClearSocialStatChoices(4);
+            ClearSocialStatChoices(3);
+            ClearSocialStatChoices(2);
+            return;
+        }
+
+        SetSocialStatSelection(0);
+        SetSocialStatSelection(1);
+        SetSocialStatSelection(4);
+        SetSocialStatSelection(3);
+        SetSocialStatSelection(2);
         TraceStartup("RefreshSocialStatsState exit");
     }
 
-    private void SetSocialStatSelection(ComboBox comboBox, int statIndex)
+    private void SetSocialStatSelection(int statIndex)
     {
         TraceStartup($"SetSocialStatSelection enter {statIndex}");
         suppressImmediateEditEvents = true;
         try
         {
             SocialStatViewState stat = viewModel.SocialStats[statIndex];
-            comboBox.Items.Clear();
             IReadOnlyList<SocialStatRankChoiceViewState> choices = SaveEditorViewModel.GetSocialStatChoices(statIndex, stat.Points, out SocialStatRankChoiceViewState selectedChoice);
-            foreach (SocialStatRankChoiceViewState choice in choices)
-            {
-                comboBox.Items.Add(choice);
-            }
-
-            comboBox.SelectedItem = selectedChoice;
+            calendarSocialStatsWorkspacePage?.SetSocialStatSelection(statIndex, choices, selectedChoice);
         }
         finally
         {
@@ -2353,42 +2439,38 @@ public sealed partial class MainWindow : Window
         TraceStartup($"SetSocialStatSelection exit {statIndex}");
     }
 
-    private static void ClearSocialStatChoices(ComboBox comboBox) =>
-        comboBox.Items.Clear();
+    private void ClearSocialStatChoices(int statIndex) =>
+        calendarSocialStatsWorkspacePage?.ClearSocialStatChoices(statIndex);
 
     private void RefreshCalendarState()
     {
         TraceStartup("RefreshCalendarState enter");
+        if (calendarSocialStatsWorkspacePage is null)
+        {
+            calendarSocialStatsWorkspacePageInitializedFromViewModel = false;
+            return;
+        }
+
         suppressImmediateEditEvents = true;
         try
         {
             if (!viewModel.HasSave)
             {
-                PhaseComboBox.Items.Clear();
-                NextPhaseComboBox.Items.Clear();
-                PhaseComboBox.SelectedItem = null;
-                NextPhaseComboBox.SelectedItem = null;
-                DayTextBox.Text = string.Empty;
-                NextDayTextBox.Text = string.Empty;
+                calendarSocialStatsWorkspacePage.ClearCalendarPhaseChoices(false);
+                calendarSocialStatsWorkspacePage.ClearCalendarPhaseChoices(true);
+                calendarSocialStatsWorkspacePage.DayText = string.Empty;
+                calendarSocialStatsWorkspacePage.NextDayText = string.Empty;
+                calendarSocialStatsWorkspacePageInitializedFromViewModel = true;
                 return;
             }
 
-            DayTextBox.Text = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);
-            NextDayTextBox.Text = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);
-            PhaseComboBox.Items.Clear();
+            calendarSocialStatsWorkspacePage.DayText = viewModel.Calendar.Day.ToString(CultureInfo.InvariantCulture);
+            calendarSocialStatsWorkspacePage.NextDayText = viewModel.Calendar.NextDay.ToString(CultureInfo.InvariantCulture);
             IReadOnlyList<CalendarPhaseChoiceViewState> phaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.DayPhaseId, out CalendarPhaseChoiceViewState selectedPhase);
-            foreach (CalendarPhaseChoiceViewState choice in phaseChoices)
-            {
-                PhaseComboBox.Items.Add(choice);
-            }
-            PhaseComboBox.SelectedItem = selectedPhase;
-            NextPhaseComboBox.Items.Clear();
+            calendarSocialStatsWorkspacePage.SetCalendarPhaseSelection(false, phaseChoices, selectedPhase);
             IReadOnlyList<CalendarPhaseChoiceViewState> nextPhaseChoices = SaveEditorViewModel.GetCalendarPhaseChoices(viewModel.Calendar.NextDayPhaseId, out CalendarPhaseChoiceViewState selectedNextPhase);
-            foreach (CalendarPhaseChoiceViewState choice in nextPhaseChoices)
-            {
-                NextPhaseComboBox.Items.Add(choice);
-            }
-            NextPhaseComboBox.SelectedItem = selectedNextPhase;
+            calendarSocialStatsWorkspacePage.SetCalendarPhaseSelection(true, nextPhaseChoices, selectedNextPhase);
+            calendarSocialStatsWorkspacePageInitializedFromViewModel = true;
         }
         finally
         {
@@ -3970,38 +4052,21 @@ public sealed partial class MainWindow : Window
         TrackEditorDraft();
     }
 
-    private void SocialStatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void CalendarSocialStatsWorkspacePage_SocialStatSelectionChanged(
+        object? sender,
+        SocialStatSelectionChangedEventArgs e)
     {
         if (!CanProcessImmediateEditEvent())
         {
             return;
         }
 
-        if (ReferenceEquals(sender, CourageComboBox))
-        {
-            TrackSocialStatDraftEdit(CourageComboBox, 0);
-        }
-        else if (ReferenceEquals(sender, KnowledgeComboBox))
-        {
-            TrackSocialStatDraftEdit(KnowledgeComboBox, 1);
-        }
-        else if (ReferenceEquals(sender, ExpressionComboBox))
-        {
-            TrackSocialStatDraftEdit(ExpressionComboBox, 4);
-        }
-        else if (ReferenceEquals(sender, UnderstandingComboBox))
-        {
-            TrackSocialStatDraftEdit(UnderstandingComboBox, 3);
-        }
-        else if (ReferenceEquals(sender, DiligenceComboBox))
-        {
-            TrackSocialStatDraftEdit(DiligenceComboBox, 2);
-        }
+        TrackSocialStatDraftEdit(calendarSocialStatsWorkspacePage?.GetSocialStatSelectedRank(e.StatIndex), e.StatIndex);
     }
 
-    private void TrackSocialStatDraftEdit(ComboBox comboBox, int statIndex)
+    private void TrackSocialStatDraftEdit(SocialStatRankChoiceViewState? selectedRank, int statIndex)
     {
-        if (comboBox.SelectedItem is not SocialStatRankChoiceViewState selectedRank)
+        if (selectedRank is null)
         {
             return;
         }
@@ -4015,11 +4080,10 @@ public sealed partial class MainWindow : Window
         TrackEditorDraft();
     }
 
-    private void DayTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
-        TrackDayDraftEdit(DayTextBox.Text ?? string.Empty, false);
-
-    private void NextDayTextBox_TextChanged(object sender, TextChangedEventArgs e) =>
-        TrackDayDraftEdit(NextDayTextBox.Text ?? string.Empty, true);
+    private void CalendarSocialStatsWorkspacePage_DayTextChanged(
+        object? sender,
+        CalendarDayTextChangedEventArgs e) =>
+        TrackDayDraftEdit(e.Text, e.IsNextDay);
 
     private void TrackDayDraftEdit(string text, bool isNextDay)
     {
@@ -4041,29 +4105,27 @@ public sealed partial class MainWindow : Window
         TrackEditorDraft();
     }
 
-    private void PhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void CalendarSocialStatsWorkspacePage_PhaseSelectionChanged(
+        object? sender,
+        CalendarPhaseSelectionChangedEventArgs e)
     {
         if (!CanProcessImmediateEditEvent())
         {
             return;
         }
 
-        TrackPhaseDraftEdit(PhaseComboBox, viewModel.Calendar.DayPhaseId, false);
+        TrackPhaseDraftEdit(
+            calendarSocialStatsWorkspacePage?.GetCalendarPhaseSelectedChoice(e.IsNextPhase),
+            e.IsNextPhase ? viewModel.Calendar.NextDayPhaseId : viewModel.Calendar.DayPhaseId,
+            e.IsNextPhase);
     }
 
-    private void NextPhaseComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void TrackPhaseDraftEdit(
+        CalendarPhaseChoiceViewState? selectedPhase,
+        int currentPhaseId,
+        bool isNextPhase)
     {
-        if (!CanProcessImmediateEditEvent())
-        {
-            return;
-        }
-
-        TrackPhaseDraftEdit(NextPhaseComboBox, viewModel.Calendar.NextDayPhaseId, true);
-    }
-
-    private void TrackPhaseDraftEdit(ComboBox comboBox, int currentPhaseId, bool isNextPhase)
-    {
-        if (comboBox.SelectedItem is not CalendarPhaseChoiceViewState selectedPhase)
+        if (selectedPhase is null)
         {
             return;
         }

@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-07-01T00:20:29.260556+00:00'
+generated_at: '2026-07-01T01:48:05.579258+00:00'
 apm_version: 0.22.0
 dependencies:
 - repo_url: dotnet/skills
@@ -577,6 +577,202 @@ dependencies:
     .agents/skills/migrate-nullable-references/scripts/Get-NullableReadiness.ps1: sha256:61a5540f17c00b3da4d97dbbe82df85c2ccc1c580795586afe6af002d21493e6
     .agents/skills/thread-abort-migration/SKILL.md: sha256:0dfe570c456b940b44f5283f03bebe487261ee0dc036cad05a201f871c06e9eb
   content_hash: sha256:2f2dc2133f07b0e7a2711d6046e04676b9577f087354a86466f760a86816d6fd
+- repo_url: figma/mcp-server-guide
+  name: figma
+  host: github.com
+  resolved_commit: bea8bea5f676ab2bf76fa822b82f50b66653c098
+  version: 2.2.68
+  package_type: marketplace_plugin
+  deployed_files:
+  - .agents/skills/figma-code-connect
+  - .agents/skills/figma-code-connect/SKILL.md
+  - .agents/skills/figma-code-connect/references/advanced-patterns.md
+  - .agents/skills/figma-code-connect/references/api.md
+  - .agents/skills/figma-create-new-file
+  - .agents/skills/figma-create-new-file/SKILL.md
+  - .agents/skills/figma-generate-design
+  - .agents/skills/figma-generate-design/SKILL.md
+  - .agents/skills/figma-generate-design/references/componentization.md
+  - .agents/skills/figma-generate-design/references/discover-product-font.md
+  - .agents/skills/figma-generate-diagram
+  - .agents/skills/figma-generate-diagram/SKILL.md
+  - .agents/skills/figma-generate-diagram/references/architecture.md
+  - .agents/skills/figma-generate-diagram/references/erd.md
+  - .agents/skills/figma-generate-diagram/references/flowchart.md
+  - .agents/skills/figma-generate-diagram/references/gantt.md
+  - .agents/skills/figma-generate-diagram/references/sequence.md
+  - .agents/skills/figma-generate-diagram/references/state.md
+  - .agents/skills/figma-generate-diagram/references/workflow.md
+  - .agents/skills/figma-generate-library
+  - .agents/skills/figma-generate-library/SKILL.md
+  - .agents/skills/figma-generate-library/references/code-connect-setup.md
+  - .agents/skills/figma-generate-library/references/component-creation.md
+  - .agents/skills/figma-generate-library/references/discovery-phase.md
+  - .agents/skills/figma-generate-library/references/documentation-creation.md
+  - .agents/skills/figma-generate-library/references/error-recovery.md
+  - .agents/skills/figma-generate-library/references/naming-conventions.md
+  - .agents/skills/figma-generate-library/references/token-creation.md
+  - .agents/skills/figma-generate-library/scripts/bindVariablesToComponent.js
+  - .agents/skills/figma-generate-library/scripts/cleanupOrphans.js
+  - .agents/skills/figma-generate-library/scripts/createComponentWithVariants.js
+  - .agents/skills/figma-generate-library/scripts/createDocumentationPage.js
+  - .agents/skills/figma-generate-library/scripts/createSemanticTokens.js
+  - .agents/skills/figma-generate-library/scripts/createVariableCollection.js
+  - .agents/skills/figma-generate-library/scripts/inspectFileStructure.js
+  - .agents/skills/figma-generate-library/scripts/rehydrateState.js
+  - .agents/skills/figma-generate-library/scripts/validateCreation.js
+  - .agents/skills/figma-implement-motion
+  - .agents/skills/figma-implement-motion/SKILL.md
+  - .agents/skills/figma-implement-motion/references/examples-and-anti-examples.md
+  - .agents/skills/figma-implement-motion/references/framework-recommendations.md
+  - .agents/skills/figma-implement-motion/references/gotchas.md
+  - .agents/skills/figma-implement-motion/references/motion-lint-rules.md
+  - .agents/skills/figma-implement-motion/references/svg-and-path-motion.md
+  - .agents/skills/figma-implement-motion/references/unsupported-and-fallbacks.md
+  - .agents/skills/figma-swiftui
+  - .agents/skills/figma-swiftui/SKILL.md
+  - .agents/skills/figma-swiftui/references/code-to-design.md
+  - .agents/skills/figma-swiftui/references/design-to-code.md
+  - .agents/skills/figma-use
+  - .agents/skills/figma-use-figjam
+  - .agents/skills/figma-use-figjam/SKILL.md
+  - .agents/skills/figma-use-figjam/references/batch-modify.md
+  - .agents/skills/figma-use-figjam/references/create-code-block.md
+  - .agents/skills/figma-use-figjam/references/create-connector.md
+  - .agents/skills/figma-use-figjam/references/create-label.md
+  - .agents/skills/figma-use-figjam/references/create-section.md
+  - .agents/skills/figma-use-figjam/references/create-shape-with-text.md
+  - .agents/skills/figma-use-figjam/references/create-sticky.md
+  - .agents/skills/figma-use-figjam/references/create-table.md
+  - .agents/skills/figma-use-figjam/references/create-text.md
+  - .agents/skills/figma-use-figjam/references/edit-text.md
+  - .agents/skills/figma-use-figjam/references/figjam-colors.md
+  - .agents/skills/figma-use-figjam/references/plan-board-content.md
+  - .agents/skills/figma-use-figjam/references/position-figjam-nodes.md
+  - .agents/skills/figma-use-motion
+  - .agents/skills/figma-use-motion/SKILL.md
+  - .agents/skills/figma-use-motion/references/motion-easing.md
+  - .agents/skills/figma-use-motion/references/motion-patterns.md
+  - .agents/skills/figma-use-slides
+  - .agents/skills/figma-use-slides/SKILL.md
+  - .agents/skills/figma-use-slides/references/slide-content.md
+  - .agents/skills/figma-use-slides/references/slide-design.md
+  - .agents/skills/figma-use-slides/references/slide-gotchas.md
+  - .agents/skills/figma-use-slides/references/slide-grid.md
+  - .agents/skills/figma-use-slides/references/slide-lifecycle.md
+  - .agents/skills/figma-use-slides/references/slide-properties.md
+  - .agents/skills/figma-use/SKILL.md
+  - .agents/skills/figma-use/references/api-reference.md
+  - .agents/skills/figma-use/references/common-patterns.md
+  - .agents/skills/figma-use/references/component-patterns.md
+  - .agents/skills/figma-use/references/effect-style-patterns.md
+  - .agents/skills/figma-use/references/gotchas.md
+  - .agents/skills/figma-use/references/plugin-api-patterns.md
+  - .agents/skills/figma-use/references/plugin-api-standalone.d.ts
+  - .agents/skills/figma-use/references/plugin-api-standalone.index.md
+  - .agents/skills/figma-use/references/text-style-patterns.md
+  - .agents/skills/figma-use/references/validation-and-recovery.md
+  - .agents/skills/figma-use/references/variable-patterns.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-components--creating.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-components--using.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-components.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-effect-styles.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-text-styles.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-variables--creating.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-variables--using.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds-variables.md
+  - .agents/skills/figma-use/references/working-with-design-systems/wwds.md
+  deployed_file_hashes:
+    .agents/skills/figma-code-connect/SKILL.md: sha256:d69cfc0e2080351f0182a8f3c2349349fb6696f63cede8972e12ca3b71bafe10
+    .agents/skills/figma-code-connect/references/advanced-patterns.md: sha256:ac2cb232aca4e43b75169f47f5550d6e7e48a8df0eb55aa1adbfb1a2ab0aa1b4
+    .agents/skills/figma-code-connect/references/api.md: sha256:40c1dcae2db387fb93ffbf4eba8ae81362e204bdfa5be7018f743b8ac24d4252
+    .agents/skills/figma-create-new-file/SKILL.md: sha256:82948fee61d9a6d3342a12042c90e9db5932d3291f4092f782b54e257c6eda03
+    .agents/skills/figma-generate-design/SKILL.md: sha256:41641317a3486dd5add3ff0c0d2b15ab5bb5775f7f079ca0b6c755d56be9ff8f
+    .agents/skills/figma-generate-design/references/componentization.md: sha256:20cb544a638c12723f653eda19de274cc713292a51c311e76cb9010271f666d7
+    .agents/skills/figma-generate-design/references/discover-product-font.md: sha256:30b1865bcaab7bb3e856b6bdb60e4dc75048b78a9750ad5c7bfe6fe06d198c80
+    .agents/skills/figma-generate-diagram/SKILL.md: sha256:78436d410ae1fcbc3a11117870460e810b9a97b52b17ab43947a718a3ab973bc
+    .agents/skills/figma-generate-diagram/references/architecture.md: sha256:a7c26be020e5736a6df3c069b01b54f11b647f486d6acce063ed0d133a25a7b5
+    .agents/skills/figma-generate-diagram/references/erd.md: sha256:f17faae68db0bbe2803671dfe2d5b45a964feb2fdb79b98f34246640d66945e8
+    .agents/skills/figma-generate-diagram/references/flowchart.md: sha256:88f2e7f98ffcc98cf8312066ad52195f865670390cbea01522002879d763cdac
+    .agents/skills/figma-generate-diagram/references/gantt.md: sha256:67ba2fcb947b33744ad12cc571f6a3dff87bece31eaaa9514865a68566a61498
+    .agents/skills/figma-generate-diagram/references/sequence.md: sha256:dae3079f10dfe8d9e207f3ffe471b1970694d85502d0c3c6c66eef4753e4410e
+    .agents/skills/figma-generate-diagram/references/state.md: sha256:cdd4123c501b0fb5a30c41f112d34c397766ac23c4beccd1edff4fd586494ef8
+    .agents/skills/figma-generate-diagram/references/workflow.md: sha256:84e1d0478b011118cb6fce0e31cd54524ce9dcb194252db912d2e63cfda462ae
+    .agents/skills/figma-generate-library/SKILL.md: sha256:956110fc875d785ce6fa6ebfd2ffc018065df091e273fd843577d93ff2301d3a
+    .agents/skills/figma-generate-library/references/code-connect-setup.md: sha256:6662c3f0d68e9b81bc2e8d766a40fc526a055b4c2acfaab36947a56c38f660fe
+    .agents/skills/figma-generate-library/references/component-creation.md: sha256:150b4eaec89049bb7a9cbde6a0fbe0e18121f30b19af806074fc915ee3da8f97
+    .agents/skills/figma-generate-library/references/discovery-phase.md: sha256:33e33743be950dea99e737a5c2a270576218b9dea8390558c7c731b358bcc94f
+    .agents/skills/figma-generate-library/references/documentation-creation.md: sha256:9f7fe71ace7b75b462b6e827a369fadbfd6f4bd9945db09d978aebefc3db0cf1
+    .agents/skills/figma-generate-library/references/error-recovery.md: sha256:3c2718c63110434c8b97d10dc6586c963c10a6ce9a878d237df76e8de55b51f7
+    .agents/skills/figma-generate-library/references/naming-conventions.md: sha256:16810f87eab00ea93644035dca95e2d927b266b9fcbf5460c1712dab30638442
+    .agents/skills/figma-generate-library/references/token-creation.md: sha256:05a476c0c7e85aab8e576c45c263299ac66c77b7d4dff553a6f671b46898c87e
+    .agents/skills/figma-generate-library/scripts/bindVariablesToComponent.js: sha256:f6492ad075b38bab0ae9a7a0dfb60c58e23a4258f67261f1b166098df58f115c
+    .agents/skills/figma-generate-library/scripts/cleanupOrphans.js: sha256:194a41bdea5f46c392673da99c6aae2b9d6a62b4a77dcd4ea0e94e6d7f1de466
+    .agents/skills/figma-generate-library/scripts/createComponentWithVariants.js: sha256:bb49ab8921f239e4c0a188c83bf382f00dcfa877afb340a8d0ff473fed764777
+    .agents/skills/figma-generate-library/scripts/createDocumentationPage.js: sha256:c0aaab85fbd914cba961dc4036033ccce16ba19752c3664a82843f2479f71119
+    .agents/skills/figma-generate-library/scripts/createSemanticTokens.js: sha256:15682762708cbfcca1b2734c72fce8b981528c4b1131c8f1645b411edbc94b46
+    .agents/skills/figma-generate-library/scripts/createVariableCollection.js: sha256:27de8086b7e9cc2ed475d7ba5014d91e62527982a5216a8cfcda1c8bef14f117
+    .agents/skills/figma-generate-library/scripts/inspectFileStructure.js: sha256:76631ca17458687ae793ed592cc8e76b9f0cc0b91ce15ffbac7164c5b6a10697
+    .agents/skills/figma-generate-library/scripts/rehydrateState.js: sha256:c16b9fb949d9d6f001278e7ea25eeb04b947d6ccbccbce86054bca6bb3a07030
+    .agents/skills/figma-generate-library/scripts/validateCreation.js: sha256:dae970b4d80c4d0994f14c89ad01c04115604444b916a0b8fc342ed262fdfa97
+    .agents/skills/figma-implement-motion/SKILL.md: sha256:5872020d21f9a6c2c027557b6d48fcdba9a128fc58a4598fc8e2ef666e1d64fe
+    .agents/skills/figma-implement-motion/references/examples-and-anti-examples.md: sha256:879c7d77e48573f863b7b52be04c56b1e6c0a9cd5e236274699e86b50ffd3a72
+    .agents/skills/figma-implement-motion/references/framework-recommendations.md: sha256:985fc9a7a390d9c7389b0191a2660ed12da8af3508ae1ba613323cca3fe19c18
+    .agents/skills/figma-implement-motion/references/gotchas.md: sha256:e6ef3c0c6e685f6a26dd5dff6ae8769f79e5da9aced3e2aef2b1a89c7be9255e
+    .agents/skills/figma-implement-motion/references/motion-lint-rules.md: sha256:017029d2c0872a6316b5b1594adc97062bab3f7efb1ca340f00fa6cd265f6316
+    .agents/skills/figma-implement-motion/references/svg-and-path-motion.md: sha256:a283d0a875e94edc30d8021b6f8b47cd26547c770f53420ac3f56df0966054ad
+    .agents/skills/figma-implement-motion/references/unsupported-and-fallbacks.md: sha256:e12c6985e5fd88d37a5cc7cf219fd738a5102debd4e9f0943515900cf8c62000
+    .agents/skills/figma-swiftui/SKILL.md: sha256:61d9b1d1e3862ceb685368b48b6def577e1f7f739d0ae37024862889aa1ad0f7
+    .agents/skills/figma-swiftui/references/code-to-design.md: sha256:29e49c7c88c609ea16b7a7ae1ca1f169da32bac447203c074ce218acc74a762f
+    .agents/skills/figma-swiftui/references/design-to-code.md: sha256:4a1224ad17dd59ca540ed8c020c7fcfb28743407e91724b0eea585726f0847c0
+    .agents/skills/figma-use-figjam/SKILL.md: sha256:e4a26d118d6c33dc2fdda2074cea7d0584c0fcc118f35dc9bc040df9282062ab
+    .agents/skills/figma-use-figjam/references/batch-modify.md: sha256:4136dc14cff03a219d40801cb5868535209808cf8b35b6896372a48799680b5f
+    .agents/skills/figma-use-figjam/references/create-code-block.md: sha256:a7e4dbf31d8f0310dc5d1aa56de24ca66de34cb95031c60fbe6cf9d8b7ce878e
+    .agents/skills/figma-use-figjam/references/create-connector.md: sha256:5b64b05a50bcdf0831d9f56b64dfa5398e12dbac21cb97137aaf2b875749f87a
+    .agents/skills/figma-use-figjam/references/create-label.md: sha256:a4041c5fd7f5a83fc88ccd22f34fd5bea9a19c2e135f522421450dc80d64b18b
+    .agents/skills/figma-use-figjam/references/create-section.md: sha256:49ce969c599204190e7cb54c93b96447ba74d855b92b7d64a39dc7295540ec74
+    .agents/skills/figma-use-figjam/references/create-shape-with-text.md: sha256:6f316d0b769468853855df76803807b661a3a2e6fb2bf54424552bc3fd15c012
+    .agents/skills/figma-use-figjam/references/create-sticky.md: sha256:a2d54228b35817a349f62143acb7d50a9c6c0d6a106edce4391e8d3913006a7b
+    .agents/skills/figma-use-figjam/references/create-table.md: sha256:004c5c8a6ce903ac5e082fdd4aba00afd11ffb5fba71e6bc17cbd2cfbd5242cc
+    .agents/skills/figma-use-figjam/references/create-text.md: sha256:7734f4dedaa71f8e9ccab71d40e5118f12da79eb779ef7ac92af50d5829157b5
+    .agents/skills/figma-use-figjam/references/edit-text.md: sha256:94d2da996c96ab939fea8ce8a7f800a73cba3f554f6133da879517cfffef8496
+    .agents/skills/figma-use-figjam/references/figjam-colors.md: sha256:4610c00dd720309656c484fcf37612b56249cf800fe6d8dcb3f4cc65a112037e
+    .agents/skills/figma-use-figjam/references/plan-board-content.md: sha256:74578f87568ee5b0052f3ccf8fc765f8eacd4545e980d6e105c710c2c7706a63
+    .agents/skills/figma-use-figjam/references/position-figjam-nodes.md: sha256:5355af8a1bf7711f065c667251b9290959d63a831bef9a096b40f8d276053023
+    .agents/skills/figma-use-motion/SKILL.md: sha256:442caf602ca93b84a97b1cc8247dbb5709719ec94a659ba0da4afd447ce37682
+    .agents/skills/figma-use-motion/references/motion-easing.md: sha256:bb687254ab222747d385e1604ead72a439a444dec8aa0a51ef8a2189a9f45637
+    .agents/skills/figma-use-motion/references/motion-patterns.md: sha256:e98408decc2f5cd1b5d932a236400ece9ab8567842e9c78067df667fbafa66f8
+    .agents/skills/figma-use-slides/SKILL.md: sha256:3b01e591f829afeefe60d2af2c1236866754662e322ce763e7fb679d26c08d76
+    .agents/skills/figma-use-slides/references/slide-content.md: sha256:80d488c24355415802ecefa2feb98d808d8af394a1a56531882d036d3b790c04
+    .agents/skills/figma-use-slides/references/slide-design.md: sha256:6d8e56017ef49ee9f66332e6f6093b8fabac8dabd68e81101512e11751820224
+    .agents/skills/figma-use-slides/references/slide-gotchas.md: sha256:c24cbe26d0f34e52b3aa91906e3dcbb2c16864cf34998d73bd97fed6fbfabd93
+    .agents/skills/figma-use-slides/references/slide-grid.md: sha256:982f6c1ce3b3e487817273c5840e0121fd1abf61f42e37a6bf9b06d9fe924d48
+    .agents/skills/figma-use-slides/references/slide-lifecycle.md: sha256:880e80bd9a4ed0ff30648ac609cf0337c167706613f438333289fce5164cd1cb
+    .agents/skills/figma-use-slides/references/slide-properties.md: sha256:4e707fc8b7aeeb251e8603bbea4f186b6d06f262d220a9f01fca8fc72a5c6c68
+    .agents/skills/figma-use/SKILL.md: sha256:6e79ca474adee6074e69f9ec5e0ad1ac38dc051ea600a2531bd0b9e33d5864a9
+    .agents/skills/figma-use/references/api-reference.md: sha256:5998bc885a6845f2962508190bb46e9d3b2887fe86ba1202e8e736e29802def0
+    .agents/skills/figma-use/references/common-patterns.md: sha256:0a7baa19a250964ddb8dd4716f9b70fc894c6e265947684486f3d2b4ff47eb2d
+    .agents/skills/figma-use/references/component-patterns.md: sha256:3ea04be4aef656beaef711b0afc106da7f3c22ab3e6b9637a1493cfe4301765c
+    .agents/skills/figma-use/references/effect-style-patterns.md: sha256:9f960df3fcec1c0601e57db2f6506dde0ab524baeb462b01fb4f745972ffb2e7
+    .agents/skills/figma-use/references/gotchas.md: sha256:3daf214a41a45b8ec8db16b030038376f9a4728e7bed8fbf408b6b7762dc1ecc
+    .agents/skills/figma-use/references/plugin-api-patterns.md: sha256:be40b1b3b39b66aa4e743421f0c6774bea1eedc19c36427ffdbabd32455fad0d
+    .agents/skills/figma-use/references/plugin-api-standalone.d.ts: sha256:06eaedbf743a3c0d6eaccdacaaef1bc870d5eef384dba9b208fc31cb7aeadc05
+    .agents/skills/figma-use/references/plugin-api-standalone.index.md: sha256:6d5009a482440197ccf926fd798b87e60be6e6b1be5fb78077d81a83171a9bdf
+    .agents/skills/figma-use/references/text-style-patterns.md: sha256:0428e4cedfaf1336d544566a38c4ab6064f3ccdba014f21a4a0d450fba13077c
+    .agents/skills/figma-use/references/validation-and-recovery.md: sha256:c917194630d37e62a2946c8a041765f7066654a7a50c907f293de7d1dec7399e
+    .agents/skills/figma-use/references/variable-patterns.md: sha256:53dae6693ecb0f930182c8f230cd065986381b74bc198e62b0b6c0b27fd374c4
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-components--creating.md: sha256:f383ea109e48c335c5855a8c7be15402e0ba72d5313c34cde6cebf550a6443ff
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-components--using.md: sha256:e4e82a8492ec830f18a3120cae9755f389da92aabb2693ef87c396fd281af576
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-components.md: sha256:9d7b785468b3b7f2e47026e024f43b63551e5c5c2687ab8e885da20f1dbb8e9b
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-effect-styles.md: sha256:d0b9b409fda5e22a9095420c606224a2c9b166abbeda6e8b284a820b6d9d7907
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-text-styles.md: sha256:0e3a259a2f2c3280bedac02e40b3a901d08e8c4cde45a90b4ca367da5c3ee40e
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-variables--creating.md: sha256:3a2f9796aac9d419705ca02b9fab29a46282f0921c4c0a01704cec7e43d8ccf2
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-variables--using.md: sha256:3a328d9f2a176a4086ee7c3e14ca83ee730f4d44b5c1b2276247481fdab6a5e7
+    .agents/skills/figma-use/references/working-with-design-systems/wwds-variables.md: sha256:51e2e13658a80ebd1683890cba656b48caf1da670b53b7945dd3cad6b2796958
+    .agents/skills/figma-use/references/working-with-design-systems/wwds.md: sha256:e514da78a7eed6a55c95d6b52a600bd38252bb28ad1dde689a7c72f30c99a9f8
+  content_hash: sha256:951eaa8c6e0ef3e7d669942dc907b28e8577b384b77a093c6ea8fc9ba1ab8eba
+  discovered_via: claude-plugins-official
+  marketplace_plugin_name: figma
 - repo_url: mattpocock/skills
   name: skills
   host: github.com
@@ -683,6 +879,7 @@ dependencies:
   content_hash: sha256:4f74ef0fb7127b151a00eee34cf7484414ea85965a2e7681b5775e9ee9484b37
 mcp_servers:
 - binlog
+- figma
 - io.github.upstash/context7
 - microsoft-learn
 mcp_configs:
@@ -698,6 +895,11 @@ mcp_configs:
     - --yes
     registry: false
     command: mise
+  figma:
+    name: figma
+    transport: http
+    registry: false
+    url: https://mcp.figma.com/mcp
   io.github.upstash/context7:
     name: io.github.upstash/context7
     transport: stdio

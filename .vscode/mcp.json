@@ -30,6 +30,11 @@
         "Microsoft.AITools.BinlogMcp",
         "--yes"
       ]
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "headers": {}
     }
   },
   "inputs": [

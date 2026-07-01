@@ -72,6 +72,36 @@ when exact tokens do not cover a future UI change.
 | Runtime `{Binding}` inside templates is intentional for NativeAOT preservation; do not rewrite templates to typed `x:Bind` without revisiting tests and preservation. | `src\P4G.SaveTool.WinUI\XamlBindingPreservation.cs:8-21`, `tests\P4G.SaveTool.WinUI.Tests\WinUIArchitectureTests.cs:650-665` |
 | Some current destructive mutations act immediately in working state; future UI should add confirmation/undo affordances for these paths. | `src\P4G.SaveTool.WinUI\MainWindow.xaml.cs:2557-2628`, `src\P4G.SaveTool.WinUI\MainWindow.xaml.cs:3242-3283` |
 | Existing persistence writes a temp file and uses File.Replace without a backup file. | `src\P4G.SaveTool.WinUI\SafeFilePersistence.cs:24-42`, `src\P4G.SaveTool.WinUI\SafeFilePersistence.cs:55-64` |
+| A previous premature UI pass added CommandBar/InfoBar chrome to the old dense form but did not establish Fluent visual quality. Future work must design the shell, states, hierarchy, and layout before implementation. | Current redesign evidence summary, 2026-06-30 |
+| The Windows UI Kit / Windows Design Kit for Figma is an official Microsoft design resource with UI components, navigation, dialog, layout patterns, styles, and tokens; direct community file access may require Figma authentication. | <https://learn.microsoft.com/en-us/windows/apps/design/downloads/#windows-ui-kit>, <https://www.figma.com/community/file/1440832812269040007> |
+
+### Layered UX and UI workflow
+
+Do not implement UI first. Frontend design for this app is layered and staged;
+each layer must produce reviewable evidence before the next layer starts.
+
+1. UX principles: restate the save-editing jobs, trust risks, safety goals, and
+   Windows-native expectations for the specific change.
+2. Information architecture: define the shell silhouette, navigation model,
+   file/state visibility, diagnostics placement, and section grouping before
+   choosing controls.
+3. Interaction design: specify command hierarchy, enablement, keyboard path,
+   busy/empty/error/dirty states, destructive confirmations, and recovery paths.
+4. Visual system: apply Fluent quality through native typography, theme
+   resources, 4/8/12/16 epx spacing, base/content layers, and meaningful cards
+   only where grouping improves comprehension.
+5. Component composition: map states and flows to WinUI controls and Windows UI
+   Kit patterns before writing XAML. Avoid custom composition until native
+   controls cannot express the required state.
+6. Accessibility and safety: include keyboard, Narrator, text scaling, High
+   Contrast, visible labels, diagnostics without color-only meaning, and safe
+   save/destructive behavior in the design acceptance criteria.
+7. Evidence and review: every later step requires independent GPT-5.5 review.
+   Visual review must use evidence such as screenshots, Figma frames, annotated
+   state matrices, or measured spacing; do not approve visuals from guesses.
+8. Implementation staging: build the Figma shell and key states first, review
+   them visually, then implement XAML. Do not start XAML implementation until
+   the shell, state surfaces, and accessibility/safety evidence are accepted.
 
 ## Colors
 
@@ -206,10 +236,15 @@ surface edge to text:
 ### Window and page structure
 
 - Keep the main window centered on file editing. Avoid a marketing landing page.
+- Design the shell silhouette before details: title/menu area, command surface,
+  state/diagnostics surface, navigation or jump surface, and editor content must
+  be understandable at a glance.
 - Keep the open file path and state near the top of the content or status area.
 - Preserve visible access to Open, Apply edits, Save, Save as, and About through
   a menu and a visible command surface. If replaced with `CommandBar`, keep menu
   or accelerator access.
+- Keep command hierarchy clear. Primary file and apply/save actions should not
+  compete visually with section navigation, filters, or diagnostic affordances.
 - The existing two-column editor is acceptable for Large widths. If a future
   responsive pass targets Medium or Small widths, collapse to one column and
   keep section navigation reachable without horizontal scrolling.
@@ -245,12 +280,17 @@ blocking surfaces, not to decorate sections.
 
 ### Materials
 
+- Treat the app as base layers plus content layers. The base window establishes
+  calm Windows-native context; content layers group related editing tasks,
+  diagnostics, or blocking decisions.
 - Mica is appropriate for long-lived app/window/titlebar surfaces if the app
   adopts system backdrops.
 - Acrylic is appropriate only for transient light-dismiss surfaces such as
   flyouts, not for permanent editor panels.
 - Do not tint or layer materials in ways that reduce contrast or make the save
   editor feel like a web dashboard.
+- Use card-like surfaces only when they add meaningful grouping, state, or
+  scanning value. Do not wrap every field group in cards to simulate Fluent.
 
 Official basis:
 <https://learn.microsoft.com/en-us/windows/apps/develop/ui/system-backdrops>,
@@ -312,6 +352,22 @@ Official basis:
 <https://learn.microsoft.com/en-us/windows/apps/design/accessibility/basic-accessibility-information>
 
 ## Components
+
+### Design-to-implementation gates
+
+- A control inventory is not a visual design. Adding CommandBar, InfoBar, or
+  individual controls to the existing dense form is insufficient unless the
+  shell silhouette, hierarchy, spacing, states, and accessibility are designed
+  together.
+- Use Windows UI Kit / Windows Design Kit Figma patterns as the design starting
+  point when creating shell, navigation, dialog, layout, component, style, or
+  token evidence.
+- Figma work must show the main shell plus representative empty, loaded, dirty,
+  busy, warning/error, destructive-confirmation, and save-complete states before
+  XAML implementation starts.
+- Each stage needs independent GPT-5.5 review. Visual review must cite concrete
+  evidence, such as Figma frames or screenshots, and should call out measured
+  spacing, command hierarchy, state visibility, and accessibility risks.
 
 ### Architecture boundaries
 
@@ -536,13 +592,21 @@ Repository basis:
   changes.
 - Do use `InfoBar` for non-blocking status and `ContentDialog` for blocking
   decisions.
+- Do stage UX, information architecture, interaction design, visual evidence,
+  accessibility/safety review, and implementation in that order.
+- Do require independent GPT-5.5 review for each later design/implementation
+  stage, with visual review based on screenshots, Figma frames, or equivalent
+  evidence.
 - Do cite this document and update it when a future UI decision changes the
   design system.
 
 ### Don't
 
+- Don't implement UI first or treat XAML changes as the design source of truth.
 - Don't turn this into a web app design system with CSS-like palettes, cards for
   everything, or dashboard chrome.
+- Don't approve Fluent visual quality from guesses; review the Figma shell,
+  state surfaces, and spacing evidence before implementing XAML.
 - Don't invent brand hex colors or hard-code Light/Dark colors.
 - Don't replace standard control templates for visual novelty.
 - Don't add `NavigationView`, `TabView`, or custom tabs unless the app shape

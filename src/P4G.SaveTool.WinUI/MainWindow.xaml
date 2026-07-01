@@ -17,55 +17,91 @@
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <MenuBar>
-        <MenuBarItem Title="File">
-          <MenuFlyoutItem x:Name="FileOpenMenuItem" Text="Open..." Click="OpenButton_Click" />
-          <MenuFlyoutItem x:Name="FileSaveMenuItem" Text="Save" Click="SaveButton_Click" IsEnabled="False" />
-          <MenuFlyoutItem x:Name="FileSaveAsMenuItem" Text="Save as..." Click="SaveAsButton_Click" IsEnabled="False" />
-        </MenuBarItem>
-        <MenuBarItem Title="Help">
-          <MenuFlyoutItem Text="About" Click="About_Click" />
-        </MenuBarItem>
-      </MenuBar>
+      <Grid ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <MenuBar>
+          <MenuBarItem Title="File">
+            <MenuFlyoutItem x:Name="FileOpenMenuItem" Text="Open..." Click="OpenButton_Click" />
+            <MenuFlyoutItem x:Name="FileSaveMenuItem" Text="Save" Click="SaveButton_Click" IsEnabled="False" />
+            <MenuFlyoutItem x:Name="FileSaveAsMenuItem" Text="Save as..." Click="SaveAsButton_Click" IsEnabled="False" />
+          </MenuBarItem>
+          <MenuBarItem Title="Help">
+            <MenuFlyoutItem Text="About" Click="About_Click" />
+          </MenuBarItem>
+        </MenuBar>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left" VerticalAlignment="Center">
+          <Button x:Name="OpenButton" Content="Open save..." Click="OpenButton_Click" automation:AutomationProperties.AutomationId="OpenButton" automation:AutomationProperties.Name="Open save" />
+          <Button x:Name="ApplyButton" Content="Apply edits" Click="ApplyButton_Click" IsEnabled="False" automation:AutomationProperties.AutomationId="ApplyButton" automation:AutomationProperties.Name="Apply edits" />
+          <Button x:Name="SaveButton" Content="Save" Click="SaveButton_Click" IsEnabled="False" automation:AutomationProperties.AutomationId="SaveButton" automation:AutomationProperties.Name="Save" />
+          <Button x:Name="SaveAsButton" Content="Save as..." Click="SaveAsButton_Click" IsEnabled="False" automation:AutomationProperties.AutomationId="SaveAsButton" automation:AutomationProperties.Name="Save as" />
+          <Button x:Name="AboutButton" Content="About" Click="About_Click" automation:AutomationProperties.AutomationId="AboutButton" automation:AutomationProperties.Name="About" />
+        </StackPanel>
+      </Grid>
 
-      <StackPanel Grid.Row="1" Orientation="Vertical" Spacing="8">
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button x:Name="OpenButton" Content="Open save..." Click="OpenButton_Click" />
-            <Button x:Name="ApplyButton" Content="Apply edits" Click="ApplyButton_Click" IsEnabled="False" />
-            <Button x:Name="SaveButton" Content="Save" Click="SaveButton_Click" IsEnabled="False" />
-            <Button x:Name="SaveAsButton" Content="Save as..." Click="SaveAsButton_Click" IsEnabled="False" />
-            <Button x:Name="AboutButton" Content="About" Click="About_Click" />
-          </StackPanel>
-        </ScrollViewer>
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button x:Name="JumpBasicStatsButton" Content="Basic/Stats" Click="JumpBasicStats_Click" automation:AutomationProperties.AutomationId="JumpBasicStatsButton" automation:AutomationProperties.Name="Basic/Stats" />
-            <Button x:Name="JumpCalendarSocialStatsButton" Content="Calendar/Social" Click="JumpCalendarSocialStats_Click" automation:AutomationProperties.AutomationId="JumpCalendarSocialStatsButton" automation:AutomationProperties.Name="Calendar/Social" />
-            <Button x:Name="JumpSocialLinksButton" Content="Social Links" Click="JumpSocialLinks_Click" automation:AutomationProperties.AutomationId="JumpSocialLinksButton" automation:AutomationProperties.Name="Social Links" />
-            <Button x:Name="JumpPartyPersonaButton" Content="Party/Persona" Click="JumpPartyPersona_Click" automation:AutomationProperties.AutomationId="JumpPartyPersonaButton" automation:AutomationProperties.Name="Party/Persona" />
-            <Button x:Name="JumpEquipmentButton" Content="Equipment" Click="JumpEquipment_Click" automation:AutomationProperties.AutomationId="JumpEquipmentButton" automation:AutomationProperties.Name="Equipment" />
-            <Button x:Name="JumpCompendiumButton" Content="Compendium" Click="JumpCompendium_Click" automation:AutomationProperties.AutomationId="JumpCompendiumButton" automation:AutomationProperties.Name="Compendium" />
-            <Button x:Name="JumpInventoryButton" Content="Inventory" Click="JumpInventory_Click" automation:AutomationProperties.AutomationId="JumpInventoryButton" automation:AutomationProperties.Name="Inventory" />
-            <Button x:Name="JumpDiagnosticsStateButton" Content="Diagnostics/State" Click="JumpDiagnosticsState_Click" automation:AutomationProperties.AutomationId="JumpDiagnosticsStateButton" automation:AutomationProperties.Name="Diagnostics/State" />
-          </StackPanel>
-        </ScrollViewer>
-      </StackPanel>
-
-      <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-        <Grid ColumnSpacing="16" MinWidth="960">
+      <Border Grid.Row="1" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+        <Grid ColumnSpacing="12" RowSpacing="4">
           <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="Current save" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Top" />
+          <StackPanel Grid.Column="1" Spacing="2">
+            <TextBlock x:Name="FilePathTextBlock" TextWrapping="Wrap" automation:AutomationProperties.AutomationId="FilePathTextBlock" automation:AutomationProperties.Name="File path" />
+            <TextBlock x:Name="StateTextBlock" TextWrapping="Wrap" automation:AutomationProperties.AutomationId="StateTextBlock" automation:AutomationProperties.Name="State" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Row="2">
+        <Border
+          x:Name="NoSaveEmptyStateBorder"
+          Padding="32"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+          BorderThickness="1"
+          CornerRadius="8"
+          automation:AutomationProperties.AutomationId="NoSaveEmptyState"
+          automation:AutomationProperties.Name="Open a Persona 4 Golden save">
+          <StackPanel Width="520" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24,32,0,0" Spacing="12">
+            <TextBlock Text="Open a Persona 4 Golden save" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+            <TextBlock Text="Drop a save file here, or choose Open save to begin editing." Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+            <Button x:Name="NoSaveOpenButton" Content="Open save..." Click="OpenButton_Click" HorizontalAlignment="Left" automation:AutomationProperties.AutomationId="NoSaveOpenButton" automation:AutomationProperties.Name="Open a Persona 4 Golden save" />
+          </StackPanel>
+        </Border>
+
+        <ScrollViewer x:Name="SaveEditorScrollViewer" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+          <Grid ColumnSpacing="16" MinWidth="1120">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="172" />
             <ColumnDefinition Width="2*" />
             <ColumnDefinition Width="3*" />
           </Grid.ColumnDefinitions>
 
-          <StackPanel Spacing="8">
+          <Border x:Name="SectionNavigationRail" Padding="8" VerticalAlignment="Top" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Sections" Style="{ThemeResource BodyStrongTextBlockStyle}" Margin="4,0,0,4" />
+              <Button x:Name="JumpBasicStatsButton" Content="Basic/Stats" Click="JumpBasicStats_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpBasicStatsButton" automation:AutomationProperties.Name="Basic/Stats" />
+              <Button x:Name="JumpCalendarSocialStatsButton" Content="Calendar/Social" Click="JumpCalendarSocialStats_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpCalendarSocialStatsButton" automation:AutomationProperties.Name="Calendar/Social" />
+              <Button x:Name="JumpSocialLinksButton" Content="Social Links" Click="JumpSocialLinks_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpSocialLinksButton" automation:AutomationProperties.Name="Social Links" />
+              <Button x:Name="JumpPartyPersonaButton" Content="Party/Persona" Click="JumpPartyPersona_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpPartyPersonaButton" automation:AutomationProperties.Name="Party/Persona" />
+              <Button x:Name="JumpEquipmentButton" Content="Equipment" Click="JumpEquipment_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpEquipmentButton" automation:AutomationProperties.Name="Equipment" />
+              <Button x:Name="JumpCompendiumButton" Content="Compendium" Click="JumpCompendium_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpCompendiumButton" automation:AutomationProperties.Name="Compendium" />
+              <Button x:Name="JumpInventoryButton" Content="Inventory" Click="JumpInventory_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpInventoryButton" automation:AutomationProperties.Name="Inventory" />
+              <Button x:Name="JumpDiagnosticsStateButton" Content="Diagnostics/State" Click="JumpDiagnosticsState_Click" HorizontalAlignment="Stretch" automation:AutomationProperties.AutomationId="JumpDiagnosticsStateButton" automation:AutomationProperties.Name="Diagnostics/State" />
+            </StackPanel>
+          </Border>
+
+          <StackPanel Grid.Column="1" Spacing="8">
             <TextBlock
               x:Name="BasicStatsSectionHeader"
               Text="Basic / Stats"
               Style="{ThemeResource SubtitleTextBlockStyle}"
               />
-            <TextBlock x:Name="FilePathTextBlock" TextWrapping="Wrap" automation:AutomationProperties.AutomationId="FilePathTextBlock" automation:AutomationProperties.Name="File path" />
             <TextBox x:Name="FamilyNameTextBox" Header="Family name" MaxLength="9" IsEnabled="False" TextChanged="FamilyNameTextBox_TextChanged" automation:AutomationProperties.AutomationId="FamilyNameTextBox" automation:AutomationProperties.Name="Family name" />
             <TextBox x:Name="GivenNameTextBox" Header="Given name" MaxLength="9" IsEnabled="False" TextChanged="GivenNameTextBox_TextChanged" automation:AutomationProperties.AutomationId="GivenNameTextBox" automation:AutomationProperties.Name="Given name" />
             <TextBox x:Name="YenTextBox" Header="Yen" InputScope="Number" IsEnabled="False" TextChanged="YenTextBox_TextChanged" automation:AutomationProperties.AutomationId="YenTextBox" automation:AutomationProperties.Name="Yen" />
@@ -387,13 +423,12 @@
             </ComboBox>
           </StackPanel>
 
-          <StackPanel Grid.Column="1" Spacing="8">
+          <StackPanel Grid.Column="2" Spacing="8">
             <TextBlock
               x:Name="DiagnosticsStateSectionHeader"
               Text="Diagnostics / State"
               Style="{ThemeResource SubtitleTextBlockStyle}"
               />
-            <TextBlock x:Name="StateTextBlock" TextWrapping="Wrap" automation:AutomationProperties.AutomationId="StateTextBlock" automation:AutomationProperties.Name="State" />
             <TextBlock Text="Diagnostics" Style="{ThemeResource BodyStrongTextBlockStyle}" />
             <ListView
               x:Name="DiagnosticsListView"
@@ -404,7 +439,23 @@
               automation:AutomationProperties.Name="Diagnostics">
               <ListView.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                    <Grid RowSpacing="2" automation:AutomationProperties.Name="{Binding AutomationName}">
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+                      <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Severity}" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Code}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Target}" TextWrapping="Wrap" />
+                      </Grid>
+                      <TextBlock Grid.Row="1" Text="{Binding Message}" TextWrapping="Wrap" />
+                    </Grid>
                 </DataTemplate>
               </ListView.ItemTemplate>
             </ListView>
@@ -500,8 +551,9 @@
               </StackPanel>
             </Grid>
           </StackPanel>
-        </Grid>
-      </ScrollViewer>
+          </Grid>
+        </ScrollViewer>
+      </Grid>
     </Grid>
   </Border>
 </Window>

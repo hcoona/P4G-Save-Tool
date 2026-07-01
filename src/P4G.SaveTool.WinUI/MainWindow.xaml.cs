@@ -29,7 +29,7 @@ public sealed partial class MainWindow : Window
     }
 
     private readonly SaveEditorViewModel viewModel;
-    private readonly ObservableCollection<string> diagnosticsItems = new();
+    private readonly ObservableCollection<DiagnosticListItemViewState> diagnosticsItems = new();
     private readonly ObservableCollection<SocialLinkViewState> socialLinkItems = new();
     private readonly ObservableCollection<SocialLinkChoiceViewState> socialLinkChoices = new();
     private readonly ObservableCollection<CompendiumPersonaViewState> compendiumItems = new();
@@ -456,6 +456,11 @@ public sealed partial class MainWindow : Window
             ? await PickSavePathAsync()
             : currentFilePath;
         if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return BusyOperationCompletion.PreserveEditorState;
+        }
+
+        if (!await ConfirmOverwriteSaveAsync(targetPath))
         {
             return BusyOperationCompletion.PreserveEditorState;
         }
@@ -1701,17 +1706,25 @@ public sealed partial class MainWindow : Window
     private void UpdateShellState()
     {
         bool startupRefreshPending = refreshEditableFieldsAfterStartupOpen;
-        bool canEdit = viewModel.HasSave && !isBusy && !startupRefreshPending;
-        bool canSave = canEdit && viewModel.CanWrite;
+        bool hasSave = viewModel.HasSave;
+        bool canEdit = hasSave && !isBusy && !startupRefreshPending;
+        bool hasPendingEditorDrafts = HasPendingEditorDrafts();
+        bool canApply = canEdit && hasPendingEditorDrafts;
+        bool canSave = canEdit && viewModel.IsDirty && viewModel.CanWrite && !hasPendingEditorDrafts;
         bool canSaveAs = canSave;
+        Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;
 
         FileOpenMenuItem.IsEnabled = !isBusy && !startupRefreshPending;
         OpenButton.IsEnabled = !isBusy && !startupRefreshPending;
-        ApplyButton.IsEnabled = canEdit;
+        NoSaveOpenButton.IsEnabled = !isBusy && !startupRefreshPending;
+        ApplyButton.IsEnabled = canApply;
         SaveButton.IsEnabled = canSave;
         SaveAsButton.IsEnabled = canSaveAs;
         FileSaveMenuItem.IsEnabled = canSave;
         FileSaveAsMenuItem.IsEnabled = canSaveAs;
+        NoSaveEmptyStateBorder.Visibility = hasSave ? Visibility.Collapsed : Visibility.Visible;
+        SaveEditorScrollViewer.Visibility = editorVisibility;
+        SectionNavigationRail.Visibility = editorVisibility;
         FamilyNameTextBox.IsEnabled = canEdit;
         GivenNameTextBox.IsEnabled = canEdit;
         YenTextBox.IsEnabled = canEdit;
@@ -1771,7 +1784,7 @@ public sealed partial class MainWindow : Window
         InventoryDeleteButton.IsEnabled = canEdit && selectedInventoryEntryId.HasValue && selectedInventoryItemId.HasValue;
 
         FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);
-        StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, viewModel.IsDirty || HasPendingEditorDrafts(), viewModel.CanWrite);
+        StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, hasPendingEditorDrafts, viewModel.IsDirty, viewModel.CanWrite);
         UpdateWindowTitle();
     }
 
@@ -2382,7 +2395,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void SocialLinkDeleteButton_Click(object sender, RoutedEventArgs e)
+    private async void SocialLinkDeleteButton_Click(object sender, RoutedEventArgs e)
     {
         if (!viewModel.HasSave)
         {
@@ -2402,8 +2415,17 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        uiDiagnosticsOverride = null;
         int deletedSlotIndex = selectedSocialLinkIndex.Value;
+        string deletedLinkDescription = SocialLinkListView.SelectedItem?.ToString() ?? "the selected social link";
+        if (!await ShowConfirmationAsync(
+            "Delete social link?",
+            $"Delete {deletedLinkDescription}? This stages the deletion until you save.",
+            "Delete"))
+        {
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
         SaveEditorOperationResult result = saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
             () => viewModel.RemoveSocialLink(deletedSlotIndex));
         if (result.Succeeded)
@@ -2554,7 +2576,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void CompendiumRemoveButton_Click(object sender, RoutedEventArgs e)
+    private async void CompendiumRemoveButton_Click(object sender, RoutedEventArgs e)
     {
         if (!viewModel.HasSave)
         {
@@ -2575,8 +2597,17 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        uiDiagnosticsOverride = null;
         int removedSlotIndex = selectedCompendiumListSlotIndex.Value;
+        string removedEntryDescription = CompendiumListView.SelectedItem?.ToString() ?? "the selected compendium entry";
+        if (!await ShowConfirmationAsync(
+            "Remove compendium entry?",
+            $"Remove {removedEntryDescription}? This stages the removal until you save.",
+            "Remove"))
+        {
+            return;
+        }
+
+        uiDiagnosticsOverride = null;
         SaveEditorOperationResult result = RefreshCompendiumDraftPreservingSelection(
             () => saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(
                 () => viewModel.ClearCompendiumPersonaSlot(removedSlotIndex)),
@@ -2594,7 +2625,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void CompendiumClearButton_Click(object sender, RoutedEventArgs e)
+    private async void CompendiumClearButton_Click(object sender, RoutedEventArgs e)
     {
         if (!viewModel.HasSave)
         {
@@ -2606,6 +2637,14 @@ public sealed partial class MainWindow : Window
         {
             RestorePersonaSelectionAfterBlockedDraft();
             UpdateShellState();
+            return;
+        }
+
+        if (!await ShowConfirmationAsync(
+            "Clear compendium?",
+            $"Clear all {compendiumItems.Count.ToString(CultureInfo.InvariantCulture)} visible compendium entries? This stages the clear until you save.",
+            "Clear all"))
+        {
             return;
         }
 
@@ -3239,7 +3278,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void InventoryDeleteButton_Click(object sender, RoutedEventArgs e)
+    private async void InventoryDeleteButton_Click(object sender, RoutedEventArgs e)
     {
         if (!viewModel.HasSave)
         {
@@ -3253,12 +3292,22 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        ushort deletedEntryId = selectedInventoryEntryId.Value;
+        string deletedEntryDescription = InventoryListView.SelectedItem?.ToString() ?? "the selected inventory entry";
+        if (!await ShowConfirmationAsync(
+            "Delete inventory entry?",
+            $"Delete {deletedEntryDescription}? This stages the deletion until you save.",
+            "Delete"))
+        {
+            return;
+        }
+
         uiDiagnosticsOverride = null;
         preserveEditorTextDuringInventoryRefresh = true;
         SaveEditorOperationResult result;
         try
         {
-            result = viewModel.RemoveInventoryItem(selectedInventoryEntryId.Value);
+            result = viewModel.RemoveInventoryItem(deletedEntryId);
         }
         finally
         {
@@ -3854,13 +3903,13 @@ public sealed partial class MainWindow : Window
 
     private void DisplayDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics)
     {
-        IReadOnlyList<string> diagnosticsText = ShellStateFormatter.GetDiagnosticsText(diagnostics);
+        IReadOnlyList<DiagnosticListItemViewState> diagnosticItems = DiagnosticListItemViewState.FromDiagnostics(diagnostics);
         void UpdateDiagnostics()
         {
             diagnosticsItems.Clear();
-            foreach (string diagnosticText in diagnosticsText)
+            foreach (DiagnosticListItemViewState diagnosticItem in diagnosticItems)
             {
-                diagnosticsItems.Add(diagnosticText);
+                diagnosticsItems.Add(diagnosticItem);
             }
         }
 
@@ -3931,6 +3980,34 @@ public sealed partial class MainWindow : Window
         };
 
         await dialog.ShowAsync();
+    }
+
+    private Task<bool> ConfirmOverwriteSaveAsync(string targetPath)
+    {
+        if (!File.Exists(targetPath))
+        {
+            return Task.FromResult(true);
+        }
+
+        return ShowConfirmationAsync(
+            "Overwrite save?",
+            $"Replace {targetPath} with the edited save? This cannot be undone.",
+            "Overwrite");
+    }
+
+    private async Task<bool> ShowConfirmationAsync(string title, string message, string primaryButtonText)
+    {
+        ContentDialog dialog = new()
+        {
+            Title = title,
+            Content = message,
+            PrimaryButtonText = primaryButtonText,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot,
+        };
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private async Task ReportOpenFailureAsync(string source, string message)
@@ -4038,6 +4115,35 @@ public sealed partial class MainWindow : Window
             ? string.Create(CultureInfo.InvariantCulture, $"{diagnostic.Severity} {diagnostic.Code}: {diagnostic.Message}")
             : string.Create(CultureInfo.InvariantCulture, $"{diagnostic.Severity} {diagnostic.Code} [{diagnostic.Target}]: {diagnostic.Message}");
 
-    private static string FormatBoolean(bool value) =>
-        value ? "yes" : "no";
+}
+
+internal sealed record DiagnosticListItemViewState(
+    string Severity,
+    string Code,
+    string Target,
+    string Message,
+    string AutomationName)
+{
+    public override string ToString() =>
+        AutomationName;
+
+    internal static IReadOnlyList<DiagnosticListItemViewState> FromDiagnostics(IReadOnlyList<SaveDiagnostic> diagnostics) =>
+        diagnostics.Count == 0
+            ? [new("Info", "Status", "Diagnostics", "No diagnostics.", "No diagnostics.")]
+            : diagnostics.Select(FromDiagnostic).ToArray();
+
+    private static DiagnosticListItemViewState FromDiagnostic(SaveDiagnostic diagnostic)
+    {
+        string target = string.IsNullOrWhiteSpace(diagnostic.Target) ? "General" : diagnostic.Target;
+        string automationName = string.IsNullOrWhiteSpace(diagnostic.Target)
+            ? string.Create(CultureInfo.InvariantCulture, $"{diagnostic.Severity} {diagnostic.Code}: {diagnostic.Message}")
+            : string.Create(CultureInfo.InvariantCulture, $"{diagnostic.Severity} {diagnostic.Code} [{diagnostic.Target}]: {diagnostic.Message}");
+
+        return new(
+            diagnostic.Severity.ToString(),
+            diagnostic.Code,
+            target,
+            diagnostic.Message,
+            automationName);
+    }
 }

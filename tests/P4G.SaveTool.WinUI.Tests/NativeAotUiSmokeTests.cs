@@ -70,7 +70,7 @@ public sealed class NativeAotUiSmokeTests
                 Assert.Equal(string.Empty, snapshot.FamilyNameText);
                 Assert.Equal(string.Empty, snapshot.GivenNameText);
                 Assert.Equal("0", snapshot.YenText);
-                Assert.Contains("Has save: yes", snapshot.StateText, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Loaded clean", snapshot.StateText, StringComparison.OrdinalIgnoreCase);
                 Assert.Equal(["No diagnostics."], snapshot.DiagnosticsItems);
                 Assert.True(snapshot.InventoryListIsEnabled);
                 Assert.True(snapshot.SocialLinkListIsEnabled);
@@ -668,7 +668,7 @@ public sealed class NativeAotUiSmokeTests
                 string.Empty,
                 string.Empty,
                 WindowName: ShellStateFormatter.ShellTitle,
-                StateText: ShellStateFormatter.GetStatusText(false, false, false),
+                StateText: ShellStateFormatter.GetStatusText(false, false, false, false),
                 DiagnosticsItems: ["No diagnostics."],
                 InventoryListIsEnabled: false,
                 SocialLinkListIsEnabled: false,
@@ -683,7 +683,7 @@ public sealed class NativeAotUiSmokeTests
                 string.Empty,
                 "0",
                 WindowName: windowName,
-                StateText: ShellStateFormatter.GetStatusText(true, false, true),
+                StateText: ShellStateFormatter.GetStatusText(true, false, false, true),
                 DiagnosticsItems: ["No diagnostics."]);
 
         public bool IsSatisfiedBy(UiSnapshot snapshot) =>

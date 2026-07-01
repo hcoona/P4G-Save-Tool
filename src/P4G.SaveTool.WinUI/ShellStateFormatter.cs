@@ -19,10 +19,30 @@ internal static class ShellStateFormatter
             ? "No save file is open."
             : currentFilePath;
 
-    internal static string GetStatusText(bool hasSave, bool isDirty, bool canWrite) =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"Has save: {FormatBoolean(hasSave)} | Dirty: {FormatBoolean(isDirty)} | Can write: {FormatBoolean(canWrite)}");
+    internal static string GetStatusText(bool hasSave, bool hasPendingEditorDrafts, bool isDirty, bool canWrite)
+    {
+        if (!hasSave)
+        {
+            return "No save file open - open a save before editing.";
+        }
+
+        if (hasPendingEditorDrafts)
+        {
+            return "Dirty draft - apply edits before saving.";
+        }
+
+        if (isDirty && canWrite)
+        {
+            return "Applied pending write - save enabled.";
+        }
+
+        if (isDirty)
+        {
+            return "Write pending - waiting for save acknowledgement.";
+        }
+
+        return "Loaded clean - no unapplied changes.";
+    }
 
     internal static IReadOnlyList<string> GetDiagnosticsText(IReadOnlyList<SaveDiagnostic> diagnostics) =>
         diagnostics.Count == 0
@@ -34,6 +54,4 @@ internal static class ShellStateFormatter
             ? string.Create(CultureInfo.InvariantCulture, $"{diagnostic.Severity} {diagnostic.Code}: {diagnostic.Message}")
             : string.Create(CultureInfo.InvariantCulture, $"{diagnostic.Severity} {diagnostic.Code} [{diagnostic.Target}]: {diagnostic.Message}");
 
-    private static string FormatBoolean(bool value) =>
-        value ? "yes" : "no";
 }

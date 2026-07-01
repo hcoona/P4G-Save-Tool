@@ -18,6 +18,7 @@ internal static class XamlBindingPreservation
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(InventoryStackViewState))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ItemCategoryViewState))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(CompendiumPersonaViewState))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(DiagnosticListItemViewState))]
     internal static void PreserveXamlBindingProperties()
     {
     }

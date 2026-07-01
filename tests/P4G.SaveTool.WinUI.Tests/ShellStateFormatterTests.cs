@@ -26,9 +26,13 @@ public sealed class ShellStateFormatterTests
     }
 
     [Fact]
-    public void GetStatusTextFormatsBooleanFlags()
+    public void GetStatusTextFormatsWorkflowStates()
     {
-        Assert.Equal("Has save: yes | Dirty: no | Can write: yes", ShellStateFormatter.GetStatusText(true, false, true));
+        Assert.Equal("No save file open - open a save before editing.", ShellStateFormatter.GetStatusText(false, false, false, false));
+        Assert.Equal("Loaded clean - no unapplied changes.", ShellStateFormatter.GetStatusText(true, false, false, true));
+        Assert.Equal("Dirty draft - apply edits before saving.", ShellStateFormatter.GetStatusText(true, true, false, true));
+        Assert.Equal("Applied pending write - save enabled.", ShellStateFormatter.GetStatusText(true, false, true, true));
+        Assert.Equal("Write pending - waiting for save acknowledgement.", ShellStateFormatter.GetStatusText(true, false, true, false));
     }
 
     [Fact]

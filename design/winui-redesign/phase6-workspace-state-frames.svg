@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1320" viewBox="0 0 1800 1320">
+  <defs>
+    <style>
+      .bg { fill: #f3f3f3; }
+      .frame { fill: #fbfbfb; stroke: #d4d4d4; stroke-width: 2; }
+      .card { fill: #ffffff; stroke: #d9d9d9; stroke-width: 1.4; }
+      .subtle { fill: #f7f7f7; stroke: #dddddd; stroke-width: 1.2; }
+      .nav { fill: #f8f8f8; stroke: #d9d9d9; stroke-width: 1.2; }
+      .blue { fill: #0067c0; }
+      .red { fill: #c42b1c; }
+      .yellow { fill: #fff4ce; stroke: #f2c94c; stroke-width: 1.2; }
+      .green { fill: #107c10; }
+      .disabled { fill: #a6a6a6; }
+      .line { stroke: #d9d9d9; stroke-width: 1; }
+      .accentLine { stroke: #0067c0; stroke-width: 3; }
+      .text { fill: #1f1f1f; font-family: "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #666666; }
+      .white { fill: #ffffff; }
+      .title { font-size: 28px; font-weight: 600; }
+      .h1 { font-size: 20px; font-weight: 600; }
+      .h2 { font-size: 16px; font-weight: 600; }
+      .body { font-size: 13px; }
+      .small { font-size: 11px; }
+      .tiny { font-size: 10px; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1800" height="1320"/>
+  <text class="text title" x="48" y="52">Phase 6 concrete workspace/state frames</text>
+  <text class="text body muted" x="48" y="78">The implementation target is routed pages inside a document shell, not a single ScrollViewer with jump links.</text>
+
+  <!-- Frame 1: no save -->
+  <g transform="translate(48,112)">
+    <rect class="frame" width="540" height="360" rx="10"/>
+    <text class="text h1" x="18" y="30">No save open</text>
+    <rect class="subtle" x="18" y="48" width="504" height="44" rx="6"/>
+    <text class="text body" x="34" y="75">Open save...</text>
+    <text class="text body disabled" x="138" y="75">Apply edits</text>
+    <text class="text body disabled" x="242" y="75">Save</text>
+    <text class="text body disabled" x="306" y="75">Save as...</text>
+    <rect class="card" x="18" y="106" width="504" height="42" rx="6"/>
+    <circle class="blue" cx="40" cy="127" r="10"/>
+    <text class="text h2" x="58" y="132">No save open</text>
+    <text class="text body muted" x="166" y="132">Open or drop a Persona 4 Golden .bin save.</text>
+    <rect class="nav" x="18" y="164" width="148" height="170" rx="6"/>
+    <text class="text small disabled" x="34" y="192">Overview</text>
+    <text class="text small disabled" x="34" y="220">Player</text>
+    <text class="text small disabled" x="34" y="248">Inventory</text>
+    <text class="text small disabled" x="34" y="276">Compendium</text>
+    <text class="text small disabled" x="34" y="304">Diagnostics</text>
+    <rect class="card" x="182" y="164" width="340" height="170" rx="8"/>
+    <text class="text h1" x="216" y="216">Open a save to begin</text>
+    <text class="text body muted" x="216" y="246">The routed Frame is already present; it hosts</text>
+    <text class="text body muted" x="216" y="266">an empty OverviewPage, not editor controls.</text>
+    <rect class="card" x="216" y="288" width="112" height="30" rx="5"/>
+    <text class="text body" x="238" y="308">Open save...</text>
+  </g>
+
+  <!-- Frame 2: loaded overview -->
+  <g transform="translate(630,112)">
+    <rect class="frame" width="540" height="360" rx="10"/>
+    <text class="text h1" x="18" y="30">Loaded clean: OverviewPage</text>
+    <rect class="subtle" x="18" y="48" width="504" height="44" rx="6"/>
+    <text class="text body" x="34" y="75">data0002.bin</text>
+    <text class="text body muted" x="138" y="75">Loaded clean - no unapplied changes</text>
+    <rect class="card" x="18" y="106" width="504" height="42" rx="6"/>
+    <circle class="green" cx="40" cy="127" r="10"/>
+    <text class="text h2" x="58" y="132">Ready</text>
+    <text class="text body muted" x="112" y="132">All pages clean. Apply and Save are disabled.</text>
+    <rect class="nav" x="18" y="164" width="148" height="170" rx="6"/>
+    <rect class="card" x="30" y="178" width="124" height="24" rx="4"/>
+    <rect class="blue" x="30" y="178" width="3" height="24" rx="1"/>
+    <text class="text small" x="42" y="194">Overview</text>
+    <text class="text small" x="42" y="224">Player</text>
+    <text class="text small" x="42" y="252">Inventory</text>
+    <text class="text small" x="42" y="280">Compendium</text>
+    <text class="text small" x="42" y="308">Diagnostics</text>
+    <rect class="card" x="182" y="164" width="160" height="76" rx="7"/>
+    <text class="text h2" x="198" y="192">Save summary</text>
+    <text class="text small muted" x="198" y="214">Protagonist, play time, path</text>
+    <rect class="card" x="360" y="164" width="162" height="76" rx="7"/>
+    <text class="text h2" x="376" y="192">Diagnostics</text>
+    <text class="text small muted" x="376" y="214">No warnings</text>
+    <rect class="card" x="182" y="258" width="340" height="76" rx="7"/>
+    <text class="text h2" x="198" y="286">Suggested next tasks</text>
+    <text class="text small muted" x="198" y="308">Choose a workspace from NavigationView; no section scrolling.</text>
+  </g>
+
+  <!-- Frame 3: inventory draft -->
+  <g transform="translate(1212,112)">
+    <rect class="frame" width="540" height="360" rx="10"/>
+    <text class="text h1" x="18" y="30">InventoryPage: draft pending apply</text>
+    <rect class="subtle" x="18" y="48" width="504" height="44" rx="6"/>
+    <rect class="blue" x="246" y="55" width="86" height="30" rx="5"/>
+    <text class="text body white" x="266" y="75">Apply</text>
+    <text class="text body disabled" x="354" y="75">Save</text>
+    <rect class="yellow" x="18" y="106" width="504" height="42" rx="6"/>
+    <text class="text h2" x="34" y="132">Dirty draft</text>
+    <text class="text body muted" x="126" y="132">Inventory has unapplied quantity edits.</text>
+    <rect class="nav" x="18" y="164" width="148" height="170" rx="6"/>
+    <text class="text small" x="42" y="194">Overview</text>
+    <text class="text small" x="42" y="224">Player</text>
+    <rect class="card" x="30" y="236" width="124" height="24" rx="4"/>
+    <rect class="blue" x="30" y="236" width="3" height="24" rx="1"/>
+    <text class="text small" x="42" y="252">Inventory</text>
+    <circle class="blue" cx="143" cy="246" r="4"/>
+    <text class="text small" x="42" y="280">Compendium</text>
+    <text class="text small" x="42" y="308">Diagnostics</text>
+    <rect class="card" x="182" y="164" width="160" height="170" rx="7"/>
+    <text class="text h2" x="198" y="192">Item ListView</text>
+    <line class="line" x1="198" y1="210" x2="326" y2="210"/>
+    <text class="text small" x="198" y="234">Medicine</text>
+    <text class="text small" x="198" y="260">Soul Drop</text>
+    <rect class="subtle" x="194" y="276" width="132" height="26" rx="4"/>
+    <text class="text small" x="204" y="293">Peach Seed</text>
+    <rect class="card" x="360" y="164" width="162" height="170" rx="7"/>
+    <text class="text h2" x="376" y="192">Quantity detail</text>
+    <text class="text small muted" x="376" y="218">TextBox / NumberBox slot</text>
+    <rect class="subtle" x="376" y="236" width="92" height="28" rx="4"/>
+    <text class="text body" x="386" y="255">42</text>
+    <text class="text small muted" x="376" y="290">Apply aggregates this page draft.</text>
+  </g>
+
+  <!-- Frame 4: applied pending save -->
+  <g transform="translate(48,520)">
+    <rect class="frame" width="540" height="360" rx="10"/>
+    <text class="text h1" x="18" y="30">Applied pending save: CompendiumPage</text>
+    <rect class="subtle" x="18" y="48" width="504" height="44" rx="6"/>
+    <text class="text body disabled" x="246" y="75">Apply</text>
+    <rect class="blue" x="306" y="55" width="70" height="30" rx="5"/>
+    <text class="text body white" x="328" y="75">Save</text>
+    <rect class="card" x="18" y="106" width="504" height="42" rx="6"/>
+    <circle class="blue" cx="40" cy="127" r="10"/>
+    <text class="text h2" x="58" y="132">Ready to save</text>
+    <text class="text body muted" x="160" y="132">Working model is dirty; no page drafts remain.</text>
+    <rect class="nav" x="18" y="164" width="148" height="170" rx="6"/>
+    <text class="text small" x="42" y="194">Overview</text>
+    <text class="text small" x="42" y="224">Inventory</text>
+    <rect class="card" x="30" y="264" width="124" height="24" rx="4"/>
+    <rect class="blue" x="30" y="264" width="3" height="24" rx="1"/>
+    <text class="text small" x="42" y="280">Compendium</text>
+    <text class="text small" x="42" y="308">Diagnostics</text>
+    <rect class="card" x="182" y="164" width="160" height="170" rx="7"/>
+    <text class="text h2" x="198" y="192">Compendium ListView</text>
+    <text class="text small muted" x="198" y="218">Search + entries</text>
+    <rect class="subtle" x="194" y="236" width="132" height="26" rx="4"/>
+    <text class="text small" x="204" y="253">Izanagi Lv 7</text>
+    <text class="text small" x="198" y="286">Pixie Lv 12</text>
+    <rect class="card" x="360" y="164" width="162" height="170" rx="7"/>
+    <text class="text h2" x="376" y="192">PersonaSlotEditor</text>
+    <text class="text small muted" x="376" y="218">Shared editor control</text>
+    <text class="text small" x="376" y="248">Level 7</text>
+    <text class="text small" x="376" y="276">Skills: 8 rows</text>
+  </g>
+
+  <!-- Frame 5: saving/error diagnostics -->
+  <g transform="translate(630,520)">
+    <rect class="frame" width="540" height="360" rx="10"/>
+    <text class="text h1" x="18" y="30">Saving and error states</text>
+    <rect class="subtle" x="18" y="48" width="504" height="44" rx="6"/>
+    <text class="text body disabled" x="34" y="75">Open</text>
+    <text class="text body disabled" x="118" y="75">Apply edits</text>
+    <text class="text body disabled" x="228" y="75">Save</text>
+    <rect class="blue" x="18" y="94" width="504" height="4"/>
+    <rect class="card" x="18" y="112" width="504" height="48" rx="6"/>
+    <circle class="red" cx="40" cy="136" r="10"/>
+    <text class="text h2" x="58" y="140">Save failed</text>
+    <text class="text body muted" x="144" y="140">Could not replace target file. Retry or Save as.</text>
+    <rect class="nav" x="18" y="176" width="148" height="158" rx="6"/>
+    <text class="text small" x="42" y="206">Overview</text>
+    <text class="text small" x="42" y="234">Inventory</text>
+    <rect class="card" x="30" y="250" width="124" height="24" rx="4"/>
+    <rect class="red" x="30" y="250" width="3" height="24" rx="1"/>
+    <text class="text small" x="42" y="266">Diagnostics</text>
+    <rect class="card" x="182" y="176" width="340" height="158" rx="7"/>
+    <text class="text h2" x="198" y="206">DiagnosticsPage</text>
+    <line class="line" x1="198" y1="226" x2="494" y2="226"/>
+    <text class="text small" x="198" y="252">Error P4GWINUI004 [Persistence]</text>
+    <text class="text small muted" x="198" y="276">Could not write the save file...</text>
+    <rect class="card" x="198" y="294" width="72" height="28" rx="4"/>
+    <text class="text small" x="218" y="312">Retry</text>
+  </g>
+
+  <!-- Frame 6: medium responsive + confirmation -->
+  <g transform="translate(1212,520)">
+    <rect class="frame" width="540" height="360" rx="10"/>
+    <text class="text h1" x="18" y="30">Medium width + confirmation</text>
+    <rect class="subtle" x="18" y="48" width="504" height="44" rx="6"/>
+    <text class="text body" x="34" y="75">LeftCompact NavigationView + one-column page</text>
+    <rect class="nav" x="18" y="108" width="58" height="226" rx="6"/>
+    <circle class="blue" cx="47" cy="138" r="8"/>
+    <circle class="disabled" cx="47" cy="176" r="8"/>
+    <circle class="disabled" cx="47" cy="214" r="8"/>
+    <circle class="disabled" cx="47" cy="252" r="8"/>
+    <circle class="red" cx="47" cy="290" r="8"/>
+    <rect class="card" x="92" y="108" width="430" height="226" rx="7"/>
+    <text class="text h2" x="112" y="140">InventoryPage reflow</text>
+    <text class="text small muted" x="112" y="164">List above detail. No horizontal editor scroll.</text>
+    <rect class="subtle" x="112" y="184" width="388" height="48" rx="5"/>
+    <text class="text small" x="128" y="212">ListView row: Peach Seed</text>
+    <rect class="subtle" x="112" y="248" width="388" height="58" rx="5"/>
+    <text class="text small" x="128" y="276">Quantity detail: 42</text>
+    <rect class="card" x="198" y="146" width="230" height="150" rx="8"/>
+    <text class="text h2" x="218" y="178">Remove item?</text>
+    <text class="text small muted" x="218" y="204">Remove Peach Seed from inventory?</text>
+    <text class="text small muted" x="218" y="224">This stages the edit until Apply.</text>
+    <rect class="red" x="218" y="250" width="76" height="28" rx="4"/>
+    <text class="text small white" x="238" y="268">Remove</text>
+    <rect class="card" x="306" y="250" width="72" height="28" rx="4"/>
+    <text class="text small" x="328" y="268">Cancel</text>
+  </g>
+
+  <text class="text body muted" x="48" y="940">Architecture gates made visible here: shell owns commands/status; NavigationView routes pages; each page has its own layout and draft badge; Save never applies drafts; destructive actions use ContentDialog before staging.</text>
+  <text class="text body muted" x="48" y="968">Implementation must replace MainWindow editor controls with Frame-hosted pages and page/session view models. These frames are not a skin for the old single page.</text>
+</svg>

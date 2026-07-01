@@ -75,6 +75,7 @@ when exact tokens do not cover a future UI change.
 | A previous premature UI pass added CommandBar/InfoBar chrome to the old dense form but did not establish Fluent visual quality. Future work must design the shell, states, hierarchy, and layout before implementation. | Current redesign evidence summary, 2026-06-30 |
 | The Windows UI Kit / Windows Design Kit for Figma is an official Microsoft design resource with UI components, navigation, dialog, layout patterns, styles, and tokens; direct community file access may require Figma authentication. | <https://learn.microsoft.com/en-us/windows/apps/design/downloads/#windows-ui-kit>, <https://www.figma.com/community/file/1440832812269040007> |
 | WinUI Gallery is the concrete implementation reference for this app's WinUI shell patterns: `NavigationView` for app navigation, page headers with 36 epx page padding, `InfoBar` for shell-visible status, SettingsCard/SettingsExpander-style rows for structured settings/editor surfaces, and semantic card resources. | `C:\Users\zhang\.copilot\session-state\b37e0b6a-5a7f-4352-be55-99be5afabbf4\files\WinUI-Gallery\WinUIGallery\Pages\ItemPage.xaml:37-64`, `C:\Users\zhang\.copilot\session-state\b37e0b6a-5a7f-4352-be55-99be5afabbf4\files\WinUI-Gallery\WinUIGallery\Pages\SettingsPage.xaml:28-58`, `C:\Users\zhang\.copilot\session-state\b37e0b6a-5a7f-4352-be55-99be5afabbf4\files\WinUI-Gallery\WinUIGallery\Styles\Grid.xaml:4-26`, `winui-search.exe get gallery-navigationview-1 toolkit-settingsexpander-4 gallery-infobar-1` |
+| The Phase5 implementation proved that shell-control polish is not enough when the editor remains one giant page: `MainWindow.xaml` is still a single `ScrollViewer` editor surface and `MainWindow.xaml.cs` still centralizes thousands of lines of page, draft, and selection logic. Phase6 must replace the app architecture with shell chrome plus routed workspaces. | `src\P4G.SaveTool.WinUI\MainWindow.xaml:79-119`, `src\P4G.SaveTool.WinUI\MainWindow.xaml.cs:155-218`, `src\P4G.SaveTool.WinUI\MainWindow.xaml.cs:1822-2014`, `design\winui-redesign\phase6-app-architecture.svg`, `design\winui-redesign\phase6-workspace-state-frames.svg` |
 
 ### Layered UX and UI workflow
 
@@ -246,14 +247,20 @@ surface edge to text:
   or accelerator access.
 - Keep command hierarchy clear. Primary file and apply/save actions should not
   compete visually with section navigation, filters, or diagnostic affordances.
-- The existing two-column editor is acceptable for Large widths. If a future
-  responsive pass targets Medium or Small widths, collapse to one column and
-  keep section navigation reachable without horizontal scrolling.
-- For the current eight-section editor, prefer a real `NavigationView` over a
-  custom button rail. The section list is now structural app navigation, not a
-  transient jump strip; preserve the same section-jump behavior but let
-  `NavigationView` provide selected, disabled, keyboard, and accessibility
-  behavior.
+- The old single `ScrollViewer` editor surface is no longer an acceptable target
+  architecture. It can be a migration source, but not the destination.
+- Use `NavigationView` as the app shell and route to real workspace pages through
+  a `Frame` or equivalent page host. Navigation changes must swap workspaces,
+  not call `StartBringIntoView` on section headers inside one page.
+- `MainWindow` should own only app chrome, file commands, session state, and
+  navigation. Editor fields, lists, draft tracking, and selection behavior must
+  live in workspace pages, page view models, or reusable editor controls.
+- Target workspaces: Overview, Player, Calendar/Social Stats, Social Links,
+  Party, Personas, Equipment, Compendium, Inventory, and Diagnostics. Collection
+  workspaces should use native master-detail layouts, not append more controls
+  to a global form.
+- Use `TabView` only if the product gains multiple save sessions/documents or
+  independent editor tabs.
 - Use `TabView` only if the product gains multiple save sessions/documents or
   independent editor tabs.
 
@@ -375,6 +382,9 @@ Official basis:
 - Figma work must show the main shell plus representative empty, loaded, dirty,
   busy, warning/error, destructive-confirmation, and save-complete states before
   XAML implementation starts.
+- If Figma access is unavailable, local SVG/PNG frames must provide equivalent
+  visual evidence for shell, workspaces, states, responsive behavior, and
+  destructive confirmations before XAML implementation starts.
 - Each stage needs independent GPT-5.5 review. Visual review must cite concrete
   evidence, such as Figma frames or screenshots, and should call out measured
   spacing, command hierarchy, state visibility, and accessibility risks.

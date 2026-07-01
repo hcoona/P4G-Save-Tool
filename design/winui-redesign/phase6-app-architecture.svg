@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="980" viewBox="0 0 1440 980">
+  <defs>
+    <style>
+      .bg { fill: #f3f3f3; }
+      .window { fill: #fbfbfb; stroke: #d8d8d8; stroke-width: 2; }
+      .surface { fill: #ffffff; stroke: #d9d9d9; stroke-width: 1.5; }
+      .surface2 { fill: #f7f7f7; stroke: #dadada; stroke-width: 1.5; }
+      .nav { fill: #f8f8f8; stroke: #d7d7d7; stroke-width: 1.5; }
+      .accent { fill: #0067c0; }
+      .accentStroke { stroke: #0067c0; stroke-width: 3; fill: none; }
+      .muted { fill: #666666; }
+      .disabled { fill: #9a9a9a; }
+      .text { fill: #1f1f1f; font-family: "Segoe UI", Arial, sans-serif; }
+      .title { font-size: 28px; font-weight: 600; }
+      .h1 { font-size: 22px; font-weight: 600; }
+      .h2 { font-size: 18px; font-weight: 600; }
+      .body { font-size: 15px; }
+      .small { font-size: 13px; }
+      .tiny { font-size: 12px; }
+      .mono { font-family: Consolas, monospace; font-size: 13px; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1440" height="980"/>
+  <text class="text title" x="48" y="54">Phase 6 WinUI architecture: shell + routed workspaces</text>
+  <text class="text body muted" x="48" y="82">Goal: replace the one-page scroll/jump editor with real pages, page-local drafts, and a shell-level session workflow.</text>
+
+  <rect class="window" x="48" y="112" width="960" height="760" rx="10"/>
+  <rect class="surface2" x="72" y="136" width="912" height="72" rx="8"/>
+  <text class="text h2" x="96" y="166">Document shell chrome</text>
+  <text class="text body muted" x="96" y="190">Open | Apply edits | Save | Save as | About  +  current file/status header</text>
+  <rect class="accent" x="686" y="154" width="86" height="34" rx="5"/>
+  <text class="text body" x="706" y="176" fill="#ffffff">Apply</text>
+  <rect class="surface" x="784" y="154" width="70" height="34" rx="5"/>
+  <text class="text body" x="804" y="176">Save</text>
+
+  <rect class="surface" x="72" y="224" width="912" height="58" rx="7"/>
+  <circle class="accent" cx="99" cy="253" r="14"/>
+  <text class="text h2" x="124" y="257">Draft pending apply</text>
+  <text class="text body muted" x="310" y="257">3 workspaces contain unapplied edits. Save is blocked until Apply succeeds.</text>
+
+  <rect class="nav" x="72" y="304" width="216" height="532" rx="8"/>
+  <text class="text h2" x="96" y="334">NavigationView</text>
+  <text class="text small muted" x="96" y="356">routes pages; no scroll jumps</text>
+  <g class="text body">
+    <rect class="surface" x="88" y="382" width="184" height="36" rx="5"/>
+    <rect class="accent" x="88" y="382" width="4" height="36" rx="2"/>
+    <text x="108" y="405">Overview</text>
+    <text x="108" y="449">Player</text>
+    <circle class="accent" cx="252" cy="443" r="5"/>
+    <text x="108" y="493">Calendar / Social</text>
+    <text x="108" y="537">Social Links</text>
+    <circle class="accent" cx="252" cy="531" r="5"/>
+    <text x="108" y="581">Party</text>
+    <text x="108" y="625">Personas</text>
+    <text x="108" y="669">Equipment</text>
+    <circle class="accent" cx="252" cy="663" r="5"/>
+    <text x="108" y="713">Compendium</text>
+    <text x="108" y="757">Inventory</text>
+    <text x="108" y="801">Diagnostics</text>
+  </g>
+
+  <rect class="surface" x="312" y="304" width="672" height="532" rx="8"/>
+  <text class="text h2" x="340" y="338">Frame content: OverviewPage</text>
+  <text class="text body muted" x="340" y="362">Page header, 36 epx content inset, page-specific layout and draft model.</text>
+  <rect class="surface2" x="340" y="392" width="284" height="132" rx="8"/>
+  <text class="text h2" x="360" y="424">Save summary</text>
+  <text class="text body muted" x="360" y="454">File path, play time, protagonist, write state.</text>
+  <text class="text small muted" x="360" y="484">SettingsCard / summary cards</text>
+  <rect class="surface2" x="652" y="392" width="284" height="132" rx="8"/>
+  <text class="text h2" x="672" y="424">Diagnostics summary</text>
+  <text class="text body muted" x="672" y="454">Warnings and recovery actions stay visible.</text>
+  <text class="text small muted" x="672" y="484">InfoBar + ListView summary</text>
+
+  <rect class="surface2" x="340" y="552" width="596" height="244" rx="8"/>
+  <text class="text h2" x="360" y="584">Workspace pages are independent layouts</text>
+  <line class="accentStroke" x1="360" y1="610" x2="916" y2="610"/>
+  <text class="text body" x="360" y="646">InventoryPage: category filter + ListView master + quantity detail</text>
+  <text class="text body" x="360" y="682">CompendiumPage: searchable ListView + PersonaSlotEditor detail</text>
+  <text class="text body" x="360" y="718">PersonasPage: member/slot selector + shared PersonaSlotEditor</text>
+  <text class="text body" x="360" y="754">DiagnosticsPage: structured ListView, no editor chrome</text>
+
+  <rect class="surface" x="1040" y="112" width="352" height="238" rx="8"/>
+  <text class="text h1" x="1064" y="146">State machine</text>
+  <text class="text mono" x="1064" y="182">NoSave</text>
+  <text class="text mono muted" x="1124" y="182">-> open -></text>
+  <text class="text mono" x="1208" y="182">Clean</text>
+  <text class="text mono" x="1064" y="218">Clean</text>
+  <text class="text mono muted" x="1124" y="218">-> edit page -></text>
+  <text class="text mono" x="1234" y="218">Draft</text>
+  <text class="text mono" x="1064" y="254">Draft</text>
+  <text class="text mono muted" x="1124" y="254">-> Apply -></text>
+  <text class="text mono" x="1214" y="254">PendingSave</text>
+  <text class="text mono" x="1064" y="290">PendingSave</text>
+  <text class="text mono muted" x="1164" y="290">-> Save -></text>
+  <text class="text mono" x="1250" y="290">Clean/Error</text>
+  <text class="text small muted" x="1064" y="326">Save never applies drafts. Drafts block Save.</text>
+
+  <rect class="surface" x="1040" y="374" width="352" height="238" rx="8"/>
+  <text class="text h1" x="1064" y="408">Architecture gates</text>
+  <text class="text body" x="1064" y="446">1. MainWindow has no editor controls.</text>
+  <text class="text body" x="1064" y="482">2. NavigationView uses Frame navigation.</text>
+  <text class="text body" x="1064" y="518">3. Pages expose draft models, not controls.</text>
+  <text class="text body" x="1064" y="554">4. Apply aggregates page edit batches.</text>
+  <text class="text body" x="1064" y="590">5. Destructive edits confirm first.</text>
+
+  <rect class="surface" x="1040" y="636" width="352" height="236" rx="8"/>
+  <text class="text h1" x="1064" y="670">Implementation phasing</text>
+  <text class="text body" x="1064" y="706">A. Shell + empty routed pages</text>
+  <text class="text body" x="1064" y="742">B. Session/draft orchestration</text>
+  <text class="text body" x="1064" y="778">C. Simple pages: Overview, Player</text>
+  <text class="text body" x="1064" y="814">D. Collection master-detail pages</text>
+  <text class="text body" x="1064" y="850">E. Persona/Compendium split</text>
+
+  <text class="text small muted" x="48" y="924">Review evidence checklist: large/medium frames, empty/loaded/draft/applied/saving/error states, page dirty badges, destructive confirmations, High Contrast and 200% text scale.</text>
+</svg>

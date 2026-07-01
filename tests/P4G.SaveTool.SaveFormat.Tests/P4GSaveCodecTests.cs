@@ -166,6 +166,18 @@ public sealed class P4GSaveCodecTests
     }
 
     [Fact]
+    public void OpenDecodesJStringEncodedNamesFromPStringFields()
+    {
+        byte[] input = CreateSyntheticSave();
+        SaveStringCodec.EncodeJString("Shu", input.AsMemory(LegacyFamilyNamePStringOffset, LegacyNameByteLength));
+        SaveStringCodec.EncodeJString("Ai!", input.AsMemory(LegacyGivenNamePStringOffset, LegacyNameByteLength));
+
+        SaveSnapshot snapshot = OpenOrThrow(input);
+
+        Assert.Equal(new SaveNames("Shu", "Ai!"), snapshot.Names);
+    }
+
+    [Fact]
     public void FieldPatchChangesOnlyYenRegion()
     {
         P4GSaveLayout layout = P4GSaveLayout.For(P4GSaveLayoutKind.P4GGoldenVitaFixed);

@@ -78,6 +78,7 @@ public sealed partial class MainWindow : Window
     private bool isWorkspaceRoutingInitialized;
     private bool basicStatsWorkspacePageInitializedFromViewModel;
     private bool calendarSocialStatsWorkspacePageInitializedFromViewModel;
+    private bool socialLinksWorkspacePageInitializedFromViewModel;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
@@ -95,6 +96,7 @@ public sealed partial class MainWindow : Window
     private int selectedPersonaSlotIndex;
     private BasicStatsWorkspacePage? basicStatsWorkspacePage;
     private CalendarSocialStatsWorkspacePage? calendarSocialStatsWorkspacePage;
+    private SocialLinksWorkspacePage? socialLinksWorkspacePage;
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -104,8 +106,6 @@ public sealed partial class MainWindow : Window
         this.startupOpenPath = startupOpenPath;
         InitializeComponent();
         ResizeToDefaultMultiPaneSize();
-        SocialLinkListView.ItemsSource = socialLinkItems;
-        SocialLinkAddComboBox.ItemsSource = socialLinkChoices;
         CompendiumListView.ItemsSource = compendiumItems;
         CompendiumAddComboBox.ItemsSource = compendiumAddChoices;
         InventoryListView.ItemsSource = inventoryItems;
@@ -214,6 +214,12 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (sectionTag == "SocialLinks")
+        {
+            NavigateToSocialLinksWorkspace();
+            return;
+        }
+
         EnsureLegacyWorkspaceRouted();
         if (viewModel is not null && viewModel.HasSave)
         {
@@ -246,6 +252,7 @@ public sealed partial class MainWindow : Window
 
     private void NavigateToOverviewWorkspace()
     {
+        SelectWorkspaceNavigationItem(JumpOverviewButton);
         LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is OverviewWorkspacePage overviewPage)
@@ -287,6 +294,7 @@ public sealed partial class MainWindow : Window
 
     private void NavigateToDiagnosticsWorkspace()
     {
+        SelectWorkspaceNavigationItem(JumpDiagnosticsStateButton);
         LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is DiagnosticsWorkspacePage diagnosticsPage)
@@ -305,6 +313,7 @@ public sealed partial class MainWindow : Window
 
     private void NavigateToBasicStatsWorkspace()
     {
+        SelectWorkspaceNavigationItem(JumpBasicStatsButton);
         LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is BasicStatsWorkspacePage page)
@@ -351,6 +360,7 @@ public sealed partial class MainWindow : Window
 
     private void NavigateToCalendarSocialStatsWorkspace()
     {
+        SelectWorkspaceNavigationItem(JumpCalendarSocialStatsButton);
         LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is CalendarSocialStatsWorkspacePage page)
@@ -390,6 +400,58 @@ public sealed partial class MainWindow : Window
         page.SetCalendarSocialStatsEnabled(CanEditCalendarSocialStats());
     }
 
+    private void NavigateToSocialLinksWorkspace()
+    {
+        SelectWorkspaceNavigationItem(JumpSocialLinksButton);
+        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
+
+        if (WorkspaceFrame.Content is SocialLinksWorkspacePage page)
+        {
+            ConfigureSocialLinksWorkspacePage(page);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(SocialLinksWorkspacePage)))
+        {
+            throw new InvalidOperationException("Could not navigate to the social links workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is SocialLinksWorkspacePage navigatedPage)
+        {
+            ConfigureSocialLinksWorkspacePage(navigatedPage);
+        }
+    }
+
+    private void ConfigureSocialLinksWorkspacePage(SocialLinksWorkspacePage page)
+    {
+        socialLinksWorkspacePage = page;
+        page.SetItemsSources(socialLinkItems, socialLinkChoices);
+        page.SocialLinkSelectionChanged -= SocialLinkListView_SelectionChanged;
+        page.SocialLinkSelectionChanged += SocialLinkListView_SelectionChanged;
+        page.SocialLinkAddSelectionChanged -= SocialLinkAddComboBox_SelectionChanged;
+        page.SocialLinkAddSelectionChanged += SocialLinkAddComboBox_SelectionChanged;
+        page.SocialLinkTextChanged -= SocialLinkTextBox_TextChanged;
+        page.SocialLinkTextChanged += SocialLinkTextBox_TextChanged;
+        page.SocialLinkDeleteClick -= SocialLinkDeleteButton_Click;
+        page.SocialLinkDeleteClick += SocialLinkDeleteButton_Click;
+
+        if (!socialLinksWorkspacePageInitializedFromViewModel)
+        {
+            RefreshSocialLinksState();
+        }
+
+        page.SetSocialLinksEnabled(CanEditSocialLinks(), selectedSocialLinkIndex.HasValue);
+    }
+
+    private void SelectWorkspaceNavigationItem(NavigationViewItem navigationItem)
+    {
+        if (!ReferenceEquals(SectionNavigationView.SelectedItem, navigationItem))
+        {
+            SectionNavigationView.SelectedItem = navigationItem;
+        }
+    }
+
     private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e) =>
         throw new InvalidOperationException($"Could not navigate to workspace page {e.SourcePageType.FullName}.", e.Exception);
 
@@ -397,9 +459,6 @@ public sealed partial class MainWindow : Window
     {
         switch (sectionTag)
         {
-            case "SocialLinks":
-                NavigateToSection(SocialLinksSectionHeader);
-                break;
             case "PartyPersona":
                 NavigateToSection(PartyPersonaSectionHeader);
                 break;
@@ -416,7 +475,7 @@ public sealed partial class MainWindow : Window
     }
 
     private void JumpSocialLinks_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(SocialLinksSectionHeader);
+        NavigateToSocialLinksWorkspace();
 
     private void JumpPartyPersona_Click(object sender, RoutedEventArgs e) =>
         NavigateToSection(PartyPersonaSectionHeader);
@@ -1146,10 +1205,15 @@ public sealed partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(edits);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
+        if (socialLinksWorkspacePage is null)
+        {
+            return true;
+        }
+
         return TryBuildSocialLinkEdits(
             selectedSocialLinkIndex,
-            SocialLinkLevelTextBox.Text ?? string.Empty,
-            SocialLinkProgressTextBox.Text ?? string.Empty,
+            socialLinksWorkspacePage.SocialLinkLevelText,
+            socialLinksWorkspacePage.SocialLinkProgressText,
             edits,
             diagnostics);
     }
@@ -1235,7 +1299,8 @@ public sealed partial class MainWindow : Window
 
     private SocialLinkDraftState? CaptureSelectedSocialLinkDraft()
     {
-        if (!selectedSocialLinkIndex.HasValue || SocialLinkListView.SelectedItem is not SocialLinkViewState selectedLink)
+        if (!selectedSocialLinkIndex.HasValue ||
+            socialLinksWorkspacePage?.SelectedSocialLink is not SocialLinkViewState selectedLink)
         {
             return null;
         }
@@ -1243,8 +1308,8 @@ public sealed partial class MainWindow : Window
         return new SocialLinkDraftState(
             selectedLink.SlotIndex,
             selectedLink.LinkId,
-            SocialLinkLevelTextBox.Text ?? string.Empty,
-            SocialLinkProgressTextBox.Text ?? string.Empty);
+            socialLinksWorkspacePage.SocialLinkLevelText,
+            socialLinksWorkspacePage.SocialLinkProgressText);
     }
 
     private SocialLinkViewState? GetSelectedSocialLinkViewState() =>
@@ -1273,7 +1338,10 @@ public sealed partial class MainWindow : Window
         try
         {
             socialLinkItems[rowIndex] = selectedLink;
-            SocialLinkListView.SelectedItem = selectedLink;
+            if (socialLinksWorkspacePage is not null)
+            {
+                socialLinksWorkspacePage.SelectedSocialLink = selectedLink;
+            }
         }
         finally
         {
@@ -1291,8 +1359,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        SocialLinkLevelTextBox.Text = socialLinkDraft.LevelText;
-        SocialLinkProgressTextBox.Text = socialLinkDraft.ProgressText;
+        if (socialLinksWorkspacePage is not null)
+        {
+            socialLinksWorkspacePage.SocialLinkLevelText = socialLinkDraft.LevelText;
+            socialLinksWorkspacePage.SocialLinkProgressText = socialLinkDraft.ProgressText;
+        }
     }
 
     internal static bool ShouldRestoreSelectedSocialLinkDraft(
@@ -1424,7 +1495,7 @@ public sealed partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(edits);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        if (SocialLinkAddComboBox.SelectedItem is not SocialLinkChoiceViewState selectedChoice ||
+        if (socialLinksWorkspacePage?.SelectedSocialLinkAddChoice is not SocialLinkChoiceViewState selectedChoice ||
             selectedChoice.IsPlaceholder)
         {
             return true;
@@ -2090,6 +2161,9 @@ public sealed partial class MainWindow : Window
     private bool CanEditCalendarSocialStats() =>
         viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
 
+    private bool CanEditSocialLinks() =>
+        viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
+
     private string GetCurrentFamilyNameText() =>
         basicStatsWorkspacePage?.FamilyNameText ?? viewModel.FamilyName;
 
@@ -2198,11 +2272,7 @@ public sealed partial class MainWindow : Window
         JumpDiagnosticsStateButton.IsEnabled = canNavigateEditorSections;
         basicStatsWorkspacePage?.SetBasicStatsEnabled(canEdit);
         calendarSocialStatsWorkspacePage?.SetCalendarSocialStatsEnabled(canEdit);
-        SocialLinkListView.IsEnabled = canEdit;
-        SocialLinkAddComboBox.IsEnabled = canEdit;
-        SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
-        SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
-        SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;
+        socialLinksWorkspacePage?.SetSocialLinksEnabled(canEdit, selectedSocialLinkIndex.HasValue);
         CompendiumListView.IsEnabled = canEdit;
         CompendiumAddComboBox.IsEnabled = canEdit;
         CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumListSlotIndex.HasValue;
@@ -2316,19 +2386,19 @@ public sealed partial class MainWindow : Window
 
     private bool HasSelectedSocialLinkDraft()
     {
-        if (!selectedSocialLinkIndex.HasValue)
+        if (!selectedSocialLinkIndex.HasValue || socialLinksWorkspacePage is null)
         {
             return false;
         }
 
         SocialLinkViewState? selectedLink = viewModel.SocialLinks.FirstOrDefault(link => link.SlotIndex == selectedSocialLinkIndex.Value);
         return selectedLink is not null &&
-            (!string.Equals(SocialLinkLevelTextBox.Text ?? string.Empty, selectedLink.Level.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
-                !string.Equals(SocialLinkProgressTextBox.Text ?? string.Empty, selectedLink.Progress.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
+            (!string.Equals(socialLinksWorkspacePage.SocialLinkLevelText, selectedLink.Level.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+                !string.Equals(socialLinksWorkspacePage.SocialLinkProgressText, selectedLink.Progress.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
     }
 
     private bool HasSocialLinkAddDraft() =>
-        SocialLinkAddComboBox.SelectedItem is SocialLinkChoiceViewState selectedChoice &&
+        socialLinksWorkspacePage?.SelectedSocialLinkAddChoice is SocialLinkChoiceViewState selectedChoice &&
         !selectedChoice.IsPlaceholder;
 
     private bool HasCompendiumAddDraft() =>
@@ -2508,17 +2578,27 @@ public sealed partial class MainWindow : Window
             }
             TraceStartup("RefreshSocialLinksState populated add choices");
 
+            SocialLinksWorkspacePage? page = socialLinksWorkspacePage;
+            if (page is null)
+            {
+                socialLinksWorkspacePageInitializedFromViewModel = false;
+                TraceStartup("RefreshSocialLinksState no page exit");
+                return;
+            }
+
             TraceStartup("RefreshSocialLinksState before selection-state check");
             if (!viewModel.HasSave || viewModel.SocialLinks.Count == 0)
             {
                 ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
                 TraceStartup("RefreshSocialLinksState empty branch before list selection");
-                SocialLinkListView.SelectedItem = null;
+                page.SelectedSocialLink = null;
+                page.SetEmptyStateVisible(viewModel.HasSave);
                 TraceStartup("RefreshSocialLinksState empty branch after list selection");
-                SocialLinkAddComboBox.SelectedItem = viewModel.HasSave ? blankChoice : null;
+                page.SelectedSocialLinkAddChoice = viewModel.HasSave ? blankChoice : null;
                 TraceStartup("RefreshSocialLinksState empty branch after add selection");
-                SocialLinkLevelTextBox.Text = string.Empty;
-                SocialLinkProgressTextBox.Text = string.Empty;
+                page.SocialLinkLevelText = string.Empty;
+                page.SocialLinkProgressText = string.Empty;
+                socialLinksWorkspacePageInitializedFromViewModel = true;
                 TraceStartup("RefreshSocialLinksState empty branch exit");
                 return;
             }
@@ -2533,10 +2613,12 @@ public sealed partial class MainWindow : Window
             if (selectedLink is null)
             {
                 ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);
-                SocialLinkListView.SelectedItem = null;
-                SocialLinkAddComboBox.SelectedItem = blankChoice;
-                SocialLinkLevelTextBox.Text = string.Empty;
-                SocialLinkProgressTextBox.Text = string.Empty;
+                page.SelectedSocialLink = null;
+                page.SetEmptyStateVisible(viewModel.HasSave);
+                page.SelectedSocialLinkAddChoice = blankChoice;
+                page.SocialLinkLevelText = string.Empty;
+                page.SocialLinkProgressText = string.Empty;
+                socialLinksWorkspacePageInitializedFromViewModel = true;
                 return;
             }
             TraceStartup("RefreshSocialLinksState resolved selection");
@@ -2544,12 +2626,14 @@ public sealed partial class MainWindow : Window
             selectedSocialLinkLinkId = selectedLink.LinkId;
 
             TraceStartup("RefreshSocialLinksState selecting list item");
-            SocialLinkListView.SelectedItem = selectedLink;
+            page.SelectedSocialLink = selectedLink;
+            page.SetEmptyStateVisible(false);
             TraceStartup("RefreshSocialLinksState selected list item");
-            SocialLinkAddComboBox.SelectedItem = blankChoice;
+            page.SelectedSocialLinkAddChoice = blankChoice;
             TraceStartup("RefreshSocialLinksState selected add choice");
-            SocialLinkLevelTextBox.Text = selectedLink.Level.ToString(CultureInfo.InvariantCulture);
-            SocialLinkProgressTextBox.Text = selectedLink.Progress.ToString(CultureInfo.InvariantCulture);
+            page.SocialLinkLevelText = selectedLink.Level.ToString(CultureInfo.InvariantCulture);
+            page.SocialLinkProgressText = selectedLink.Progress.ToString(CultureInfo.InvariantCulture);
+            socialLinksWorkspacePageInitializedFromViewModel = true;
             TraceStartup("RefreshSocialLinksState assigned selection");
         }
         finally
@@ -2785,7 +2869,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (SocialLinkListView.SelectedItem is not SocialLinkViewState selectedLink)
+        if (socialLinksWorkspacePage?.SelectedSocialLink is not SocialLinkViewState selectedLink)
         {
             selectedSocialLinkIndex = null;
             selectedSocialLinkLinkId = null;
@@ -2807,7 +2891,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (SocialLinkAddComboBox.SelectedItem is not SocialLinkChoiceViewState selectedChoice ||
+        if (socialLinksWorkspacePage?.SelectedSocialLinkAddChoice is not SocialLinkChoiceViewState selectedChoice ||
             selectedChoice.IsPlaceholder)
         {
             return;
@@ -2850,7 +2934,10 @@ public sealed partial class MainWindow : Window
         suppressSocialLinkEvents = true;
         try
         {
-            SocialLinkListView.SelectedItem = GetSelectedSocialLinkViewState();
+            if (socialLinksWorkspacePage is not null)
+            {
+                socialLinksWorkspacePage.SelectedSocialLink = GetSelectedSocialLinkViewState();
+            }
         }
         finally
         {
@@ -2863,7 +2950,10 @@ public sealed partial class MainWindow : Window
         suppressSocialLinkEvents = true;
         try
         {
-            SocialLinkAddComboBox.SelectedItem = socialLinkChoices.FirstOrDefault(static choice => choice.IsPlaceholder);
+            if (socialLinksWorkspacePage is not null)
+            {
+                socialLinksWorkspacePage.SelectedSocialLinkAddChoice = socialLinkChoices.FirstOrDefault(static choice => choice.IsPlaceholder);
+            }
         }
         finally
         {
@@ -2892,7 +2982,7 @@ public sealed partial class MainWindow : Window
         }
 
         int deletedSlotIndex = selectedSocialLinkIndex.Value;
-        string deletedLinkDescription = SocialLinkListView.SelectedItem?.ToString() ?? "the selected social link";
+        string deletedLinkDescription = socialLinksWorkspacePage?.SelectedSocialLinkDescription ?? "the selected social link";
         if (!await ShowConfirmationAsync(
             "Delete social link?",
             $"Delete {deletedLinkDescription}? This stages the deletion until you save.",

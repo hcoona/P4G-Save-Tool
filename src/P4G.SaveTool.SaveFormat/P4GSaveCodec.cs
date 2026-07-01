@@ -21,8 +21,8 @@ public static class P4GSaveCodec
         }
 
         ReadOnlySpan<byte> span = bytes.Span;
-        string familyName = SaveStringCodec.DecodePString(bytes.Slice(layout.FamilyNamePString.Offset, layout.FamilyNamePString.Length));
-        string givenName = SaveStringCodec.DecodePString(bytes.Slice(layout.GivenNamePString.Offset, layout.GivenNamePString.Length));
+        string familyName = DecodeSaveNameComponent(bytes.Slice(layout.FamilyNamePString.Offset, layout.FamilyNamePString.Length));
+        string givenName = DecodeSaveNameComponent(bytes.Slice(layout.GivenNamePString.Offset, layout.GivenNamePString.Length));
 
         EquipmentArrays equipmentArrays = ReadEquipmentArrays(span, layout);
         CalendarValues calendar = ReadCalendar(span, layout.Calendar);
@@ -50,6 +50,14 @@ public static class P4GSaveCodec
             calendar.NextDayPhase);
 
         return new SaveOpenResult<SaveSnapshot>(snapshot, diagnostics);
+    }
+
+    private static string DecodeSaveNameComponent(ReadOnlyMemory<byte> source)
+    {
+        string pStringValue = SaveStringCodec.DecodePString(source);
+        return pStringValue.Length == 0
+            ? SaveStringCodec.DecodeJString(source)
+            : pStringValue;
     }
 
     public static SaveWriteResult Write(SaveSnapshot snapshot, IEnumerable<SaveFieldPatch>? patches = null)

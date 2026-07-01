@@ -591,9 +591,9 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
-    public void MainWindowXamlDeclaresSocialLinkEditingControls()
+    public void SocialLinksWorkspacePageDeclaresSocialLinkEditingControls()
     {
-        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "Workspaces", "SocialLinksWorkspacePage.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.Contains("x:Name=\"SocialLinkListView\"", content, StringComparison.Ordinal);
@@ -646,7 +646,7 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("<Button x:Name=\"Jump", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"BasicStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"CalendarSocialStatsSectionHeader\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"EquipmentSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"DiagnosticsStateSectionHeader\"", content, StringComparison.Ordinal);
@@ -727,14 +727,24 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("WorkspaceFrame.Navigate(typeof(CalendarSocialStatsWorkspacePage))", source, StringComparison.Ordinal);
         Assert.Contains("ConfigureCalendarSocialStatsWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
         Assert.Contains("calendarSocialStatsWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.Contains("if (sectionTag == \"SocialLinks\")", source, StringComparison.Ordinal);
+        Assert.Contains("NavigateToSocialLinksWorkspace();", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(SocialLinksWorkspacePage))", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureSocialLinksWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
+        Assert.Contains("socialLinksWorkspacePage = page;", source, StringComparison.Ordinal);
         Assert.True(
             source.IndexOf("if (sectionTag == \"CalendarSocialStats\")", StringComparison.Ordinal) <
+            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
+        Assert.True(
+            source.IndexOf("if (sectionTag == \"SocialLinks\")", StringComparison.Ordinal) <
             source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
         Assert.DoesNotContain("case \"BasicStats\":", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("BasicStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("case \"CalendarSocialStats\":", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("CalendarSocialStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.Equal(5, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
+        Assert.DoesNotContain("case \"SocialLinks\":", selectedSectionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SocialLinksSectionHeader", selectedSectionBody, StringComparison.Ordinal);
+        Assert.Equal(6, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
@@ -1042,13 +1052,10 @@ public sealed class WinUIArchitectureTests
             "private void UpdateShellState()",
             "private void RefreshSocialStatsState()");
 
-        Assert.Contains("SocialLinkListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SocialLinkAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SocialLinkLevelTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SocialLinkProgressTextBox.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("socialLinksWorkspacePage?.SetSocialLinksEnabled(canEdit, selectedSocialLinkIndex.HasValue);", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SocialLinkFlagTextBox", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SocialLinkApplyButton", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SocialLinkDeleteButton.IsEnabled = canEdit && selectedSocialLinkIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SocialLinkDeleteButton.IsEnabled = canEdit", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumListSlotIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
@@ -1485,7 +1492,7 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
-    public void MainWindowXamlKeepsSocialStatsAndCalendarOutOfLegacyHost()
+    public void MainWindowXamlKeepsSocialStatsCalendarAndSocialLinksOutOfLegacyHost()
     {
         string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
 
@@ -1499,7 +1506,9 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"PhaseComboBox\"", xaml);
         Assert.DoesNotContain("x:Name=\"NextDayTextBox\"", xaml);
         Assert.DoesNotContain("x:Name=\"NextPhaseComboBox\"", xaml);
-        Assert.Contains("x:Name=\"SocialLinksSectionHeader\"", xaml);
+        Assert.DoesNotContain("x:Name=\"SocialLinksSectionHeader\"", xaml);
+        Assert.DoesNotContain("x:Name=\"SocialLinkListView\"", xaml);
+        Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", xaml);
     }
 
     [Fact]

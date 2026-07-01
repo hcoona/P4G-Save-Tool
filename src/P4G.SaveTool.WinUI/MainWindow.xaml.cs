@@ -75,10 +75,12 @@ public sealed partial class MainWindow : Window
     private bool suppressCompendiumEvents;
     private bool suppressSocialLinkEvents;
     private bool suppressImmediateEditEvents;
+    private bool suppressNavigationSelectionChanged;
     private bool isWorkspaceRoutingInitialized;
     private bool basicStatsWorkspacePageInitializedFromViewModel;
     private bool calendarSocialStatsWorkspacePageInitializedFromViewModel;
     private bool socialLinksWorkspacePageInitializedFromViewModel;
+    private bool equipmentWorkspacePageInitializedFromViewModel;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
@@ -97,6 +99,7 @@ public sealed partial class MainWindow : Window
     private BasicStatsWorkspacePage? basicStatsWorkspacePage;
     private CalendarSocialStatsWorkspacePage? calendarSocialStatsWorkspacePage;
     private SocialLinksWorkspacePage? socialLinksWorkspacePage;
+    private EquipmentWorkspacePage? equipmentWorkspacePage;
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -111,11 +114,6 @@ public sealed partial class MainWindow : Window
         InventoryListView.ItemsSource = inventoryItems;
         InventoryCategoryComboBox.ItemsSource = inventoryCategories;
         InventoryItemComboBox.ItemsSource = inventoryItemChoices;
-        EquipmentCharacterComboBox.ItemsSource = equipmentCharacters;
-        EquipmentWeaponComboBox.ItemsSource = equipmentWeaponChoices;
-        EquipmentArmorComboBox.ItemsSource = equipmentArmorChoices;
-        EquipmentAccessoryComboBox.ItemsSource = equipmentAccessoryChoices;
-        EquipmentCostumeComboBox.ItemsSource = equipmentCostumeChoices;
         PartySlot0ComboBox.ItemsSource = partySlot0Choices;
         PartySlot1ComboBox.ItemsSource = partySlot1Choices;
         PartySlot2ComboBox.ItemsSource = partySlot2Choices;
@@ -174,6 +172,11 @@ public sealed partial class MainWindow : Window
 
     private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        if (suppressNavigationSelectionChanged)
+        {
+            return;
+        }
+
         if (args.SelectedItem is not NavigationViewItem selectedItem ||
             selectedItem.Tag is not string sectionTag)
         {
@@ -217,6 +220,12 @@ public sealed partial class MainWindow : Window
         if (sectionTag == "SocialLinks")
         {
             NavigateToSocialLinksWorkspace();
+            return;
+        }
+
+        if (sectionTag == "Equipment")
+        {
+            NavigateToEquipmentWorkspace();
             return;
         }
 
@@ -444,11 +453,80 @@ public sealed partial class MainWindow : Window
         page.SetSocialLinksEnabled(CanEditSocialLinks(), selectedSocialLinkIndex.HasValue);
     }
 
+    private void NavigateToEquipmentWorkspace()
+    {
+        SelectWorkspaceNavigationItem(JumpEquipmentButton);
+        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
+
+        if (WorkspaceFrame.Content is EquipmentWorkspacePage page)
+        {
+            ConfigureEquipmentWorkspacePage(page);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(EquipmentWorkspacePage)))
+        {
+            throw new InvalidOperationException("Could not navigate to the equipment workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is EquipmentWorkspacePage navigatedPage)
+        {
+            ConfigureEquipmentWorkspacePage(navigatedPage);
+        }
+    }
+
+    private void ConfigureEquipmentWorkspacePage(EquipmentWorkspacePage page)
+    {
+        equipmentWorkspacePage = page;
+        page.SetItemsSources(
+            equipmentCharacters,
+            equipmentWeaponChoices,
+            equipmentArmorChoices,
+            equipmentAccessoryChoices,
+            equipmentCostumeChoices);
+        page.EquipmentCharacterSelectionChanged -= EquipmentCharacterComboBox_SelectionChanged;
+        page.EquipmentCharacterSelectionChanged += EquipmentCharacterComboBox_SelectionChanged;
+        page.EquipmentWeaponSelectionChanged -= EquipmentWeaponComboBox_SelectionChanged;
+        page.EquipmentWeaponSelectionChanged += EquipmentWeaponComboBox_SelectionChanged;
+        page.EquipmentArmorSelectionChanged -= EquipmentArmorComboBox_SelectionChanged;
+        page.EquipmentArmorSelectionChanged += EquipmentArmorComboBox_SelectionChanged;
+        page.EquipmentAccessorySelectionChanged -= EquipmentAccessoryComboBox_SelectionChanged;
+        page.EquipmentAccessorySelectionChanged += EquipmentAccessoryComboBox_SelectionChanged;
+        page.EquipmentCostumeSelectionChanged -= EquipmentCostumeComboBox_SelectionChanged;
+        page.EquipmentCostumeSelectionChanged += EquipmentCostumeComboBox_SelectionChanged;
+
+        if (!equipmentWorkspacePageInitializedFromViewModel)
+        {
+            RefreshEquipmentState();
+        }
+
+        page.SetEquipmentEnabled(CanEditEquipment());
+    }
+
     private void SelectWorkspaceNavigationItem(NavigationViewItem navigationItem)
     {
-        if (!ReferenceEquals(SectionNavigationView.SelectedItem, navigationItem))
+        if (SectionNavigationView.SelectedItem is NavigationViewItem selectedItem &&
+            selectedItem.Tag is string selectedTag &&
+            navigationItem.Tag is string targetTag &&
+            string.Equals(selectedTag, targetTag, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (ReferenceEquals(SectionNavigationView.SelectedItem, navigationItem))
+        {
+            return;
+        }
+
+        suppressNavigationSelectionChanged = true;
+        try
         {
             SectionNavigationView.SelectedItem = navigationItem;
+        }
+        finally
+        {
+            suppressNavigationSelectionChanged = false;
         }
     }
 
@@ -461,9 +539,6 @@ public sealed partial class MainWindow : Window
         {
             case "PartyPersona":
                 NavigateToSection(PartyPersonaSectionHeader);
-                break;
-            case "Equipment":
-                NavigateToSection(EquipmentSectionHeader);
                 break;
             case "Compendium":
                 NavigateToSection(CompendiumSectionHeader);
@@ -481,7 +556,7 @@ public sealed partial class MainWindow : Window
         NavigateToSection(PartyPersonaSectionHeader);
 
     private void JumpEquipment_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(EquipmentSectionHeader);
+        NavigateToEquipmentWorkspace();
 
     private void JumpCompendium_Click(object sender, RoutedEventArgs e) =>
         NavigateToSection(CompendiumSectionHeader);
@@ -1078,28 +1153,28 @@ public sealed partial class MainWindow : Window
         }
 
         AddEquipmentEdit(
-            EquipmentWeaponComboBox,
+            equipmentWorkspacePage?.SelectedWeapon,
             selectedCharacter.WeaponItemId,
             "Equipment.Weapon",
             itemId => new SetEquippedWeaponEdit(selectedCharacter.CharacterId, itemId),
             edits,
             diagnostics);
         AddEquipmentEdit(
-            EquipmentArmorComboBox,
+            equipmentWorkspacePage?.SelectedArmor,
             selectedCharacter.ArmorItemId,
             "Equipment.Armor",
             itemId => new SetEquippedArmorEdit(selectedCharacter.CharacterId, itemId),
             edits,
             diagnostics);
         AddEquipmentEdit(
-            EquipmentAccessoryComboBox,
+            equipmentWorkspacePage?.SelectedAccessory,
             selectedCharacter.AccessoryItemId,
             "Equipment.Accessory",
             itemId => new SetEquippedAccessoryEdit(selectedCharacter.CharacterId, itemId),
             edits,
             diagnostics);
         AddEquipmentEdit(
-            EquipmentCostumeComboBox,
+            equipmentWorkspacePage?.SelectedCostume,
             selectedCharacter.CostumeItemId,
             "Equipment.Costume",
             itemId => new SetEquippedCostumeEdit(selectedCharacter.CharacterId, itemId),
@@ -1108,14 +1183,14 @@ public sealed partial class MainWindow : Window
     }
 
     private static void AddEquipmentEdit(
-        ComboBox comboBox,
+        InventoryItemChoiceViewState? selectedItem,
         ushort currentItemId,
         string diagnosticTarget,
         Func<ushort, SaveEditCommand> createEdit,
         List<SaveEditCommand> edits,
         List<SaveDiagnostic> diagnostics)
     {
-        if (comboBox.SelectedItem is not InventoryItemChoiceViewState selectedItem)
+        if (selectedItem is null)
         {
             diagnostics.Add(CreateUiDiagnostic("P4GWINUI038", "Select an equipment item.", diagnosticTarget));
             return;
@@ -2164,6 +2239,9 @@ public sealed partial class MainWindow : Window
     private bool CanEditSocialLinks() =>
         viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
 
+    private bool CanEditEquipment() =>
+        viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
+
     private string GetCurrentFamilyNameText() =>
         basicStatsWorkspacePage?.FamilyNameText ?? viewModel.FamilyName;
 
@@ -2273,6 +2351,7 @@ public sealed partial class MainWindow : Window
         basicStatsWorkspacePage?.SetBasicStatsEnabled(canEdit);
         calendarSocialStatsWorkspacePage?.SetCalendarSocialStatsEnabled(canEdit);
         socialLinksWorkspacePage?.SetSocialLinksEnabled(canEdit, selectedSocialLinkIndex.HasValue);
+        equipmentWorkspacePage?.SetEquipmentEnabled(canEdit);
         CompendiumListView.IsEnabled = canEdit;
         CompendiumAddComboBox.IsEnabled = canEdit;
         CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumListSlotIndex.HasValue;
@@ -2299,11 +2378,6 @@ public sealed partial class MainWindow : Window
         PersonaSkillBox6.IsEnabled = canEdit;
         PersonaSkillBox7.IsEnabled = canEdit;
         PersonaSkillBox8.IsEnabled = canEdit;
-        EquipmentCharacterComboBox.IsEnabled = canEdit;
-        EquipmentWeaponComboBox.IsEnabled = canEdit;
-        EquipmentArmorComboBox.IsEnabled = canEdit;
-        EquipmentAccessoryComboBox.IsEnabled = canEdit;
-        EquipmentCostumeComboBox.IsEnabled = canEdit;
         InventoryListView.IsEnabled = canEdit;
         InventoryCategoryComboBox.IsEnabled = canEdit;
         InventoryItemComboBox.IsEnabled = canEdit;
@@ -2349,10 +2423,12 @@ public sealed partial class MainWindow : Window
     {
         EquipmentCharacterViewState? selectedCharacter = GetSelectedEquipmentCharacterViewState();
         return selectedCharacter is not null &&
-            (ReadEquipmentItemId(EquipmentWeaponComboBox) != selectedCharacter.WeaponItemId ||
-                ReadEquipmentItemId(EquipmentArmorComboBox) != selectedCharacter.ArmorItemId ||
-                ReadEquipmentItemId(EquipmentAccessoryComboBox) != selectedCharacter.AccessoryItemId ||
-                ReadEquipmentItemId(EquipmentCostumeComboBox) != selectedCharacter.CostumeItemId);
+            equipmentWorkspacePageInitializedFromViewModel &&
+            equipmentWorkspacePage is not null &&
+            (ReadEquipmentItemId(equipmentWorkspacePage.SelectedWeapon) != selectedCharacter.WeaponItemId ||
+                ReadEquipmentItemId(equipmentWorkspacePage.SelectedArmor) != selectedCharacter.ArmorItemId ||
+                ReadEquipmentItemId(equipmentWorkspacePage.SelectedAccessory) != selectedCharacter.AccessoryItemId ||
+                ReadEquipmentItemId(equipmentWorkspacePage.SelectedCostume) != selectedCharacter.CostumeItemId);
     }
 
     private EquipmentCharacterViewState? GetSelectedEquipmentCharacterViewState() =>
@@ -2360,8 +2436,8 @@ public sealed partial class MainWindow : Window
             ? viewModel.EquipmentCharacters.FirstOrDefault(character => character.CharacterId == selectedEquipmentCharacterId.Value)
             : null;
 
-    private static ushort? ReadEquipmentItemId(ComboBox comboBox) =>
-        comboBox.SelectedItem is InventoryItemChoiceViewState selectedItem ? selectedItem.ItemId : null;
+    private static ushort? ReadEquipmentItemId(InventoryItemChoiceViewState? selectedItem) =>
+        selectedItem?.ItemId;
 
     private bool HasGroup4Draft()
     {
@@ -3300,18 +3376,26 @@ public sealed partial class MainWindow : Window
                 equipmentCharacters.Add(character);
             }
 
+            EquipmentWorkspacePage? page = equipmentWorkspacePage;
+            if (page is null)
+            {
+                equipmentWorkspacePageInitializedFromViewModel = false;
+                return;
+            }
+
             if (!viewModel.HasSave || equipmentCharacters.Count == 0)
             {
                 selectedEquipmentCharacterId = null;
-                EquipmentCharacterComboBox.SelectedItem = null;
+                page.SelectedCharacter = null;
                 equipmentWeaponChoices.Clear();
                 equipmentArmorChoices.Clear();
                 equipmentAccessoryChoices.Clear();
                 equipmentCostumeChoices.Clear();
-                EquipmentWeaponComboBox.SelectedItem = null;
-                EquipmentArmorComboBox.SelectedItem = null;
-                EquipmentAccessoryComboBox.SelectedItem = null;
-                EquipmentCostumeComboBox.SelectedItem = null;
+                page.SelectedWeapon = null;
+                page.SelectedArmor = null;
+                page.SelectedAccessory = null;
+                page.SelectedCostume = null;
+                equipmentWorkspacePageInitializedFromViewModel = true;
                 return;
             }
 
@@ -3323,13 +3407,14 @@ public sealed partial class MainWindow : Window
             }
 
             selectedCharacter ??= equipmentCharacters[0];
-            EquipmentCharacterComboBox.SelectedItem = selectedCharacter;
+            page.SelectedCharacter = selectedCharacter;
             selectedEquipmentCharacterId = selectedCharacter.CharacterId;
 
-            SetEquipmentChoices(equipmentWeaponChoices, EquipmentWeaponComboBox, SaveEditorViewModel.GetWeaponChoices(selectedCharacter.CharacterId), selectedCharacter.WeaponItemId);
-            SetEquipmentChoices(equipmentArmorChoices, EquipmentArmorComboBox, SaveEditorViewModel.GetArmorChoices(), selectedCharacter.ArmorItemId);
-            SetEquipmentChoices(equipmentAccessoryChoices, EquipmentAccessoryComboBox, SaveEditorViewModel.GetAccessoryChoices(), selectedCharacter.AccessoryItemId);
-            SetEquipmentChoices(equipmentCostumeChoices, EquipmentCostumeComboBox, SaveEditorViewModel.GetCostumeChoices(), selectedCharacter.CostumeItemId);
+            page.SelectedWeapon = SetEquipmentChoices(equipmentWeaponChoices, SaveEditorViewModel.GetWeaponChoices(selectedCharacter.CharacterId), selectedCharacter.WeaponItemId);
+            page.SelectedArmor = SetEquipmentChoices(equipmentArmorChoices, SaveEditorViewModel.GetArmorChoices(), selectedCharacter.ArmorItemId);
+            page.SelectedAccessory = SetEquipmentChoices(equipmentAccessoryChoices, SaveEditorViewModel.GetAccessoryChoices(), selectedCharacter.AccessoryItemId);
+            page.SelectedCostume = SetEquipmentChoices(equipmentCostumeChoices, SaveEditorViewModel.GetCostumeChoices(), selectedCharacter.CostumeItemId);
+            equipmentWorkspacePageInitializedFromViewModel = true;
         }
         finally
         {
@@ -3519,9 +3604,8 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private static void SetEquipmentChoices(
+    private static InventoryItemChoiceViewState? SetEquipmentChoices(
         ObservableCollection<InventoryItemChoiceViewState> targetCollection,
-        ComboBox comboBox,
         IReadOnlyList<InventoryItemChoiceViewState> itemChoices,
         ushort selectedItemId)
     {
@@ -3534,7 +3618,8 @@ public sealed partial class MainWindow : Window
         {
             targetCollection.Add(choice);
         }
-        comboBox.SelectedItem = selectedItem;
+
+        return selectedItem;
     }
 
     private static void SetSkillChoices(
@@ -4005,7 +4090,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (EquipmentCharacterComboBox.SelectedItem is not EquipmentCharacterViewState selectedCharacter)
+        if (equipmentWorkspacePage?.SelectedCharacter is not EquipmentCharacterViewState selectedCharacter)
         {
             selectedEquipmentCharacterId = null;
             UpdateShellState();
@@ -4018,16 +4103,16 @@ public sealed partial class MainWindow : Window
     }
 
     private void EquipmentWeaponComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        TrackEquipmentDraftSelection(EquipmentWeaponComboBox);
+        TrackEquipmentDraftSelection(sender as ComboBox);
 
     private void EquipmentArmorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        TrackEquipmentDraftSelection(EquipmentArmorComboBox);
+        TrackEquipmentDraftSelection(sender as ComboBox);
 
     private void EquipmentAccessoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        TrackEquipmentDraftSelection(EquipmentAccessoryComboBox);
+        TrackEquipmentDraftSelection(sender as ComboBox);
 
     private void EquipmentCostumeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        TrackEquipmentDraftSelection(EquipmentCostumeComboBox);
+        TrackEquipmentDraftSelection(sender as ComboBox);
 
     private bool TryGuardSelectedEquipmentDraftBeforeOperation()
     {
@@ -4048,7 +4133,10 @@ public sealed partial class MainWindow : Window
         suppressEquipmentEvents = true;
         try
         {
-            EquipmentCharacterComboBox.SelectedItem = GetSelectedEquipmentCharacterViewState();
+            if (equipmentWorkspacePage is not null)
+            {
+                equipmentWorkspacePage.SelectedCharacter = GetSelectedEquipmentCharacterViewState();
+            }
         }
         finally
         {
@@ -4056,10 +4144,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void TrackEquipmentDraftSelection(ComboBox comboBox)
+    private void TrackEquipmentDraftSelection(ComboBox? comboBox)
     {
         if (suppressEquipmentEvents ||
             !selectedEquipmentCharacterId.HasValue ||
+            comboBox is null ||
             comboBox.SelectedItem is not InventoryItemChoiceViewState)
         {
             return;

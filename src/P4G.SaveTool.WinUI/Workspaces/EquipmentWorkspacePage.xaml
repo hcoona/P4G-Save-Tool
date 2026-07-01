@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+  x:Class="P4G.SaveTool.WinUI.EquipmentWorkspacePage"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="d">
+
+  <Border
+    Margin="16"
+    Padding="16"
+    VerticalAlignment="Top"
+    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+    BorderThickness="1"
+    CornerRadius="8">
+    <StackPanel Spacing="16">
+      <TextBlock
+        x:Name="EquipmentSectionHeader"
+        Text="Equipment"
+        Style="{ThemeResource SubtitleTextBlockStyle}" />
+
+      <Border
+        Padding="16"
+        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        BorderThickness="1"
+        CornerRadius="8">
+        <Grid ColumnSpacing="12" RowSpacing="12">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <ComboBox
+            x:Name="EquipmentCharacterComboBox"
+            Header="Character"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="EquipmentCharacterComboBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="EquipmentCharacterComboBox"
+            automation:AutomationProperties.Name="Equipment character">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="EquipmentWeaponComboBox"
+            Grid.Column="1"
+            Header="Weapon"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="EquipmentWeaponComboBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="EquipmentWeaponComboBox"
+            automation:AutomationProperties.Name="Equipment weapon">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="EquipmentArmorComboBox"
+            Grid.Row="1"
+            Header="Armor"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="EquipmentArmorComboBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="EquipmentArmorComboBox"
+            automation:AutomationProperties.Name="Equipment armor">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="EquipmentAccessoryComboBox"
+            Grid.Row="1"
+            Grid.Column="1"
+            Header="Accessory"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="EquipmentAccessoryComboBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="EquipmentAccessoryComboBox"
+            automation:AutomationProperties.Name="Equipment accessory">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="EquipmentCostumeComboBox"
+            Grid.Row="2"
+            Header="Costume"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="EquipmentCostumeComboBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="EquipmentCostumeComboBox"
+            automation:AutomationProperties.Name="Equipment costume">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+      </Border>
+    </StackPanel>
+  </Border>
+</Page>

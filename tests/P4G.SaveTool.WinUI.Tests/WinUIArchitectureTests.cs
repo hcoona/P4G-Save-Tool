@@ -99,10 +99,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("TrySelectExistingInventoryEntry();", itemHandlerBody, StringComparison.Ordinal);
         Assert.Contains("inventorySelectionState.RememberCategoryItem(selectedItem.CategoryId, selectedItem.ItemId);", itemHandlerBody, StringComparison.Ordinal);
         AssertHandlerRefreshesShellState(content, "EquipmentCharacterComboBox_SelectionChanged", "RefreshEquipmentState();");
-        Assert.Contains("TrackEquipmentDraftSelection(EquipmentWeaponComboBox", content, StringComparison.Ordinal);
-        Assert.Contains("TrackEquipmentDraftSelection(EquipmentArmorComboBox", content, StringComparison.Ordinal);
-        Assert.Contains("TrackEquipmentDraftSelection(EquipmentAccessoryComboBox", content, StringComparison.Ordinal);
-        Assert.Contains("TrackEquipmentDraftSelection(EquipmentCostumeComboBox", content, StringComparison.Ordinal);
+        Assert.Contains("TrackEquipmentDraftSelection(sender as ComboBox);", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -648,7 +645,7 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"CalendarSocialStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"EquipmentSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"EquipmentSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"DiagnosticsStateSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"DiagnosticsListView\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CompendiumSectionHeader\"", content, StringComparison.Ordinal);
@@ -732,11 +729,19 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("WorkspaceFrame.Navigate(typeof(SocialLinksWorkspacePage))", source, StringComparison.Ordinal);
         Assert.Contains("ConfigureSocialLinksWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
         Assert.Contains("socialLinksWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.Contains("if (sectionTag == \"Equipment\")", source, StringComparison.Ordinal);
+        Assert.Contains("NavigateToEquipmentWorkspace();", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(EquipmentWorkspacePage))", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureEquipmentWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
+        Assert.Contains("equipmentWorkspacePage = page;", source, StringComparison.Ordinal);
         Assert.True(
             source.IndexOf("if (sectionTag == \"CalendarSocialStats\")", StringComparison.Ordinal) <
             source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
         Assert.True(
             source.IndexOf("if (sectionTag == \"SocialLinks\")", StringComparison.Ordinal) <
+            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
+        Assert.True(
+            source.IndexOf("if (sectionTag == \"Equipment\")", StringComparison.Ordinal) <
             source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
         Assert.DoesNotContain("case \"BasicStats\":", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("BasicStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
@@ -744,7 +749,9 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("CalendarSocialStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("case \"SocialLinks\":", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SocialLinksSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.Equal(6, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
+        Assert.DoesNotContain("case \"Equipment\":", selectedSectionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("EquipmentSectionHeader", selectedSectionBody, StringComparison.Ordinal);
+        Assert.Equal(7, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
@@ -1099,7 +1106,7 @@ public sealed class WinUIArchitectureTests
         string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
         string methodBody = GetSection(
             content,
-            "private void TrackEquipmentDraftSelection(ComboBox comboBox)",
+            "private void TrackEquipmentDraftSelection(ComboBox? comboBox)",
             "private bool TryReadInventoryQuantity(");
         string editBatchBody = GetSection(
             content,
@@ -1313,11 +1320,18 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"InventoryDeleteButton\"", xaml);
         Assert.Contains("Text=\"{Binding}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"EquipmentCharacterComboBox\"", xaml);
-        Assert.Contains("x:Name=\"EquipmentWeaponComboBox\"", xaml);
-        Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", xaml);
-        Assert.Contains("x:Name=\"EquipmentAccessoryComboBox\"", xaml);
-        Assert.Contains("x:Name=\"EquipmentCostumeComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentCharacterComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentWeaponComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentArmorComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentAccessoryComboBox\"", xaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentCostumeComboBox\"", xaml);
+
+        string equipmentXaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "Workspaces", "EquipmentWorkspacePage.xaml"));
+        Assert.Contains("x:Name=\"EquipmentCharacterComboBox\"", equipmentXaml);
+        Assert.Contains("x:Name=\"EquipmentWeaponComboBox\"", equipmentXaml);
+        Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", equipmentXaml);
+        Assert.Contains("x:Name=\"EquipmentAccessoryComboBox\"", equipmentXaml);
+        Assert.Contains("x:Name=\"EquipmentCostumeComboBox\"", equipmentXaml);
     }
 
     [Fact]

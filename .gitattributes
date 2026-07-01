@@ -15,3 +15,10 @@
 *.PDF	 diff=astextplain
 *.rtf	 diff=astextplain
 *.RTF	 diff=astextplain
+
+# APM-managed generated outputs.
+.agents/skills/** linguist-generated
+.github/agents/*.agent.md linguist-generated
+.github/lsp.json linguist-generated
+.vscode/mcp.json linguist-generated
+apm.lock.yaml linguist-generated

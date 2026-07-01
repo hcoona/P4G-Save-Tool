@@ -1,7 +1,10 @@
 [tools]
 "core:dotnet" = "10.0.300"
+node = "24"
 pkl = "0.31.1"
+pnpm = "10.34.4"
 powershell = "7.6.1"
+"github:microsoft/apm" = "latest"
 
 [tasks.update-global-json]
 description = "Update global.json from global.pkl and mise.lock"

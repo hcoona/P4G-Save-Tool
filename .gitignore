@@ -73,3 +73,6 @@ tests/fixtures/private/**/*.bin
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# APM dependencies
+apm_modules/

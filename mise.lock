@@ -4,6 +4,77 @@
 version = "10.0.300"
 backend = "core:dotnet"
 
+[[tools."github:microsoft/apm"]]
+version = "0.22.0"
+backend = "github:microsoft/apm"
+
+[tools."github:microsoft/apm"."platforms.linux-arm64"]
+checksum = "sha256:557feb48401d5e6cd7f6bdba4b6c975a234f444bc511188725d01b04d3e1a2d8"
+url = "https://github.com/microsoft/apm/releases/download/v0.22.0/apm-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/458426728"
+
+[tools."github:microsoft/apm"."platforms.linux-arm64-musl"]
+checksum = "sha256:557feb48401d5e6cd7f6bdba4b6c975a234f444bc511188725d01b04d3e1a2d8"
+url = "https://github.com/microsoft/apm/releases/download/v0.22.0/apm-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/458426728"
+
+[tools."github:microsoft/apm"."platforms.linux-x64"]
+checksum = "sha256:1e52967b78f7dbc980f75dbd5dcf69ee21b6f1a8da6832a323719f7fd5996f49"
+url = "https://github.com/microsoft/apm/releases/download/v0.22.0/apm-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/458426733"
+
+[tools."github:microsoft/apm"."platforms.linux-x64-musl"]
+checksum = "sha256:1e52967b78f7dbc980f75dbd5dcf69ee21b6f1a8da6832a323719f7fd5996f49"
+url = "https://github.com/microsoft/apm/releases/download/v0.22.0/apm-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/458426733"
+
+[tools."github:microsoft/apm"."platforms.macos-arm64"]
+checksum = "sha256:d1417e7d0d3fc4746392403670a55847364aa7db918f6c374bff6cce95759665"
+url = "https://github.com/microsoft/apm/releases/download/v0.22.0/apm-darwin-arm64.tar.gz"
+url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/458426730"
+
+[tools."github:microsoft/apm"."platforms.macos-x64"]
+checksum = "sha256:87f1e8f870bc6bf1d77a755d315e238975c7815b6ff96070c148fb96ad2c547d"
+url = "https://github.com/microsoft/apm/releases/download/v0.22.0/apm-darwin-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/458426729"
+
+[tools."github:microsoft/apm"."platforms.windows-x64"]
+checksum = "sha256:ab6327d9035324fe726677a258dceb25041d333854e436aec7c88e4c3cc62824"
+url = "https://github.com/microsoft/apm/releases/download/v0.22.0/apm-windows-x86_64.zip"
+url_api = "https://api.github.com/repos/microsoft/apm/releases/assets/458426732"
+
+[[tools.node]]
+version = "24.15.0"
+backend = "core:node"
+
+[tools.node."platforms.linux-arm64"]
+checksum = "sha256:73afc234d558c24919875f51c2d1ea002a2ada4ea6f83601a383869fefa64eed"
+url = "https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-arm64.tar.gz"
+
+[tools.node."platforms.linux-arm64-musl"]
+checksum = "sha256:31e98aa960a067da91edffd5d93bc46657b5d2a8029612c359f5f2ac0060152a"
+url = "https://unofficial-builds.nodejs.org/download/release/v24.15.0/node-v24.15.0-linux-arm64-musl.tar.gz"
+
+[tools.node."platforms.linux-x64"]
+checksum = "sha256:44836872d9aec49f1e6b52a9a922872db9a2b02d235a616a5681b6a85fec8d89"
+url = "https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-x64.tar.gz"
+
+[tools.node."platforms.linux-x64-musl"]
+checksum = "sha256:f55af5bd489c5347b113ca6594cae00a54b30ba57ac5875324311bfc6f4762e3"
+url = "https://unofficial-builds.nodejs.org/download/release/v24.15.0/node-v24.15.0-linux-x64-musl.tar.gz"
+
+[tools.node."platforms.macos-arm64"]
+checksum = "sha256:372331b969779ab5d15b949884fc6eaf88d5afe87bde8ba881d6400b9100ffc4"
+url = "https://nodejs.org/dist/v24.15.0/node-v24.15.0-darwin-arm64.tar.gz"
+
+[tools.node."platforms.macos-x64"]
+checksum = "sha256:ffd5ee293467927f3ee731a553eb88fd1f48cf74eebc2d74a6babe4af228673b"
+url = "https://nodejs.org/dist/v24.15.0/node-v24.15.0-darwin-x64.tar.gz"
+
+[tools.node."platforms.windows-x64"]
+checksum = "sha256:cc5149eabd53779ce1e7bdc5401643622d0c7e6800ade18928a767e940bb0e62"
+url = "https://nodejs.org/dist/v24.15.0/node-v24.15.0-win-x64.zip"
+
 [[tools.pkl]]
 version = "0.31.1"
 backend = "aqua:apple/pkl"
@@ -35,6 +106,38 @@ url = "https://github.com/apple/pkl/releases/download/0.31.1/pkl-macos-amd64"
 [tools.pkl."platforms.windows-x64"]
 checksum = "sha256:a8834481667325b44c539dbb758d7365a16389070f343c04b639bbe525ede013"
 url = "https://github.com/apple/pkl/releases/download/0.31.1/pkl-windows-amd64.exe"
+
+[[tools.pnpm]]
+version = "10.34.4"
+backend = "aqua:pnpm/pnpm"
+
+[tools.pnpm."platforms.linux-arm64"]
+checksum = "sha256:ce2d6fab96baf07e42ebf6d567251de4c4c4afb370321167758e76c135340c0e"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.4/pnpm-linux-arm64"
+
+[tools.pnpm."platforms.linux-arm64-musl"]
+checksum = "sha256:ce2d6fab96baf07e42ebf6d567251de4c4c4afb370321167758e76c135340c0e"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.4/pnpm-linux-arm64"
+
+[tools.pnpm."platforms.linux-x64"]
+checksum = "sha256:e02c01738ce850754cf00111fd97bec24de550e1e963690486f02d9dae1a2193"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.4/pnpm-linux-x64"
+
+[tools.pnpm."platforms.linux-x64-musl"]
+checksum = "sha256:e02c01738ce850754cf00111fd97bec24de550e1e963690486f02d9dae1a2193"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.4/pnpm-linux-x64"
+
+[tools.pnpm."platforms.macos-arm64"]
+checksum = "sha256:b7cb7383c51fe78d10d6e81f96ed4f512f9e756be6edd781dac174f42476a9f8"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.4/pnpm-macos-arm64"
+
+[tools.pnpm."platforms.macos-x64"]
+checksum = "sha256:dd1b9ef5011e20ecad56383b8b650b19b9827575da88ba0aac9ef3600f8a349e"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.4/pnpm-macos-x64"
+
+[tools.pnpm."platforms.windows-x64"]
+checksum = "sha256:e1b959b96e26fea7b8f46004d586327b418c8a3611c4bff7942ffc7401b2114a"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.4/pnpm-win-x64.exe"
 
 [[tools.powershell]]
 version = "7.6.1"

@@ -1,0 +1,43 @@
+{
+  "servers": {
+    "io.github.upstash/context7": {
+      "type": "stdio",
+      "command": "mise",
+      "args": [
+        "exec",
+        "--",
+        "pnpm",
+        "dlx",
+        "@upstash/context7-mcp@1.0.30"
+      ],
+      "env": {
+        "CONTEXT7_API_KEY": "${input:CONTEXT7_API_KEY}"
+      }
+    },
+    "microsoft-learn": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp",
+      "headers": {}
+    },
+    "binlog": {
+      "type": "stdio",
+      "command": "mise",
+      "args": [
+        "exec",
+        "--",
+        "dotnet",
+        "dnx",
+        "Microsoft.AITools.BinlogMcp",
+        "--yes"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "CONTEXT7_API_KEY",
+      "description": "CONTEXT7_API_KEY for MCP server io.github.upstash/context7",
+      "password": true
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1780" viewBox="0 0 1680 1780" role="img" aria-labelledby="title desc">
+  <title id="title">P4G Save Tool WinUI redesign state matrix</title>
+  <desc id="desc">Phase 3 local visual artifact showing every state inside the same accepted left-rail shell, with explicit Apply/Save staging and concrete high-contrast/text-scale evidence.</desc>
+  <defs>
+    <style>
+      .page { fill: #f3f3f3; }
+      .window { fill: #f3f3f3; stroke: #d1d1d1; stroke-width: 1; }
+      .surface { fill: #ffffff; stroke: #e5e5e5; stroke-width: 1; }
+      .chrome { fill: #fafafa; }
+      .chrome2 { fill: #f7f7f7; }
+      .control { fill: #ffffff; stroke: #d1d1d1; stroke-width: 1; }
+      .disabled { fill: #f5f5f5; stroke: #d1d1d1; stroke-width: 1; }
+      .accent { fill: #005fb8; }
+      .selected { fill: #e5f1fb; stroke: #60a5d8; stroke-width: 1; }
+      .warning { fill: #fff4ce; }
+      .success { fill: #dff6dd; }
+      .danger { fill: #fde7e9; }
+      .scrim { fill: #000000; opacity: 0.36; }
+      .text { fill: #1b1b1b; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #5f5f5f; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; }
+      .body { font-size: 14px; }
+      .small { font-size: 12px; }
+      .caption { font-size: 11px; fill: #6b6b6b; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; }
+      .title { font-size: 18px; font-weight: 600; }
+      .heading { font-size: 24px; font-weight: 600; }
+      .semibold { font-weight: 600; }
+      .medium { font-weight: 500; }
+      .hc-bg { fill: #000000; }
+      .hc-surface { fill: #000000; stroke: #ffffff; stroke-width: 2; }
+      .hc-text { fill: #ffffff; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; }
+      .hc-focus { fill: none; stroke: #ffff00; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect class="page" x="0" y="0" width="1680" height="1780"/>
+  <text class="text heading" x="40" y="44">Phase 3 - high-fidelity state matrix</text>
+  <text class="muted body" x="40" y="70">All normal states reuse the Phase 2 left-rail shell: menu, command surface, file state header, left section rail, editor region, diagnostics/status region.</text>
+
+  <!-- State 1: No file open -->
+  <g id="state-empty" transform="translate(40 110)">
+    <rect class="window" x="0" y="0" width="780" height="380" rx="10"/>
+    <text class="text title" x="16" y="-18">No file open</text>
+    <rect class="chrome2" x="0" y="0" width="780" height="30" rx="10"/>
+    <text class="text small" x="14" y="20">File</text><text class="text small" x="58" y="20">Help</text>
+    <rect class="chrome" x="0" y="30" width="780" height="46"/>
+    <rect class="control" x="14" y="38" width="108" height="30" rx="6"/><text class="text small medium" x="28" y="58">Open save...</text>
+    <rect class="disabled" x="130" y="38" width="88" height="30" rx="6"/><text class="muted small medium" x="144" y="58">Apply edits</text>
+    <rect class="disabled" x="226" y="38" width="64" height="30" rx="6"/><text class="muted small medium" x="250" y="58">Save</text>
+    <rect class="surface" x="0" y="76" width="780" height="58"/>
+    <text class="muted small" x="16" y="102">Current save</text><text class="text body medium" x="16" y="123">No file open</text>
+    <g transform="translate(16 150)">
+      <rect class="surface" x="0" y="0" width="148" height="200" rx="8"/>
+      <text class="caption" x="12" y="24">Sections</text>
+      <rect class="disabled" x="12" y="44" width="124" height="34" rx="6"/><text class="muted small" x="24" y="65">Basic / Stats</text>
+      <rect class="disabled" x="12" y="86" width="124" height="34" rx="6"/><text class="muted small" x="24" y="107">Inventory</text>
+      <rect class="disabled" x="12" y="128" width="124" height="34" rx="6"/><text class="muted small" x="24" y="149">Diagnostics</text>
+      <rect class="surface" x="164" y="0" width="380" height="200" rx="8"/>
+      <text class="text title" x="192" y="58">Open a Persona 4 Golden save</text>
+      <text class="muted body" x="192" y="84">Choose a local .bin file or drop it here.</text>
+      <rect class="accent" x="192" y="110" width="112" height="32" rx="6"/>
+      <text class="body medium" x="214" y="131" fill="#ffffff" font-family="Segoe UI Variable, Segoe UI, Arial">Open save...</text>
+      <rect class="surface" x="560" y="0" width="188" height="200" rx="8"/>
+      <text class="text small semibold" x="576" y="30">Diagnostics</text>
+      <text class="muted small" x="576" y="54">No diagnostics yet.</text>
+    </g>
+    <text class="caption" x="16" y="364">Command model: Apply disabled, Save disabled.</text>
+  </g>
+
+  <!-- State 2: Loaded clean -->
+  <g id="state-clean" transform="translate(860 110)">
+    <rect class="window" x="0" y="0" width="780" height="380" rx="10"/>
+    <text class="text title" x="16" y="-18">Loaded clean</text>
+    <rect class="chrome2" x="0" y="0" width="780" height="30" rx="10"/>
+    <text class="text small" x="14" y="20">File</text><text class="text small" x="58" y="20">Help</text>
+    <rect class="chrome" x="0" y="30" width="780" height="46"/>
+    <rect class="control" x="14" y="38" width="108" height="30" rx="6"/><text class="text small medium" x="28" y="58">Open save...</text>
+    <rect class="disabled" x="130" y="38" width="88" height="30" rx="6"/><text class="muted small medium" x="144" y="58">Apply edits</text>
+    <rect class="disabled" x="226" y="38" width="64" height="30" rx="6"/><text class="muted small medium" x="250" y="58">Save</text>
+    <rect class="surface" x="0" y="76" width="780" height="58"/>
+    <text class="muted small" x="16" y="102">Current save</text><text class="text body medium" x="16" y="123">data0001.bin</text>
+    <rect class="success" x="238" y="94" width="72" height="26" rx="13"/><text class="text small medium" x="254" y="111">Clean</text>
+    <rect class="success" x="322" y="94" width="82" height="26" rx="13"/><text class="text small medium" x="338" y="111">Writable</text>
+    <g transform="translate(16 150)">
+      <rect class="surface" x="0" y="0" width="148" height="200" rx="8"/>
+      <rect class="selected" x="12" y="18" width="124" height="34" rx="6"/><text class="text small semibold" x="24" y="40">Basic / Stats</text>
+      <rect class="control" x="12" y="60" width="124" height="34" rx="6"/><text class="text small" x="24" y="82">Inventory</text>
+      <rect class="control" x="12" y="102" width="124" height="34" rx="6"/><text class="text small" x="24" y="124">Diagnostics</text>
+      <rect class="surface" x="164" y="0" width="380" height="200" rx="8"/>
+      <text class="text title" x="184" y="34">Player identity</text>
+      <text class="muted body" x="184" y="62">Narukami / Yu, Level 62</text>
+      <text class="caption" x="184" y="90">No unapplied changes. Save remains disabled.</text>
+      <rect class="surface" x="560" y="0" width="188" height="200" rx="8"/>
+      <text class="text small semibold" x="576" y="30">Diagnostics</text>
+      <text class="muted small" x="576" y="54">No diagnostics.</text>
+    </g>
+    <text class="caption" x="16" y="364">Command model: Apply disabled, Save disabled.</text>
+  </g>
+
+  <!-- State 3: Dirty draft -->
+  <g id="state-dirty-draft" transform="translate(40 550)">
+    <rect class="window" x="0" y="0" width="780" height="380" rx="10"/>
+    <text class="text title" x="16" y="-18">Dirty draft, not applied</text>
+    <rect class="chrome2" x="0" y="0" width="780" height="30" rx="10"/>
+    <text class="text small" x="14" y="20">File</text><text class="text small" x="58" y="20">Help</text>
+    <rect class="chrome" x="0" y="30" width="780" height="46"/>
+    <rect class="control" x="14" y="38" width="108" height="30" rx="6"/><text class="text small medium" x="28" y="58">Open save...</text>
+    <rect class="accent" x="130" y="38" width="88" height="30" rx="6"/><text class="small medium" x="144" y="58" fill="#ffffff" font-family="Segoe UI Variable, Segoe UI, Arial">Apply edits</text>
+    <rect class="disabled" x="226" y="38" width="64" height="30" rx="6"/><text class="muted small medium" x="250" y="58">Save</text>
+    <rect class="surface" x="0" y="76" width="780" height="58"/>
+    <text class="muted small" x="16" y="102">Current save</text><text class="text body medium" x="16" y="123">data0001.bin</text>
+    <rect class="warning" x="238" y="94" width="112" height="26" rx="13"/><text class="text small medium" x="252" y="111">Draft edits</text>
+    <g transform="translate(16 150)">
+      <rect class="surface" x="0" y="0" width="148" height="200" rx="8"/>
+      <rect class="selected" x="12" y="18" width="124" height="34" rx="6"/><text class="text small semibold" x="24" y="40">Basic / Stats</text>
+      <rect class="control" x="12" y="60" width="124" height="34" rx="6"/><text class="text small" x="24" y="82">Inventory</text>
+      <rect class="control" x="12" y="102" width="124" height="34" rx="6"/><text class="text small" x="24" y="124">Diagnostics</text>
+      <rect class="surface" x="164" y="0" width="380" height="200" rx="8"/>
+      <text class="text title" x="184" y="34">Player identity</text>
+      <text class="muted small" x="184" y="62">Yen</text>
+      <rect class="control" x="184" y="70" width="144" height="32" rx="4" stroke="#8a6d00"/>
+      <text class="text body" x="194" y="91">124,500</text>
+      <rect class="warning" x="184" y="116" width="320" height="34" rx="6"/>
+      <text class="text small" x="196" y="137">Draft warning: review, then Apply edits.</text>
+      <rect class="surface" x="560" y="0" width="188" height="200" rx="8"/>
+      <text class="text small semibold" x="576" y="30">Diagnostics</text>
+      <text class="text small semibold" x="576" y="60">Draft / Yen</text>
+      <text class="muted small" x="576" y="82">Apply edits before Save.</text>
+    </g>
+    <text class="caption" x="16" y="364">Command model: Apply enabled, Save disabled.</text>
+  </g>
+
+  <!-- State 4: Applied pending write -->
+  <g id="state-applied" transform="translate(860 550)">
+    <rect class="window" x="0" y="0" width="780" height="380" rx="10"/>
+    <text class="text title" x="16" y="-18">Applied, pending write</text>
+    <rect class="chrome2" x="0" y="0" width="780" height="30" rx="10"/>
+    <text class="text small" x="14" y="20">File</text><text class="text small" x="58" y="20">Help</text>
+    <rect class="chrome" x="0" y="30" width="780" height="46"/>
+    <rect class="control" x="14" y="38" width="108" height="30" rx="6"/><text class="text small medium" x="28" y="58">Open save...</text>
+    <rect class="disabled" x="130" y="38" width="88" height="30" rx="6"/><text class="muted small medium" x="144" y="58">Apply edits</text>
+    <rect class="accent" x="226" y="38" width="64" height="30" rx="6"/><text class="small medium" x="250" y="58" fill="#ffffff" font-family="Segoe UI Variable, Segoe UI, Arial">Save</text>
+    <rect class="surface" x="0" y="76" width="780" height="58"/>
+    <text class="muted small" x="16" y="102">Current save</text><text class="text body medium" x="16" y="123">data0001.bin</text>
+    <rect class="warning" x="238" y="94" width="126" height="26" rx="13"/><text class="text small medium" x="252" y="111">Ready to save</text>
+    <g transform="translate(16 150)">
+      <rect class="surface" x="0" y="0" width="148" height="200" rx="8"/>
+      <rect class="selected" x="12" y="18" width="124" height="34" rx="6"/><text class="text small semibold" x="24" y="40">Basic / Stats</text>
+      <rect class="control" x="12" y="60" width="124" height="34" rx="6"/><text class="text small" x="24" y="82">Inventory</text>
+      <rect class="control" x="12" y="102" width="124" height="34" rx="6"/><text class="text small" x="24" y="124">Diagnostics</text>
+      <rect class="surface" x="164" y="0" width="380" height="200" rx="8"/>
+      <text class="text title" x="184" y="34">Applied changes</text>
+      <text class="muted body" x="184" y="62">Edits are in the application model.</text>
+      <text class="caption" x="184" y="90">Saving will replace data0001.bin after confirmation.</text>
+      <rect class="surface" x="560" y="0" width="188" height="200" rx="8"/>
+      <text class="text small semibold" x="576" y="30">Diagnostics</text>
+      <text class="muted small" x="576" y="54">No blocking diagnostics.</text>
+    </g>
+    <text class="caption" x="16" y="364">Command model: Apply disabled, Save enabled.</text>
+  </g>
+
+  <!-- State 5: Busy overlay on same shell -->
+  <g id="state-busy" transform="translate(40 990)">
+    <rect class="window" x="0" y="0" width="780" height="380" rx="10"/>
+    <text class="text title" x="16" y="-18">Busy / saving</text>
+    <rect class="chrome2" x="0" y="0" width="780" height="30" rx="10"/>
+    <text class="text small" x="14" y="20">File</text><text class="text small" x="58" y="20">Help</text>
+    <rect class="chrome" x="0" y="30" width="780" height="46"/>
+    <rect class="disabled" x="14" y="38" width="108" height="30" rx="6"/><text class="muted small medium" x="28" y="58">Open save...</text>
+    <rect class="disabled" x="130" y="38" width="88" height="30" rx="6"/><text class="muted small medium" x="144" y="58">Apply edits</text>
+    <rect class="disabled" x="226" y="38" width="64" height="30" rx="6"/><text class="muted small medium" x="250" y="58">Save</text>
+    <rect class="accent" x="0" y="76" width="780" height="3"/>
+    <rect class="surface" x="0" y="79" width="780" height="58"/>
+    <text class="muted small" x="16" y="104">Current operation</text><text class="text body medium" x="16" y="125">Saving data0001.bin...</text>
+    <g transform="translate(16 150)">
+      <rect class="surface" x="0" y="0" width="148" height="200" rx="8"/>
+      <rect class="disabled" x="12" y="18" width="124" height="34" rx="6"/><text class="muted small" x="24" y="40">Basic / Stats</text>
+      <rect class="surface" x="164" y="0" width="380" height="200" rx="8"/>
+      <text class="text title" x="184" y="42">Saving in progress</text>
+      <text class="muted body" x="184" y="70">Unsafe commands are disabled until write completes.</text>
+      <rect class="disabled" x="184" y="98" width="316" height="14" rx="7"/>
+      <rect class="accent" x="184" y="98" width="158" height="14" rx="7"/>
+      <rect class="surface" x="560" y="0" width="188" height="200" rx="8"/>
+      <text class="text small semibold" x="576" y="30">Diagnostics</text>
+      <text class="muted small" x="576" y="54">Updates after save.</text>
+    </g>
+    <text class="caption" x="16" y="364">Same shell, disabled command state, progress bar.</text>
+  </g>
+
+  <!-- State 6: Destructive confirmation overlay on same shell -->
+  <g id="state-destructive" transform="translate(860 990)">
+    <rect class="window" x="0" y="0" width="780" height="380" rx="10"/>
+    <text class="text title" x="16" y="-18">Destructive confirmation</text>
+    <rect class="chrome2" x="0" y="0" width="780" height="30" rx="10"/>
+    <text class="text small" x="14" y="20">File</text><text class="text small" x="58" y="20">Help</text>
+    <rect class="chrome" x="0" y="30" width="780" height="46"/>
+    <rect class="control" x="14" y="38" width="108" height="30" rx="6"/><text class="text small medium" x="28" y="58">Open save...</text>
+    <rect class="control" x="130" y="38" width="88" height="30" rx="6"/><text class="text small medium" x="144" y="58">Apply edits</text>
+    <rect class="disabled" x="226" y="38" width="64" height="30" rx="6"/><text class="muted small medium" x="250" y="58">Save</text>
+    <rect class="surface" x="0" y="76" width="780" height="58"/>
+    <text class="muted small" x="16" y="102">Current save</text><text class="text body medium" x="16" y="123">data0001.bin</text>
+    <g transform="translate(16 150)">
+      <rect class="surface" x="0" y="0" width="148" height="200" rx="8"/>
+      <rect class="selected" x="12" y="60" width="124" height="34" rx="6"/><text class="text small semibold" x="24" y="82">Inventory</text>
+      <rect class="surface" x="164" y="0" width="380" height="200" rx="8"/>
+      <text class="text title" x="184" y="42">Inventory</text>
+      <text class="muted body" x="184" y="70">Selected item: Medicine x12</text>
+      <rect class="danger" x="184" y="98" width="156" height="32" rx="6"/>
+      <text class="text small medium" x="204" y="119">Delete selected item</text>
+      <rect class="surface" x="560" y="0" width="188" height="200" rx="8"/>
+      <text class="text small semibold" x="576" y="30">Diagnostics</text>
+    </g>
+    <rect class="scrim" x="0" y="0" width="780" height="380" rx="10"/>
+    <rect class="surface" x="222" y="92" width="336" height="198" rx="8"/>
+    <text class="text title" x="246" y="130">Delete inventory item?</text>
+    <text class="muted body" x="246" y="160">This removes Medicine x12 from the</text>
+    <text class="muted body" x="246" y="180">working edit. Save file bytes change</text>
+    <text class="muted body" x="246" y="200">only after Apply edits and Save.</text>
+    <rect class="danger" x="246" y="232" width="86" height="34" rx="6"/><text class="text small medium" x="266" y="254">Delete</text>
+    <rect class="control" x="344" y="232" width="82" height="34" rx="6"/><text class="text small medium" x="366" y="254">Cancel</text>
+    <text class="caption" x="16" y="364">Same shell, modal layer names action, item, count, and persistence boundary.</text>
+  </g>
+
+  <!-- State 7: High contrast and 225% text scaling -->
+  <g id="state-hc-scale" transform="translate(40 1430)">
+    <rect class="hc-bg" x="0" y="0" width="1600" height="300" rx="10"/>
+    <text class="hc-text title" x="20" y="-18">High Contrast + 225% text scale evidence</text>
+    <rect class="hc-surface" x="20" y="20" width="250" height="240" rx="8"/>
+    <text class="hc-text" x="42" y="62" font-size="28" font-weight="600">Sections</text>
+    <rect class="hc-focus" x="42" y="82" width="196" height="52" rx="4"/>
+    <text class="hc-text" x="58" y="116" font-size="24" font-weight="600">Basic / Stats</text>
+    <text class="hc-text" x="58" y="172" font-size="24">Diagnostics !</text>
+    <rect class="hc-surface" x="300" y="20" width="760" height="240" rx="8"/>
+    <text class="hc-text" x="330" y="62" font-size="30" font-weight="600">Player identity</text>
+    <text class="hc-text" x="330" y="102" font-size="24">Long labels wrap instead of clipping:</text>
+    <text class="hc-text" x="330" y="136" font-size="24">Current save file location and write state</text>
+    <text class="hc-text" x="330" y="170" font-size="24">remain visible in a scrollable content region.</text>
+    <rect class="hc-focus" x="330" y="194" width="300" height="44" rx="4"/>
+    <text class="hc-text" x="346" y="224" font-size="24">Focused input surface</text>
+    <rect class="hc-surface" x="1090" y="20" width="470" height="240" rx="8"/>
+    <text class="hc-text" x="1120" y="62" font-size="28" font-weight="600">Diagnostics</text>
+    <text class="hc-text" x="1120" y="104" font-size="22">Warning P4G001 / Yen</text>
+    <text class="hc-text" x="1120" y="138" font-size="22">Meaning uses text and code, not color.</text>
+    <rect x="1538" y="38" width="6" height="190" fill="#ffffff"/>
+    <rect x="1536" y="72" width="10" height="72" fill="#ffff00"/>
+    <text class="hc-text" x="20" y="286" font-size="16">Concrete scaled layout: larger text, wrapped lines, high-contrast focus, and scroll affordance are visible in the same left-rail shell model.</text>
+  </g>
+</svg>

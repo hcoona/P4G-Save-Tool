@@ -101,7 +101,6 @@ public sealed partial class MainWindow : Window
         this.startupOpenPath = startupOpenPath;
         InitializeComponent();
         ResizeToDefaultMultiPaneSize();
-        DiagnosticsListView.ItemsSource = diagnosticsItems;
         SocialLinkListView.ItemsSource = socialLinkItems;
         SocialLinkAddComboBox.ItemsSource = socialLinkChoices;
         CompendiumListView.ItemsSource = compendiumItems;
@@ -189,6 +188,12 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (sectionTag == "DiagnosticsState")
+        {
+            NavigateToDiagnosticsWorkspace();
+            return;
+        }
+
         EnsureLegacyWorkspaceRouted();
         if (viewModel is not null && viewModel.HasSave)
         {
@@ -215,6 +220,26 @@ public sealed partial class MainWindow : Window
         {
             throw new InvalidOperationException("Could not navigate to the save editor workspace host page.");
         }
+
+        WorkspaceFrame.BackStack.Clear();
+    }
+
+    private void NavigateToDiagnosticsWorkspace()
+    {
+        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
+
+        if (WorkspaceFrame.Content is DiagnosticsWorkspacePage diagnosticsPage)
+        {
+            diagnosticsPage.SetDiagnosticsItems(diagnosticsItems);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(DiagnosticsWorkspacePage), diagnosticsItems))
+        {
+            throw new InvalidOperationException("Could not navigate to the diagnostics workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
     }
 
     private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e) =>
@@ -245,9 +270,6 @@ public sealed partial class MainWindow : Window
             case "Inventory":
                 NavigateToSection(InventorySectionHeader);
                 break;
-            case "DiagnosticsState":
-                NavigateToSection(DiagnosticsStateSectionHeader);
-                break;
         }
     }
 
@@ -273,7 +295,7 @@ public sealed partial class MainWindow : Window
         NavigateToSection(InventorySectionHeader);
 
     private void JumpDiagnosticsState_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(DiagnosticsStateSectionHeader);
+        NavigateToWorkspace("DiagnosticsState");
 
     private void PersonaCalculateFromLevelButton_Click(object sender, RoutedEventArgs e) =>
         PersonaXpTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)PersonaLevelSlider.Value).ToString(CultureInfo.InvariantCulture);

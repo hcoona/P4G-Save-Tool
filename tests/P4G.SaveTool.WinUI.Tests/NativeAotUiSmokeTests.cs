@@ -34,7 +34,6 @@ public sealed class NativeAotUiSmokeTests
             Assert.False(snapshot.WindowIsOffscreen);
             Assert.True(snapshot.WindowIsEnabled);
             Assert.Equal(ShellStateFormatter.ShellTitle, snapshot.WindowName);
-            Assert.Equal(["No diagnostics."], snapshot.DiagnosticsItems);
         }
         finally
         {
@@ -71,7 +70,6 @@ public sealed class NativeAotUiSmokeTests
                 Assert.Equal(string.Empty, snapshot.GivenNameText);
                 Assert.Equal("0", snapshot.YenText);
                 Assert.Contains("Loaded clean", snapshot.StateText, StringComparison.OrdinalIgnoreCase);
-                Assert.Equal(["No diagnostics."], snapshot.DiagnosticsItems);
                 Assert.True(snapshot.InventoryListIsEnabled);
                 Assert.True(snapshot.SocialLinkListIsEnabled);
                 Assert.True(snapshot.CompendiumListIsEnabled);
@@ -82,7 +80,10 @@ public sealed class NativeAotUiSmokeTests
                 Assert.NotNull(window);
                 Assert.False(GetElementByAutomationId(window!, "CourageComboBox").Current.IsOffscreen);
                 Assert.False(GetElementByAutomationId(window!, "KnowledgeComboBox").Current.IsOffscreen);
-                Assert.False(GetElementByAutomationId(window!, "DiagnosticsListView").Current.IsOffscreen);
+                InvokeByAutomationId(window!, "JumpDiagnosticsStateButton");
+                AutomationElement noDiagnostics = await RunOnMtaThreadAsync(() =>
+                    WaitForVisibleElement(window!, "NoDiagnosticsTextBlock"));
+                Assert.Equal("No diagnostics.", noDiagnostics.Current.Name);
             }
             finally
             {
@@ -127,6 +128,7 @@ public sealed class NativeAotUiSmokeTests
                 SetTextByAutomationId(window!, "DayTextBox", "invalid");
                 SetTextByAutomationId(window!, "NextDayTextBox", "invalid");
                 InvokeByAutomationId(window!, "ApplyButton");
+                InvokeByAutomationId(window!, "JumpDiagnosticsStateButton");
 
                 List<string> diagnosticsItems = await RunOnMtaThreadAsync(() =>
                     WaitForListItemTexts(window!, "DiagnosticsListView", minimumItemCount: 4));
@@ -296,7 +298,7 @@ public sealed class NativeAotUiSmokeTests
             FamilyNameText: GetValueByAutomationId(window, "FamilyNameTextBox"),
             GivenNameText: GetValueByAutomationId(window, "GivenNameTextBox"),
             YenText: GetValueByAutomationId(window, "YenTextBox"),
-            DiagnosticsItems: GetListItemTextsByAutomationId(window, "DiagnosticsListView"),
+            DiagnosticsItems: TryGetListItemTextsByAutomationId(window, "DiagnosticsListView"),
             InventoryListIsEnabled: GetElementByAutomationId(window, "InventoryListView").Current.IsEnabled,
             SocialLinkListIsEnabled: GetElementByAutomationId(window, "SocialLinkListView").Current.IsEnabled,
             CompendiumListIsEnabled: GetElementByAutomationId(window, "CompendiumListView").Current.IsEnabled,
@@ -360,6 +362,18 @@ public sealed class NativeAotUiSmokeTests
         }
 
         return itemTexts;
+    }
+
+    private static List<string> TryGetListItemTextsByAutomationId(AutomationElement root, string automationId)
+    {
+        try
+        {
+            return GetListItemTextsByAutomationId(root, automationId);
+        }
+        catch (XunitException)
+        {
+            return [];
+        }
     }
 
     private static List<string> WaitForListItemTexts(AutomationElement root, string automationId, int minimumItemCount)
@@ -506,6 +520,34 @@ public sealed class NativeAotUiSmokeTests
         }
 
         throw new TimeoutException($"Timed out waiting for enabled automation id '{automationId}'.");
+    }
+
+    private static AutomationElement WaitForVisibleElement(AutomationElement root, string automationId)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < StartupTimeout)
+        {
+            try
+            {
+                AutomationElement element = GetElementByAutomationId(root, automationId);
+                if (!element.Current.IsOffscreen)
+                {
+                    return element;
+                }
+            }
+            catch (ElementNotAvailableException)
+            {
+                // The target control can briefly recycle while the UI tree is still loading.
+            }
+            catch (XunitException)
+            {
+                // Missing child elements are transient while the target control is still loading.
+            }
+
+            Thread.Sleep(PollInterval);
+        }
+
+        throw new TimeoutException($"Timed out waiting for visible automation id '{automationId}'.");
     }
 
     private static Process StartNativeAotProcess(string exePath, string? arguments)
@@ -669,7 +711,6 @@ public sealed class NativeAotUiSmokeTests
                 string.Empty,
                 WindowName: ShellStateFormatter.ShellTitle,
                 StateText: ShellStateFormatter.GetStatusText(false, false, false, false),
-                DiagnosticsItems: ["No diagnostics."],
                 InventoryListIsEnabled: false,
                 SocialLinkListIsEnabled: false,
                 CompendiumListIsEnabled: false,
@@ -683,8 +724,7 @@ public sealed class NativeAotUiSmokeTests
                 string.Empty,
                 "0",
                 WindowName: windowName,
-                StateText: ShellStateFormatter.GetStatusText(true, false, false, true),
-                DiagnosticsItems: ["No diagnostics."]);
+                StateText: ShellStateFormatter.GetStatusText(true, false, false, true));
 
         public bool IsSatisfiedBy(UiSnapshot snapshot) =>
             !snapshot.WindowIsOffscreen &&

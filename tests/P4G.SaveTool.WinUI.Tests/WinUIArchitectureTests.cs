@@ -550,7 +550,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("NavigateToSelectedSection(sectionTag);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(CalendarSocialStatsSectionHeader);", content, StringComparison.Ordinal);
-        Assert.Contains("NavigateToSection(DiagnosticsStateSectionHeader);", content, StringComparison.Ordinal);
+        Assert.Contains("NavigateToDiagnosticsWorkspace();", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigateToSection(DiagnosticsStateSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("target.StartBringIntoView();", content, StringComparison.Ordinal);
         Assert.Contains("PersonaCalculateFromLevelButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("PersonaLevelSlider_ValueChanged", content, StringComparison.Ordinal);
@@ -649,7 +650,8 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"EquipmentSectionHeader\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"DiagnosticsStateSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"DiagnosticsStateSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"DiagnosticsListView\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CompendiumSectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"InventorySectionHeader\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
@@ -709,6 +711,11 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("NavigateToSelectedSection(sectionTag);", selectionHandlerBody, StringComparison.Ordinal);
         Assert.Contains("WorkspaceFrame.Navigate(typeof(WorkspaceHostPage), LegacyWorkspaceContentStore)", routeBody, StringComparison.Ordinal);
         Assert.Contains("hostPage.SetWorkspaceContent(LegacyWorkspaceContentStore);", routeBody, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.BackStack.Clear();", routeBody, StringComparison.Ordinal);
+        Assert.Contains("if (sectionTag == \"DiagnosticsState\")", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(DiagnosticsWorkspacePage), diagnosticsItems)", source, StringComparison.Ordinal);
+        Assert.Contains("diagnosticsPage.SetDiagnosticsItems(diagnosticsItems);", source, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
@@ -724,6 +731,45 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("protected override void OnNavigatedTo(NavigationEventArgs e)", source, StringComparison.Ordinal);
         Assert.Contains("e.Parameter is UIElement content", source, StringComparison.Ordinal);
         Assert.Contains("WorkspaceContentHost.Content = null;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DiagnosticsWorkspacePageOwnsDiagnosticsList()
+    {
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "DiagnosticsWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string source = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "DiagnosticsWorkspacePage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowXaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowSource = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.DiagnosticsWorkspacePage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Diagnostics / State\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{ThemeResource SubtitleTextBlockStyle}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"NoDiagnosticsTextBlock\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"NoDiagnosticsTextBlock\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"No diagnostics.\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"DiagnosticsListView\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Visibility=\"Collapsed\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"DiagnosticsListView\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Severity}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Code}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Target}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Message}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("{x:Bind", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ScrollViewer", xaml, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class DiagnosticsWorkspacePage : Page", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetDiagnosticsItems(object? itemsSource)", source, StringComparison.Ordinal);
+        Assert.Contains("DiagnosticsListView.ItemsSource = itemsSource;", source, StringComparison.Ordinal);
+        Assert.Contains("diagnosticsCollection.CollectionChanged += DiagnosticsCollection_CollectionChanged;", source, StringComparison.Ordinal);
+        Assert.Contains("diagnosticsCollection.CollectionChanged -= DiagnosticsCollection_CollectionChanged;", source, StringComparison.Ordinal);
+        Assert.Contains("DiagnosticsListView.Visibility = hasDiagnostics ? Visibility.Visible : Visibility.Collapsed;", source, StringComparison.Ordinal);
+        Assert.Contains("NoDiagnosticsTextBlock.Visibility = hasDiagnostics ? Visibility.Collapsed : Visibility.Visible;", source, StringComparison.Ordinal);
+        Assert.Contains("DiagnosticListItemViewState { Code: not \"Status\" }", source, StringComparison.Ordinal);
+        Assert.Contains("protected override void OnNavigatedTo(NavigationEventArgs e)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"DiagnosticsListView\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"DiagnosticsStateSectionHeader\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("DiagnosticsStateSectionHeader", mainWindowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigateToSection(DiagnosticsStateSectionHeader)", mainWindowSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1565,11 +1611,12 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("ObservableCollection<DiagnosticListItemViewState> diagnosticsItems", content, StringComparison.Ordinal);
         Assert.Contains("public override string ToString()", content, StringComparison.Ordinal);
         Assert.Contains("private static DiagnosticListItemViewState FromDiagnostic(", content, StringComparison.Ordinal);
-        Assert.Contains("DiagnosticsListView.ItemsSource = diagnosticsItems;", content, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(DiagnosticsWorkspacePage), diagnosticsItems)", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("DiagnosticsListView.ItemsSource = diagnosticsItems;", content, StringComparison.Ordinal);
         Assert.Contains("diagnosticsItems.Clear();", content, StringComparison.Ordinal);
         Assert.Contains("diagnosticsItems.Add(diagnosticItem);", content, StringComparison.Ordinal);
         Assert.DoesNotContain("DiagnosticsListView.ItemsSource = ShellStateFormatter.GetDiagnosticsText(diagnostics);", content, StringComparison.Ordinal);
-        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "Workspaces", "DiagnosticsWorkspacePage.xaml"));
         Assert.Contains("automation:AutomationProperties.AutomationId=\"DiagnosticsListView\"", xaml, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.Name=\"Diagnostics\"", xaml, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.Name=\"{Binding AutomationName}\"", xaml, StringComparison.Ordinal);

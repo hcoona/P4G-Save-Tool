@@ -460,45 +460,9 @@
               <Border Grid.Column="1" Padding="16" VerticalAlignment="Top" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                 <StackPanel Spacing="8">
             <TextBlock
-              x:Name="DiagnosticsStateSectionHeader"
-              Text="Diagnostics / State"
-              Style="{ThemeResource SubtitleTextBlockStyle}"
-              />
-            <TextBlock Text="Diagnostics" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-            <ListView
-              x:Name="DiagnosticsListView"
-              MinHeight="120"
-              MaxHeight="180"
-              SelectionMode="None"
-              automation:AutomationProperties.AutomationId="DiagnosticsListView"
-              automation:AutomationProperties.Name="Diagnostics">
-              <ListView.ItemTemplate>
-                <DataTemplate>
-                    <Grid RowSpacing="2" automation:AutomationProperties.Name="{Binding AutomationName}">
-                      <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                      </Grid.RowDefinitions>
-                      <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="Auto" />
-                          <ColumnDefinition Width="Auto" />
-                          <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding Severity}" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                        <TextBlock Grid.Column="1" Text="{Binding Code}" />
-                        <TextBlock Grid.Column="2" Text="{Binding Target}" TextWrapping="Wrap" />
-                      </Grid>
-                      <TextBlock Grid.Row="1" Text="{Binding Message}" TextWrapping="Wrap" />
-                    </Grid>
-                </DataTemplate>
-              </ListView.ItemTemplate>
-            </ListView>
-            <TextBlock
               x:Name="CompendiumSectionHeader"
               Text="Compendium"
               Style="{ThemeResource BodyStrongTextBlockStyle}"
-              Margin="0,8,0,0"
               />
             <ListView x:Name="CompendiumListView" MinHeight="140" MaxHeight="220" SelectionChanged="CompendiumListView_SelectionChanged" Tapped="CompendiumListView_Tapped">
               <ListView.ItemTemplate>

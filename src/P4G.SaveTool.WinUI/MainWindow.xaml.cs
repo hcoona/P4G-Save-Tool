@@ -132,7 +132,7 @@ public sealed partial class MainWindow : Window
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         defaultMainCharacterLevelValueForeground = MainCharacterLevelValueTextBlock.Foreground;
         defaultPersonaLevelValueForeground = PersonaLevelValueTextBlock.Foreground;
-        SectionNavigationView.SelectedItem = JumpBasicStatsButton;
+        SectionNavigationView.SelectedItem = JumpOverviewButton;
     }
 
     private void ResizeToDefaultMultiPaneSize()
@@ -188,6 +188,12 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (sectionTag == "Overview")
+        {
+            NavigateToOverviewWorkspace();
+            return;
+        }
+
         if (sectionTag == "DiagnosticsState")
         {
             NavigateToDiagnosticsWorkspace();
@@ -223,6 +229,47 @@ public sealed partial class MainWindow : Window
 
         WorkspaceFrame.BackStack.Clear();
     }
+
+    private void NavigateToOverviewWorkspace()
+    {
+        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
+
+        if (WorkspaceFrame.Content is OverviewWorkspacePage overviewPage)
+        {
+            ConfigureOverviewWorkspacePage(overviewPage, CreateOverviewWorkspaceState());
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(OverviewWorkspacePage), CreateOverviewWorkspaceState()))
+        {
+            throw new InvalidOperationException("Could not navigate to the overview workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is OverviewWorkspacePage navigatedOverviewPage)
+        {
+            ConfigureOverviewWorkspacePage(navigatedOverviewPage, CreateOverviewWorkspaceState());
+        }
+    }
+
+    private OverviewWorkspaceViewState CreateOverviewWorkspaceState()
+    {
+        bool hasPendingEditorDrafts = HasPendingEditorDrafts();
+        return new OverviewWorkspaceViewState(
+            viewModel.HasSave,
+            ShellStateFormatter.GetFilePathText(currentFilePath),
+            ShellStateFormatter.GetStatusText(viewModel.HasSave, hasPendingEditorDrafts, viewModel.IsDirty, viewModel.CanWrite));
+    }
+
+    private void ConfigureOverviewWorkspacePage(OverviewWorkspacePage overviewPage, OverviewWorkspaceViewState overviewState)
+    {
+        overviewPage.OpenSaveRequested -= OverviewWorkspacePage_OpenSaveRequested;
+        overviewPage.OpenSaveRequested += OverviewWorkspacePage_OpenSaveRequested;
+        overviewPage.SetOverviewState(overviewState);
+    }
+
+    private async void OverviewWorkspacePage_OpenSaveRequested(object? sender, RoutedEventArgs e) =>
+        await RunBusyAsync(OpenSaveFileAsync);
 
     private void NavigateToDiagnosticsWorkspace()
     {
@@ -663,7 +710,16 @@ public sealed partial class MainWindow : Window
     {
         TraceStartup("MainWindow_Loaded enter");
         isWorkspaceRoutingInitialized = true;
-        EnsureLegacyWorkspaceRouted();
+        if (SectionNavigationView.SelectedItem is NavigationViewItem selectedItem &&
+            selectedItem.Tag is string sectionTag)
+        {
+            NavigateToWorkspace(sectionTag);
+        }
+        else
+        {
+            NavigateToOverviewWorkspace();
+        }
+
         UpdateWindowTitle();
         if (string.IsNullOrWhiteSpace(startupOpenPath))
         {
@@ -1931,17 +1987,17 @@ public sealed partial class MainWindow : Window
         bool canSaveAs = canSave;
         Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;
         bool canNavigateEditorSections = canEdit;
+        bool canNavigateOverview = !isBusy && !startupRefreshPending;
 
         FileOpenMenuItem.IsEnabled = !isBusy && !startupRefreshPending;
         OpenButton.IsEnabled = !isBusy && !startupRefreshPending;
-        NoSaveOpenButton.IsEnabled = !isBusy && !startupRefreshPending;
         ApplyButton.IsEnabled = canApply;
         SaveButton.IsEnabled = canSave;
         SaveAsButton.IsEnabled = canSaveAs;
         FileSaveMenuItem.IsEnabled = canSave;
         FileSaveAsMenuItem.IsEnabled = canSaveAs;
-        NoSaveEmptyStateBorder.Visibility = hasSave ? Visibility.Collapsed : Visibility.Visible;
         SaveEditorScrollViewer.Visibility = editorVisibility;
+        JumpOverviewButton.IsEnabled = canNavigateOverview;
         JumpBasicStatsButton.IsEnabled = canNavigateEditorSections;
         JumpCalendarSocialStatsButton.IsEnabled = canNavigateEditorSections;
         JumpSocialLinksButton.IsEnabled = canNavigateEditorSections;
@@ -2010,6 +2066,11 @@ public sealed partial class MainWindow : Window
 
         FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);
         StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, hasPendingEditorDrafts, viewModel.IsDirty, viewModel.CanWrite);
+        if (WorkspaceFrame.Content is OverviewWorkspacePage overviewPage)
+        {
+            overviewPage.SetOverviewState(CreateOverviewWorkspaceState());
+        }
+
         UpdateShellStatusInfoBar(uiDiagnosticsOverride ?? viewModel.Diagnostics);
         UpdateWindowTitle();
     }

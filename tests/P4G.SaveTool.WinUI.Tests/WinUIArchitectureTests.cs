@@ -545,11 +545,12 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("SetLevelSliderValue(MainCharacterLevelSlider, viewModel.HasSave ? viewModel.MainCharacterLevel : 0);", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.Contains("UpdateMainCharacterLevelValueText();", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.DoesNotContain("Math.Max(1d, viewModel.MainCharacterLevel)", refreshBasicStatsBody, StringComparison.Ordinal);
-        Assert.Contains("SectionNavigationView.SelectedItem = JumpBasicStatsButton;", content, StringComparison.Ordinal);
+        Assert.Contains("SectionNavigationView.SelectedItem = JumpOverviewButton;", content, StringComparison.Ordinal);
         Assert.Contains("private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSelectedSection(sectionTag);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToSection(CalendarSocialStatsSectionHeader);", content, StringComparison.Ordinal);
+        Assert.Contains("NavigateToOverviewWorkspace();", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToDiagnosticsWorkspace();", content, StringComparison.Ordinal);
         Assert.DoesNotContain("NavigateToSection(DiagnosticsStateSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("target.StartBringIntoView();", content, StringComparison.Ordinal);
@@ -628,6 +629,10 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("x:Name=\"SectionNavigationView\"", content, StringComparison.Ordinal);
         Assert.Contains("SelectionChanged=\"SectionNavigationView_SelectionChanged\"", content, StringComparison.Ordinal);
         Assert.Contains("<NavigationView.MenuItems>", content, StringComparison.Ordinal);
+        Assert.Contains("<NavigationViewItem x:Name=\"JumpOverviewButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Overview\"", content, StringComparison.Ordinal);
+        Assert.Contains("Icon=\"Home\"", content, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"Overview\"", content, StringComparison.Ordinal);
         Assert.Contains("<NavigationViewItem x:Name=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Tag=\"BasicStats\"", content, StringComparison.Ordinal);
         Assert.Contains("<NavigationViewItem x:Name=\"JumpCalendarSocialStatsButton\"", content, StringComparison.Ordinal);
@@ -674,6 +679,8 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("ElementName=MainCharacterLevelSlider", content, StringComparison.Ordinal);
         Assert.DoesNotContain("ElementName=PersonaLevelSlider", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"SectionNavigationView\"", content, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"JumpOverviewButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.Name=\"Overview\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
@@ -683,6 +690,9 @@ public sealed class WinUIArchitectureTests
         Assert.True(
             content.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal) <
             content.IndexOf("x:Name=\"BasicStatsSectionHeader\"", StringComparison.Ordinal));
+        Assert.True(
+            content.IndexOf("x:Name=\"JumpOverviewButton\"", StringComparison.Ordinal) <
+            content.IndexOf("x:Name=\"JumpBasicStatsButton\"", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -712,10 +722,15 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("WorkspaceFrame.Navigate(typeof(WorkspaceHostPage), LegacyWorkspaceContentStore)", routeBody, StringComparison.Ordinal);
         Assert.Contains("hostPage.SetWorkspaceContent(LegacyWorkspaceContentStore);", routeBody, StringComparison.Ordinal);
         Assert.Contains("WorkspaceFrame.BackStack.Clear();", routeBody, StringComparison.Ordinal);
+        Assert.Contains("if (sectionTag == \"Overview\")", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(OverviewWorkspacePage), CreateOverviewWorkspaceState())", source, StringComparison.Ordinal);
+        Assert.Contains("overviewPage.SetOverviewState(overviewState);", source, StringComparison.Ordinal);
+        Assert.Contains("overviewPage.OpenSaveRequested -= OverviewWorkspacePage_OpenSaveRequested;", source, StringComparison.Ordinal);
+        Assert.Contains("overviewPage.OpenSaveRequested += OverviewWorkspacePage_OpenSaveRequested;", source, StringComparison.Ordinal);
         Assert.Contains("if (sectionTag == \"DiagnosticsState\")", source, StringComparison.Ordinal);
         Assert.Contains("WorkspaceFrame.Navigate(typeof(DiagnosticsWorkspacePage), diagnosticsItems)", source, StringComparison.Ordinal);
         Assert.Contains("diagnosticsPage.SetDiagnosticsItems(diagnosticsItems);", source, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
+        Assert.Equal(3, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
@@ -731,6 +746,45 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("protected override void OnNavigatedTo(NavigationEventArgs e)", source, StringComparison.Ordinal);
         Assert.Contains("e.Parameter is UIElement content", source, StringComparison.Ordinal);
         Assert.Contains("WorkspaceContentHost.Content = null;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OverviewWorkspacePageOwnsOverviewAndNoSaveState()
+    {
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "OverviewWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string source = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "OverviewWorkspacePage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowXaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.OverviewWorkspacePage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class OverviewWorkspacePage : Page", source, StringComparison.Ordinal);
+        Assert.Contains("internal readonly record struct OverviewWorkspaceViewState(", source, StringComparison.Ordinal);
+        Assert.Contains("bool HasSave", source, StringComparison.Ordinal);
+        Assert.Contains("string FilePathText", source, StringComparison.Ordinal);
+        Assert.Contains("string StateText", source, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OverviewNoSaveEmptyStateBorder\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Open a Persona 4 Golden save", xaml, StringComparison.Ordinal);
+        Assert.Contains("Drop a save file here, or choose Open save to begin editing.", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OverviewOpenButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"OverviewOpenButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("event EventHandler<RoutedEventArgs>? OpenSaveRequested", source, StringComparison.Ordinal);
+        Assert.Contains("OpenSaveRequested?.Invoke(this, e);", source, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Overview\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OverviewFilePathTextBlock\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OverviewStateTextBlock\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Choose a workspace", xaml, StringComparison.Ordinal);
+        Assert.Contains("Use the navigation pane to edit a specific save area.", xaml, StringComparison.Ordinal);
+        Assert.Contains("OverviewNoSaveEmptyStateBorder.Visibility = state.HasSave ? Visibility.Collapsed : Visibility.Visible;", source, StringComparison.Ordinal);
+        Assert.Contains("OverviewLoadedContent.Visibility = state.HasSave ? Visibility.Visible : Visibility.Collapsed;", source, StringComparison.Ordinal);
+        Assert.Contains("OverviewFilePathTextBlock.Text = state.FilePathText;", source, StringComparison.Ordinal);
+        Assert.Contains("OverviewStateTextBlock.Text = state.StateText;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ScrollViewer", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("SaveEditor", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<TextBox", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ComboBox", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Slider", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"NoSaveEmptyStateBorder\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"NoSaveOpenButton\"", mainWindowXaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1200,12 +1254,13 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("ShellStatusInfoBar.Title = \"Ready to save\";", source, StringComparison.Ordinal);
         Assert.Contains("SaveDiagnostic? primaryDiagnostic = GetPrimaryShellDiagnostic(diagnostics);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("SectionNavigationView.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("JumpOverviewButton.IsEnabled = canNavigateOverview;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("JumpBasicStatsButton.IsEnabled = canNavigateEditorSections;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("await RunBusyAsync(", applyButtonBody, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MainWindowNoSaveShellShowsEmptyStateInsteadOfEditorChrome()
+    public void MainWindowNoLongerOwnsNoSaveEmptyState()
     {
         string winUiDirectory = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
         string xaml = File.ReadAllText(Path.Combine(winUiDirectory, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -1214,34 +1269,24 @@ public sealed class WinUIArchitectureTests
             source,
             "private void UpdateShellState()",
             "private void RefreshSocialStatsState()");
-        string noSaveSection = GetSection(
-            xaml,
-            "x:Name=\"NoSaveEmptyStateBorder\"",
-            "x:Name=\"SaveEditorScrollViewer\"");
 
-        Assert.Contains("automation:AutomationProperties.AutomationId=\"NoSaveEmptyState\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("Padding=\"24\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("<StackPanel Width=\"360\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("Margin=\"16,16,0,0\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("Spacing=\"10\"", noSaveSection, StringComparison.Ordinal);
-        Assert.DoesNotContain("HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("Open a Persona 4 Golden save", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("Drop a save file here", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"NoSaveOpenButton\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("Click=\"OpenButton_Click\"", noSaveSection, StringComparison.Ordinal);
-        Assert.Contains("automation:AutomationProperties.AutomationId=\"NoSaveOpenButton\"", noSaveSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"NoSaveEmptyStateBorder\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"NoSaveOpenButton\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("NoSaveEmptyStateBorder", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("NoSaveOpenButton", source, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LegacyWorkspaceContentStore\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SaveEditorScrollViewer\" Visibility=\"Collapsed\"", xaml, StringComparison.Ordinal);
         Assert.True(
             xaml.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"NoSaveEmptyStateBorder\"", StringComparison.Ordinal));
+            xaml.IndexOf("x:Name=\"SaveEditorScrollViewer\"", StringComparison.Ordinal));
 
         Assert.Contains("bool hasSave = viewModel.HasSave;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("NoSaveOpenButton.IsEnabled = !isBusy && !startupRefreshPending;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("NoSaveEmptyStateBorder.Visibility = hasSave ? Visibility.Collapsed : Visibility.Visible;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("SaveEditorScrollViewer.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("bool canNavigateEditorSections = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("JumpOverviewButton.IsEnabled = canNavigateOverview;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("if (WorkspaceFrame.Content is OverviewWorkspacePage overviewPage)", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("overviewPage.SetOverviewState(CreateOverviewWorkspaceState());", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("JumpDiagnosticsStateButton.IsEnabled = canNavigateEditorSections;", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SectionNavigationRail.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
     }

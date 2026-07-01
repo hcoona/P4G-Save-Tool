@@ -88,6 +88,7 @@
           automation:AutomationProperties.AutomationId="SectionNavigationView"
           automation:AutomationProperties.Name="Editor sections">
           <NavigationView.MenuItems>
+            <NavigationViewItem x:Name="JumpOverviewButton" Content="Overview" Icon="Home" Tag="Overview" automation:AutomationProperties.AutomationId="JumpOverviewButton" automation:AutomationProperties.Name="Overview" />
             <NavigationViewItem x:Name="JumpBasicStatsButton" Content="Basic / Stats" Icon="Edit" Tag="BasicStats" automation:AutomationProperties.AutomationId="JumpBasicStatsButton" automation:AutomationProperties.Name="Basic / Stats" />
             <NavigationViewItem x:Name="JumpCalendarSocialStatsButton" Content="Calendar / Social" Icon="Calendar" Tag="CalendarSocialStats" automation:AutomationProperties.AutomationId="JumpCalendarSocialStatsButton" automation:AutomationProperties.Name="Calendar / Social" />
             <NavigationViewItem x:Name="JumpSocialLinksButton" Content="Social Links" Icon="Contact" Tag="SocialLinks" automation:AutomationProperties.AutomationId="JumpSocialLinksButton" automation:AutomationProperties.Name="Social Links" />
@@ -104,23 +105,6 @@
               automation:AutomationProperties.AutomationId="WorkspaceFrame"
               automation:AutomationProperties.Name="Routed workspace content" />
             <Grid x:Name="LegacyWorkspaceContentStore" Visibility="Collapsed">
-            <Border
-              x:Name="NoSaveEmptyStateBorder"
-              Padding="24"
-              HorizontalAlignment="Stretch"
-              VerticalAlignment="Stretch"
-              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-              BorderThickness="1"
-              CornerRadius="8"
-              automation:AutomationProperties.AutomationId="NoSaveEmptyState"
-              automation:AutomationProperties.Name="Open a Persona 4 Golden save">
-              <StackPanel Width="360" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="16,16,0,0" Spacing="10">
-                <TextBlock Text="Open a Persona 4 Golden save" Style="{ThemeResource SubtitleTextBlockStyle}" TextWrapping="WrapWholeWords" />
-                <TextBlock Text="Drop a save file here, or choose Open save to begin editing." Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="WrapWholeWords" />
-                <Button x:Name="NoSaveOpenButton" Content="Open save..." Click="OpenButton_Click" HorizontalAlignment="Left" automation:AutomationProperties.AutomationId="NoSaveOpenButton" automation:AutomationProperties.Name="Open a Persona 4 Golden save" />
-              </StackPanel>
-            </Border>
           <ScrollViewer x:Name="SaveEditorScrollViewer" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
             <Grid ColumnSpacing="16" MinWidth="948">
               <Grid.ColumnDefinitions>

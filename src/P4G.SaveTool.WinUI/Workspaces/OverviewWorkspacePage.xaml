@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+  x:Class="P4G.SaveTool.WinUI.OverviewWorkspacePage"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="d">
+
+  <Grid>
+    <Border
+      x:Name="OverviewNoSaveEmptyStateBorder"
+      Padding="24"
+      HorizontalAlignment="Stretch"
+      VerticalAlignment="Stretch"
+      Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+      BorderThickness="1"
+      CornerRadius="8"
+      automation:AutomationProperties.AutomationId="OverviewNoSaveEmptyState"
+      automation:AutomationProperties.Name="Open a Persona 4 Golden save">
+      <StackPanel Width="360" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="16,16,0,0" Spacing="10">
+        <TextBlock
+          x:Name="OverviewNoSaveTitleTextBlock"
+          Text="Open a Persona 4 Golden save"
+          Style="{ThemeResource SubtitleTextBlockStyle}"
+          TextWrapping="WrapWholeWords"
+          automation:AutomationProperties.AutomationId="OverviewNoSaveTitleTextBlock" />
+        <TextBlock
+          x:Name="OverviewNoSaveHelperTextBlock"
+          Text="Drop a save file here, or choose Open save to begin editing."
+          Style="{ThemeResource BodyTextBlockStyle}"
+          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+          TextWrapping="WrapWholeWords"
+          automation:AutomationProperties.AutomationId="OverviewNoSaveHelperTextBlock" />
+        <Button
+          x:Name="OverviewOpenButton"
+          Content="Open save..."
+          Click="OverviewOpenButton_Click"
+          HorizontalAlignment="Left"
+          automation:AutomationProperties.AutomationId="OverviewOpenButton"
+          automation:AutomationProperties.Name="Open a Persona 4 Golden save" />
+      </StackPanel>
+    </Border>
+
+    <StackPanel
+      x:Name="OverviewLoadedContent"
+      Margin="16"
+      Spacing="16"
+      Visibility="Collapsed">
+      <TextBlock
+        x:Name="OverviewTitleTextBlock"
+        Text="Overview"
+        Style="{ThemeResource SubtitleTextBlockStyle}"
+        TextWrapping="WrapWholeWords"
+        automation:AutomationProperties.AutomationId="OverviewTitleTextBlock" />
+
+      <Border
+        x:Name="OverviewSummaryCard"
+        Padding="16"
+        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        BorderThickness="1"
+        CornerRadius="8"
+        automation:AutomationProperties.AutomationId="OverviewSummaryCard"
+        automation:AutomationProperties.Name="Current save overview">
+        <StackPanel Spacing="8">
+          <TextBlock
+            Text="Current save"
+            Style="{ThemeResource BodyStrongTextBlockStyle}"
+            TextWrapping="WrapWholeWords" />
+          <TextBlock
+            Text="File path"
+            Style="{ThemeResource CaptionTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          <TextBlock
+            x:Name="OverviewFilePathTextBlock"
+            TextWrapping="Wrap"
+            automation:AutomationProperties.AutomationId="OverviewFilePathTextBlock"
+            automation:AutomationProperties.Name="Overview file path" />
+          <TextBlock
+            Text="Workflow state"
+            Style="{ThemeResource CaptionTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          <TextBlock
+            x:Name="OverviewStateTextBlock"
+            TextWrapping="Wrap"
+            automation:AutomationProperties.AutomationId="OverviewStateTextBlock"
+            automation:AutomationProperties.Name="Overview workflow state" />
+        </StackPanel>
+      </Border>
+
+      <Border
+        x:Name="OverviewGuidanceCard"
+        Padding="16"
+        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        BorderThickness="1"
+        CornerRadius="8"
+        automation:AutomationProperties.AutomationId="OverviewGuidanceCard"
+        automation:AutomationProperties.Name="Choose a workspace">
+        <StackPanel Spacing="4">
+          <TextBlock
+            x:Name="OverviewGuidanceTitleTextBlock"
+            Text="Choose a workspace"
+            Style="{ThemeResource BodyStrongTextBlockStyle}"
+            TextWrapping="WrapWholeWords"
+            automation:AutomationProperties.AutomationId="OverviewGuidanceTitleTextBlock" />
+          <TextBlock
+            x:Name="OverviewGuidanceTextBlock"
+            Text="Use the navigation pane to edit a specific save area."
+            Style="{ThemeResource BodyTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            TextWrapping="WrapWholeWords"
+            automation:AutomationProperties.AutomationId="OverviewGuidanceTextBlock" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Grid>
+</Page>

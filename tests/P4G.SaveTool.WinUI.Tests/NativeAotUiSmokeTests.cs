@@ -66,18 +66,23 @@ public sealed class NativeAotUiSmokeTests
                 Assert.True(snapshot.WindowIsEnabled);
                 Assert.Equal($"{ShellStateFormatter.ShellTitle} - {Path.GetFileName(savePath)}", snapshot.WindowName);
                 Assert.Equal(savePath, snapshot.FilePathText);
-                Assert.Equal(string.Empty, snapshot.FamilyNameText);
-                Assert.Equal(string.Empty, snapshot.GivenNameText);
-                Assert.Equal("0", snapshot.YenText);
                 Assert.Contains("Loaded clean", snapshot.StateText, StringComparison.OrdinalIgnoreCase);
-                Assert.True(snapshot.InventoryListIsEnabled);
-                Assert.True(snapshot.SocialLinkListIsEnabled);
-                Assert.True(snapshot.CompendiumListIsEnabled);
-                Assert.True(snapshot.PersonaMemberComboBoxIsEnabled);
-                Assert.True(snapshot.EquipmentCharacterComboBoxIsEnabled);
+                Assert.Equal("Overview", snapshot.OverviewTitleText);
+                Assert.Equal(savePath, snapshot.OverviewFilePathText);
+                Assert.Contains("Loaded clean", snapshot.OverviewStateText, StringComparison.OrdinalIgnoreCase);
 
                 AutomationElement? window = FindMainWindow(process.Id);
                 Assert.NotNull(window);
+                InvokeByAutomationId(window!, "JumpBasicStatsButton");
+                _ = await RunOnMtaThreadAsync(() => WaitForVisibleElement(window!, "CourageComboBox"));
+                Assert.Equal(string.Empty, GetValueByAutomationId(window!, "FamilyNameTextBox"));
+                Assert.Equal(string.Empty, GetValueByAutomationId(window!, "GivenNameTextBox"));
+                Assert.Equal("0", GetValueByAutomationId(window!, "YenTextBox"));
+                Assert.True(GetElementByAutomationId(window!, "InventoryListView").Current.IsEnabled);
+                Assert.True(GetElementByAutomationId(window!, "SocialLinkListView").Current.IsEnabled);
+                Assert.True(GetElementByAutomationId(window!, "CompendiumListView").Current.IsEnabled);
+                Assert.True(GetElementByAutomationId(window!, "PersonaMemberComboBox").Current.IsEnabled);
+                Assert.True(GetElementByAutomationId(window!, "EquipmentCharacterComboBox").Current.IsEnabled);
                 Assert.False(GetElementByAutomationId(window!, "CourageComboBox").Current.IsOffscreen);
                 Assert.False(GetElementByAutomationId(window!, "KnowledgeComboBox").Current.IsOffscreen);
                 InvokeByAutomationId(window!, "JumpDiagnosticsStateButton");
@@ -121,12 +126,14 @@ public sealed class NativeAotUiSmokeTests
 
                 AutomationElement? window = FindMainWindow(process.Id);
                 Assert.NotNull(window);
-                _ = WaitForEnabledElement(window!, "ApplyButton");
+                InvokeByAutomationId(window!, "JumpBasicStatsButton");
+                _ = await RunOnMtaThreadAsync(() => WaitForVisibleElement(window!, "YenTextBox"));
 
                 SetTextByAutomationId(window!, "YenTextBox", "invalid");
                 SetTextByAutomationId(window!, "MainCharacterTotalExperienceTextBox", "invalid");
                 SetTextByAutomationId(window!, "DayTextBox", "invalid");
                 SetTextByAutomationId(window!, "NextDayTextBox", "invalid");
+                _ = WaitForEnabledElement(window!, "ApplyButton");
                 InvokeByAutomationId(window!, "ApplyButton");
                 InvokeByAutomationId(window!, "JumpDiagnosticsStateButton");
 
@@ -178,7 +185,7 @@ public sealed class NativeAotUiSmokeTests
 
                 AutomationElement? window = FindMainWindow(process.Id);
                 Assert.NotNull(window);
-                _ = WaitForEnabledElement(window!, "ApplyButton");
+                _ = WaitForEnabledElement(window!, "JumpCompendiumButton");
 
                 InvokeByAutomationId(window!, "JumpCompendiumButton");
                 List<string> compendiumItems = await RunOnMtaThreadAsync(() =>
@@ -295,15 +302,19 @@ public sealed class NativeAotUiSmokeTests
             WindowIsEnabled: window.Current.IsEnabled,
             FilePathText: GetTextByAutomationId(window, "FilePathTextBlock"),
             StateText: GetTextByAutomationId(window, "StateTextBlock"),
-            FamilyNameText: GetValueByAutomationId(window, "FamilyNameTextBox"),
-            GivenNameText: GetValueByAutomationId(window, "GivenNameTextBox"),
-            YenText: GetValueByAutomationId(window, "YenTextBox"),
+            OverviewNoSaveTitleText: TryGetTextByAutomationId(window, "OverviewNoSaveTitleTextBlock") ?? string.Empty,
+            OverviewTitleText: TryGetTextByAutomationId(window, "OverviewTitleTextBlock") ?? string.Empty,
+            OverviewFilePathText: TryGetTextByAutomationId(window, "OverviewFilePathTextBlock") ?? string.Empty,
+            OverviewStateText: TryGetTextByAutomationId(window, "OverviewStateTextBlock") ?? string.Empty,
+            FamilyNameText: TryGetValueByAutomationId(window, "FamilyNameTextBox") ?? string.Empty,
+            GivenNameText: TryGetValueByAutomationId(window, "GivenNameTextBox") ?? string.Empty,
+            YenText: TryGetValueByAutomationId(window, "YenTextBox") ?? string.Empty,
             DiagnosticsItems: TryGetListItemTextsByAutomationId(window, "DiagnosticsListView"),
-            InventoryListIsEnabled: GetElementByAutomationId(window, "InventoryListView").Current.IsEnabled,
-            SocialLinkListIsEnabled: GetElementByAutomationId(window, "SocialLinkListView").Current.IsEnabled,
-            CompendiumListIsEnabled: GetElementByAutomationId(window, "CompendiumListView").Current.IsEnabled,
-            PersonaMemberComboBoxIsEnabled: GetElementByAutomationId(window, "PersonaMemberComboBox").Current.IsEnabled,
-            EquipmentCharacterComboBoxIsEnabled: GetElementByAutomationId(window, "EquipmentCharacterComboBox").Current.IsEnabled);
+            InventoryListIsEnabled: TryGetElementIsEnabled(window, "InventoryListView"),
+            SocialLinkListIsEnabled: TryGetElementIsEnabled(window, "SocialLinkListView"),
+            CompendiumListIsEnabled: TryGetElementIsEnabled(window, "CompendiumListView"),
+            PersonaMemberComboBoxIsEnabled: TryGetElementIsEnabled(window, "PersonaMemberComboBox"),
+            EquipmentCharacterComboBoxIsEnabled: TryGetElementIsEnabled(window, "EquipmentCharacterComboBox"));
     }
 
     private static AutomationElement GetElementByAutomationId(AutomationElement root, string automationId)
@@ -332,6 +343,18 @@ public sealed class NativeAotUiSmokeTests
         return element.Current.Name ?? string.Empty;
     }
 
+    private static string? TryGetTextByAutomationId(AutomationElement root, string automationId)
+    {
+        try
+        {
+            return GetTextByAutomationId(root, automationId);
+        }
+        catch (XunitException)
+        {
+            return null;
+        }
+    }
+
     private static string GetValueByAutomationId(AutomationElement root, string automationId)
     {
         AutomationElement element = GetElementByAutomationId(root, automationId);
@@ -342,6 +365,30 @@ public sealed class NativeAotUiSmokeTests
         }
 
         return element.Current.Name ?? string.Empty;
+    }
+
+    private static string? TryGetValueByAutomationId(AutomationElement root, string automationId)
+    {
+        try
+        {
+            return GetValueByAutomationId(root, automationId);
+        }
+        catch (XunitException)
+        {
+            return null;
+        }
+    }
+
+    private static bool TryGetElementIsEnabled(AutomationElement root, string automationId)
+    {
+        try
+        {
+            return GetElementByAutomationId(root, automationId).Current.IsEnabled;
+        }
+        catch (XunitException)
+        {
+            return false;
+        }
     }
 
     private static List<string> GetListItemTextsByAutomationId(AutomationElement root, string automationId)
@@ -485,13 +532,21 @@ public sealed class NativeAotUiSmokeTests
     private static void InvokeByAutomationId(AutomationElement root, string automationId)
     {
         AutomationElement element = GetElementByAutomationId(root, automationId);
-        if (!element.TryGetCurrentPattern(InvokePattern.Pattern, out object? invokePatternObject) ||
-            invokePatternObject is not InvokePattern invokePattern)
+        if (element.TryGetCurrentPattern(InvokePattern.Pattern, out object? invokePatternObject) &&
+            invokePatternObject is InvokePattern invokePattern)
         {
-            throw new XunitException($"Could not invoke automation id '{automationId}'.");
+            invokePattern.Invoke();
+            return;
         }
 
-        invokePattern.Invoke();
+        if (element.TryGetCurrentPattern(SelectionItemPattern.Pattern, out object? selectionPatternObject) &&
+            selectionPatternObject is SelectionItemPattern selectionItemPattern)
+        {
+            selectionItemPattern.Select();
+            return;
+        }
+
+        throw new XunitException($"Could not invoke or select automation id '{automationId}'.");
     }
 
     private static AutomationElement WaitForEnabledElement(AutomationElement root, string automationId)
@@ -696,6 +751,10 @@ public sealed class NativeAotUiSmokeTests
         string YenText,
         string? WindowName = null,
         string? StateText = null,
+        string? OverviewNoSaveTitleText = null,
+        string? OverviewTitleText = null,
+        string? OverviewFilePathText = null,
+        string? OverviewStateText = null,
         IReadOnlyList<string>? DiagnosticsItems = null,
         bool InventoryListIsEnabled = true,
         bool SocialLinkListIsEnabled = true,
@@ -711,6 +770,7 @@ public sealed class NativeAotUiSmokeTests
                 string.Empty,
                 WindowName: ShellStateFormatter.ShellTitle,
                 StateText: ShellStateFormatter.GetStatusText(false, false, false, false),
+                OverviewNoSaveTitleText: "Open a Persona 4 Golden save",
                 InventoryListIsEnabled: false,
                 SocialLinkListIsEnabled: false,
                 CompendiumListIsEnabled: false,
@@ -722,9 +782,17 @@ public sealed class NativeAotUiSmokeTests
                 filePathText,
                 string.Empty,
                 string.Empty,
-                "0",
+                string.Empty,
                 WindowName: windowName,
-                StateText: ShellStateFormatter.GetStatusText(true, false, false, true));
+                StateText: ShellStateFormatter.GetStatusText(true, false, false, true),
+                OverviewTitleText: "Overview",
+                OverviewFilePathText: filePathText,
+                OverviewStateText: ShellStateFormatter.GetStatusText(true, false, false, true),
+                InventoryListIsEnabled: false,
+                SocialLinkListIsEnabled: false,
+                CompendiumListIsEnabled: false,
+                PersonaMemberComboBoxIsEnabled: false,
+                EquipmentCharacterComboBoxIsEnabled: false);
 
         public bool IsSatisfiedBy(UiSnapshot snapshot) =>
             !snapshot.WindowIsOffscreen &&
@@ -735,6 +803,10 @@ public sealed class NativeAotUiSmokeTests
             string.Equals(snapshot.YenText, YenText, StringComparison.Ordinal) &&
             (WindowName is null || string.Equals(snapshot.WindowName, WindowName, StringComparison.Ordinal)) &&
             (StateText is null || string.Equals(snapshot.StateText, StateText, StringComparison.Ordinal)) &&
+            (OverviewNoSaveTitleText is null || string.Equals(snapshot.OverviewNoSaveTitleText, OverviewNoSaveTitleText, StringComparison.Ordinal)) &&
+            (OverviewTitleText is null || string.Equals(snapshot.OverviewTitleText, OverviewTitleText, StringComparison.Ordinal)) &&
+            (OverviewFilePathText is null || string.Equals(snapshot.OverviewFilePathText, OverviewFilePathText, StringComparison.OrdinalIgnoreCase)) &&
+            (OverviewStateText is null || string.Equals(snapshot.OverviewStateText, OverviewStateText, StringComparison.Ordinal)) &&
             (DiagnosticsItems is null || snapshot.DiagnosticsItems.SequenceEqual(DiagnosticsItems)) &&
             snapshot.InventoryListIsEnabled == InventoryListIsEnabled &&
             snapshot.SocialLinkListIsEnabled == SocialLinkListIsEnabled &&
@@ -749,6 +821,10 @@ public sealed class NativeAotUiSmokeTests
         bool WindowIsEnabled,
         string FilePathText,
         string StateText,
+        string OverviewNoSaveTitleText,
+        string OverviewTitleText,
+        string OverviewFilePathText,
+        string OverviewStateText,
         string FamilyNameText,
         string GivenNameText,
         string YenText,

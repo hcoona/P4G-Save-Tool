@@ -97,10 +97,16 @@
             <NavigationViewItem x:Name="JumpInventoryButton" Content="Inventory" Icon="AllApps" Tag="Inventory" automation:AutomationProperties.AutomationId="JumpInventoryButton" automation:AutomationProperties.Name="Inventory" />
             <NavigationViewItem x:Name="JumpDiagnosticsStateButton" Content="Diagnostics / State" Icon="Important" Tag="DiagnosticsState" automation:AutomationProperties.AutomationId="JumpDiagnosticsStateButton" automation:AutomationProperties.Name="Diagnostics / State" />
           </NavigationView.MenuItems>
-          <Grid>
+          <Grid x:Name="WorkspaceHostRoot">
+            <Frame
+              x:Name="WorkspaceFrame"
+              NavigationFailed="WorkspaceFrame_NavigationFailed"
+              automation:AutomationProperties.AutomationId="WorkspaceFrame"
+              automation:AutomationProperties.Name="Routed workspace content" />
+            <Grid x:Name="LegacyWorkspaceContentStore" Visibility="Collapsed">
             <Border
               x:Name="NoSaveEmptyStateBorder"
-              Padding="32"
+              Padding="24"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch"
               Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -109,7 +115,7 @@
               CornerRadius="8"
               automation:AutomationProperties.AutomationId="NoSaveEmptyState"
               automation:AutomationProperties.Name="Open a Persona 4 Golden save">
-              <StackPanel Width="360" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24,32,0,0" Spacing="12">
+              <StackPanel Width="360" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="16,16,0,0" Spacing="10">
                 <TextBlock Text="Open a Persona 4 Golden save" Style="{ThemeResource SubtitleTextBlockStyle}" TextWrapping="WrapWholeWords" />
                 <TextBlock Text="Drop a save file here, or choose Open save to begin editing." Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="WrapWholeWords" />
                 <Button x:Name="NoSaveOpenButton" Content="Open save..." Click="OpenButton_Click" HorizontalAlignment="Left" automation:AutomationProperties.AutomationId="NoSaveOpenButton" automation:AutomationProperties.Name="Open a Persona 4 Golden save" />
@@ -583,6 +589,7 @@
               </Border>
             </Grid>
           </ScrollViewer>
+            </Grid>
           </Grid>
         </NavigationView>
     </Grid>

@@ -684,6 +684,71 @@ public sealed class WinUIArchitectureTests
     }
 
     [Fact]
+    public void MainWindowRoutesWorkspacesThroughFrameHostPage()
+    {
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string source = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string selectionHandlerBody = GetSection(
+            source,
+            "private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)",
+            "private void NavigateToWorkspace(string sectionTag)");
+        string routeBody = GetSection(
+            source,
+            "private void EnsureLegacyWorkspaceRouted()",
+            "private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)");
+
+        Assert.Contains("<Frame", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"WorkspaceFrame\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("NavigationFailed=\"WorkspaceFrame_NavigationFailed\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LegacyWorkspaceContentStore\"", xaml, StringComparison.Ordinal);
+        Assert.True(
+            xaml.IndexOf("x:Name=\"WorkspaceFrame\"", StringComparison.Ordinal) <
+            xaml.IndexOf("x:Name=\"LegacyWorkspaceContentStore\"", StringComparison.Ordinal));
+        Assert.Contains("NavigateToWorkspace(sectionTag);", selectionHandlerBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigateToSelectedSection(sectionTag);", selectionHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(WorkspaceHostPage), LegacyWorkspaceContentStore)", routeBody, StringComparison.Ordinal);
+        Assert.Contains("hostPage.SetWorkspaceContent(LegacyWorkspaceContentStore);", routeBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WorkspaceHostPageOwnsRoutedContentSlot()
+    {
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "WorkspaceHostPage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string source = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "WorkspaceHostPage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.WorkspaceHostPage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<ContentControl x:Name=\"WorkspaceContentHost\" />", xaml, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class WorkspaceHostPage : Page", source, StringComparison.Ordinal);
+        Assert.Contains("protected override void OnNavigatedTo(NavigationEventArgs e)", source, StringComparison.Ordinal);
+        Assert.Contains("e.Parameter is UIElement content", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceContentHost.Content = null;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowSetsExplicitMultiPaneWindowSize()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string resizeBody = GetSection(
+            content,
+            "private void ResizeToDefaultMultiPaneSize()",
+            "private async void OpenButton_Click(object sender, RoutedEventArgs e)");
+
+        Assert.Contains("private const int DefaultWindowWidthDip = 1180;", content, StringComparison.Ordinal);
+        Assert.Contains("private const int DefaultWindowHeightDip = 820;", content, StringComparison.Ordinal);
+        Assert.Contains("[DllImport(\"user32.dll\")]", content, StringComparison.Ordinal);
+        Assert.Contains("private static extern uint GetDpiForWindow(IntPtr hWnd);", content, StringComparison.Ordinal);
+        Assert.Contains("ResizeToDefaultMultiPaneSize();", content, StringComparison.Ordinal);
+        Assert.Contains("Win32Interop.GetWindowFromWindowId(AppWindow.Id)", resizeBody, StringComparison.Ordinal);
+        Assert.Contains("GetDpiForWindow(hwnd) / 96.0", resizeBody, StringComparison.Ordinal);
+        Assert.Contains("AppWindow.Resize(new SizeInt32(", resizeBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("Width=\"1180\"", File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml")), StringComparison.Ordinal);
+        Assert.DoesNotContain("Height=\"820\"", File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml")), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowXamlDeclaresCompendiumEditingControls()
     {
         string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
@@ -1109,7 +1174,11 @@ public sealed class WinUIArchitectureTests
             "x:Name=\"SaveEditorScrollViewer\"");
 
         Assert.Contains("automation:AutomationProperties.AutomationId=\"NoSaveEmptyState\"", noSaveSection, StringComparison.Ordinal);
+        Assert.Contains("Padding=\"24\"", noSaveSection, StringComparison.Ordinal);
+        Assert.Contains("<StackPanel Width=\"360\"", noSaveSection, StringComparison.Ordinal);
         Assert.Contains("HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\"", noSaveSection, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"16,16,0,0\"", noSaveSection, StringComparison.Ordinal);
+        Assert.Contains("Spacing=\"10\"", noSaveSection, StringComparison.Ordinal);
         Assert.DoesNotContain("HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"", noSaveSection, StringComparison.Ordinal);
         Assert.Contains("Open a Persona 4 Golden save", noSaveSection, StringComparison.Ordinal);
         Assert.Contains("Drop a save file here", noSaveSection, StringComparison.Ordinal);

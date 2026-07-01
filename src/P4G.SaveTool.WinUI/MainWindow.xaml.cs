@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -8,10 +9,12 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Navigation;
 using P4G.SaveTool.Application;
 using P4G.SaveTool.Contracts;
 using P4G.SaveTool.Presentation;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Graphics;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
@@ -21,6 +24,8 @@ namespace P4G.SaveTool.WinUI;
 public sealed partial class MainWindow : Window
 {
     private const uint LegacyCompendiumMaximumTotalExperience = 999_999_999;
+    private const int DefaultWindowWidthDip = 1180;
+    private const int DefaultWindowHeightDip = 820;
 
     private enum BusyOperationCompletion
     {
@@ -71,6 +76,7 @@ public sealed partial class MainWindow : Window
     private bool suppressCompendiumEvents;
     private bool suppressSocialLinkEvents;
     private bool suppressImmediateEditEvents;
+    private bool isWorkspaceRoutingInitialized;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
@@ -87,10 +93,14 @@ public sealed partial class MainWindow : Window
     private byte? selectedPersonaMemberId;
     private int selectedPersonaSlotIndex;
 
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hWnd);
+
     public MainWindow(string? startupOpenPath = null)
     {
         this.startupOpenPath = startupOpenPath;
         InitializeComponent();
+        ResizeToDefaultMultiPaneSize();
         DiagnosticsListView.ItemsSource = diagnosticsItems;
         SocialLinkListView.ItemsSource = socialLinkItems;
         SocialLinkAddComboBox.ItemsSource = socialLinkChoices;
@@ -124,6 +134,15 @@ public sealed partial class MainWindow : Window
         defaultMainCharacterLevelValueForeground = MainCharacterLevelValueTextBlock.Foreground;
         defaultPersonaLevelValueForeground = PersonaLevelValueTextBlock.Foreground;
         SectionNavigationView.SelectedItem = JumpBasicStatsButton;
+    }
+
+    private void ResizeToDefaultMultiPaneSize()
+    {
+        IntPtr hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
+        double scale = GetDpiForWindow(hwnd) / 96.0;
+        AppWindow.Resize(new SizeInt32(
+            (int)Math.Ceiling(DefaultWindowWidthDip * scale),
+            (int)Math.Ceiling(DefaultWindowHeightDip * scale)));
     }
 
     private async void OpenButton_Click(object sender, RoutedEventArgs e) =>
@@ -160,8 +179,46 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        NavigateToSelectedSection(sectionTag);
+        NavigateToWorkspace(sectionTag);
     }
+
+    private void NavigateToWorkspace(string sectionTag)
+    {
+        if (!isWorkspaceRoutingInitialized)
+        {
+            return;
+        }
+
+        EnsureLegacyWorkspaceRouted();
+        if (viewModel is not null && viewModel.HasSave)
+        {
+            NavigateToSelectedSection(sectionTag);
+        }
+    }
+
+    private void EnsureLegacyWorkspaceRouted()
+    {
+        if (LegacyWorkspaceContentStore.Parent is Panel legacyParent)
+        {
+            legacyParent.Children.Remove(LegacyWorkspaceContentStore);
+        }
+
+        LegacyWorkspaceContentStore.Visibility = Visibility.Visible;
+
+        if (WorkspaceFrame.Content is WorkspaceHostPage hostPage)
+        {
+            hostPage.SetWorkspaceContent(LegacyWorkspaceContentStore);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(WorkspaceHostPage), LegacyWorkspaceContentStore))
+        {
+            throw new InvalidOperationException("Could not navigate to the save editor workspace host page.");
+        }
+    }
+
+    private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e) =>
+        throw new InvalidOperationException($"Could not navigate to workspace page {e.SourcePageType.FullName}.", e.Exception);
 
     private void NavigateToSelectedSection(string sectionTag)
     {
@@ -583,6 +640,8 @@ public sealed partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         TraceStartup("MainWindow_Loaded enter");
+        isWorkspaceRoutingInitialized = true;
+        EnsureLegacyWorkspaceRouted();
         UpdateWindowTitle();
         if (string.IsNullOrWhiteSpace(startupOpenPath))
         {

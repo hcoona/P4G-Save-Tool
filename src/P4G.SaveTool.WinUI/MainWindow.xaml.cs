@@ -81,6 +81,7 @@ public sealed partial class MainWindow : Window
     private bool calendarSocialStatsWorkspacePageInitializedFromViewModel;
     private bool socialLinksWorkspacePageInitializedFromViewModel;
     private bool equipmentWorkspacePageInitializedFromViewModel;
+    private bool inventoryWorkspacePageInitializedFromViewModel;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
@@ -100,6 +101,7 @@ public sealed partial class MainWindow : Window
     private CalendarSocialStatsWorkspacePage? calendarSocialStatsWorkspacePage;
     private SocialLinksWorkspacePage? socialLinksWorkspacePage;
     private EquipmentWorkspacePage? equipmentWorkspacePage;
+    private InventoryWorkspacePage? inventoryWorkspacePage;
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -111,9 +113,6 @@ public sealed partial class MainWindow : Window
         ResizeToDefaultMultiPaneSize();
         CompendiumListView.ItemsSource = compendiumItems;
         CompendiumAddComboBox.ItemsSource = compendiumAddChoices;
-        InventoryListView.ItemsSource = inventoryItems;
-        InventoryCategoryComboBox.ItemsSource = inventoryCategories;
-        InventoryItemComboBox.ItemsSource = inventoryItemChoices;
         PartySlot0ComboBox.ItemsSource = partySlot0Choices;
         PartySlot1ComboBox.ItemsSource = partySlot1Choices;
         PartySlot2ComboBox.ItemsSource = partySlot2Choices;
@@ -226,6 +225,12 @@ public sealed partial class MainWindow : Window
         if (sectionTag == "Equipment")
         {
             NavigateToEquipmentWorkspace();
+            return;
+        }
+
+        if (sectionTag == "Inventory")
+        {
+            NavigateToInventoryWorkspace();
             return;
         }
 
@@ -504,6 +509,54 @@ public sealed partial class MainWindow : Window
         page.SetEquipmentEnabled(CanEditEquipment());
     }
 
+    private void NavigateToInventoryWorkspace()
+    {
+        SelectWorkspaceNavigationItem(JumpInventoryButton);
+        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
+
+        if (WorkspaceFrame.Content is InventoryWorkspacePage page)
+        {
+            ConfigureInventoryWorkspacePage(page);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(InventoryWorkspacePage)))
+        {
+            throw new InvalidOperationException("Could not navigate to the inventory workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is InventoryWorkspacePage navigatedPage)
+        {
+            ConfigureInventoryWorkspacePage(navigatedPage);
+        }
+    }
+
+    private void ConfigureInventoryWorkspacePage(InventoryWorkspacePage page)
+    {
+        inventoryWorkspacePage = page;
+        page.SetItemsSources(inventoryItems, inventoryCategories, inventoryItemChoices);
+        page.InventorySelectionChanged -= InventoryListView_SelectionChanged;
+        page.InventorySelectionChanged += InventoryListView_SelectionChanged;
+        page.InventoryCategorySelectionChanged -= InventoryCategoryComboBox_SelectionChanged;
+        page.InventoryCategorySelectionChanged += InventoryCategoryComboBox_SelectionChanged;
+        page.InventoryItemSelectionChanged -= InventoryItemComboBox_SelectionChanged;
+        page.InventoryItemSelectionChanged += InventoryItemComboBox_SelectionChanged;
+        page.InventoryQuantityTextChanged -= InventoryQuantityTextBox_TextChanged;
+        page.InventoryQuantityTextChanged += InventoryQuantityTextBox_TextChanged;
+        page.InventoryAddUpdateClick -= InventoryAddUpdateButton_Click;
+        page.InventoryAddUpdateClick += InventoryAddUpdateButton_Click;
+        page.InventoryDeleteClick -= InventoryDeleteButton_Click;
+        page.InventoryDeleteClick += InventoryDeleteButton_Click;
+
+        if (!inventoryWorkspacePageInitializedFromViewModel)
+        {
+            RefreshInventoryState();
+        }
+
+        page.SetInventoryEnabled(CanEditInventory(), selectedInventoryItemId.HasValue, selectedInventoryEntryId.HasValue);
+    }
+
     private void SelectWorkspaceNavigationItem(NavigationViewItem navigationItem)
     {
         if (SectionNavigationView.SelectedItem is NavigationViewItem selectedItem &&
@@ -543,9 +596,6 @@ public sealed partial class MainWindow : Window
             case "Compendium":
                 NavigateToSection(CompendiumSectionHeader);
                 break;
-            case "Inventory":
-                NavigateToSection(InventorySectionHeader);
-                break;
         }
     }
 
@@ -562,7 +612,7 @@ public sealed partial class MainWindow : Window
         NavigateToSection(CompendiumSectionHeader);
 
     private void JumpInventory_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(InventorySectionHeader);
+        NavigateToInventoryWorkspace();
 
     private void JumpDiagnosticsState_Click(object sender, RoutedEventArgs e) =>
         NavigateToWorkspace("DiagnosticsState");
@@ -786,7 +836,10 @@ public sealed partial class MainWindow : Window
                     inventorySelectionState.Reset();
                     autoSelectInventoryEntryAfterOpen = true;
                     autoSelectCompendiumEntryAfterOpen = true;
-                    InventoryQuantityTextBox.Text = string.Empty;
+                    if (inventoryWorkspacePage is not null)
+                    {
+                        inventoryWorkspacePage.QuantityText = string.Empty;
+                    }
                     UpdateShellState();
                 },
                 UpdateShellState);
@@ -1116,7 +1169,7 @@ public sealed partial class MainWindow : Window
         TryAppendSelectedInventoryQuantityEdit(
             inventoryQuantityDraftDirty,
             selectedInventoryItemId,
-            InventoryQuantityTextBox.Text ?? string.Empty,
+            inventoryWorkspacePage?.QuantityText ?? string.Empty,
             batch,
             validationDiagnostics);
 
@@ -2040,7 +2093,7 @@ public sealed partial class MainWindow : Window
         byte? selectedInventoryCategoryIdBeforeRefresh = selectedInventoryCategoryId;
         ushort? selectedInventoryItemIdBeforeRefresh = selectedInventoryItemId;
         ushort? selectedInventoryEntryIdBeforeRefresh = selectedInventoryEntryId;
-        string inventoryQuantityDraft = InventoryQuantityTextBox.Text;
+        string inventoryQuantityDraft = inventoryWorkspacePage?.QuantityText ?? string.Empty;
         bool inventoryQuantityDraftWasDirty = inventoryQuantityDraftDirty;
         SocialLinkDraftState? socialLinkDraft = CaptureSelectedSocialLinkDraft();
         CompendiumDraftState? compendiumDraft = preserveSelectedCompendiumDraft ? CaptureSelectedCompendiumDraft() : null;
@@ -2061,7 +2114,10 @@ public sealed partial class MainWindow : Window
             suppressInventoryEvents = true;
             try
             {
-                InventoryQuantityTextBox.Text = inventoryQuantityDraft;
+                if (inventoryWorkspacePage is not null)
+                {
+                    inventoryWorkspacePage.QuantityText = inventoryQuantityDraft;
+                }
             }
             finally
             {
@@ -2242,6 +2298,9 @@ public sealed partial class MainWindow : Window
     private bool CanEditEquipment() =>
         viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
 
+    private bool CanEditInventory() =>
+        viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
+
     private string GetCurrentFamilyNameText() =>
         basicStatsWorkspacePage?.FamilyNameText ?? viewModel.FamilyName;
 
@@ -2378,12 +2437,7 @@ public sealed partial class MainWindow : Window
         PersonaSkillBox6.IsEnabled = canEdit;
         PersonaSkillBox7.IsEnabled = canEdit;
         PersonaSkillBox8.IsEnabled = canEdit;
-        InventoryListView.IsEnabled = canEdit;
-        InventoryCategoryComboBox.IsEnabled = canEdit;
-        InventoryItemComboBox.IsEnabled = canEdit;
-        InventoryQuantityTextBox.IsEnabled = canEdit && selectedInventoryItemId.HasValue;
-        InventoryAddUpdateButton.IsEnabled = canEdit && selectedInventoryItemId.HasValue;
-        InventoryDeleteButton.IsEnabled = canEdit && selectedInventoryEntryId.HasValue && selectedInventoryItemId.HasValue;
+        inventoryWorkspacePage?.SetInventoryEnabled(canEdit, selectedInventoryItemId.HasValue, selectedInventoryEntryId.HasValue);
 
         FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);
         StateTextBlock.Text = ShellStateFormatter.GetStatusText(viewModel.HasSave, hasPendingEditorDrafts, viewModel.IsDirty, viewModel.CanWrite);
@@ -2816,22 +2870,29 @@ public sealed partial class MainWindow : Window
                 inventoryCategories.Add(category);
             }
 
+            InventoryWorkspacePage? page = inventoryWorkspacePage;
+            if (page is null)
+            {
+                inventoryWorkspacePageInitializedFromViewModel = false;
+                return;
+            }
+
             if (!viewModel.HasSave || SaveEditorViewModel.InventoryCategories.Count == 0)
             {
                 autoSelectInventoryEntryAfterOpen = false;
                 selectedInventoryCategoryId = null;
                 selectedInventoryItemId = null;
                 selectedInventoryEntryId = null;
-                InventoryCategoryComboBox.SelectedItem = null;
+                page.SelectedCategory = null;
                 inventoryItemChoices.Clear();
-                InventoryItemComboBox.SelectedItem = null;
-                InventoryListView.SelectedItem = null;
+                page.SelectedItem = null;
+                page.SelectedInventoryEntry = null;
                 if (inventorySelectionState.ShouldHydrateQuantityText(null, null, null, string.Empty))
                 {
-                    InventoryQuantityTextBox.Text = string.Empty;
+                    page.QuantityText = string.Empty;
                 }
-                InventoryAddUpdateButton.Content = "Add/Update";
-                InventoryDeleteButton.IsEnabled = false;
+                page.SetAddUpdateButtonText("Add/Update");
+                inventoryWorkspacePageInitializedFromViewModel = true;
                 return;
             }
 
@@ -2874,20 +2935,20 @@ public sealed partial class MainWindow : Window
 
             if (selectedCategory is null && selectedEntry is null && selectedInventoryCategoryId is null && selectedInventoryItemId is null)
             {
-                InventoryCategoryComboBox.SelectedItem = null;
+                page.SelectedCategory = null;
                 inventoryItemChoices.Clear();
-                InventoryItemComboBox.SelectedItem = null;
-                InventoryListView.SelectedItem = null;
+                page.SelectedItem = null;
+                page.SelectedInventoryEntry = null;
                 if (inventorySelectionState.ShouldHydrateQuantityText(null, null, null, string.Empty))
                 {
-                    InventoryQuantityTextBox.Text = string.Empty;
+                    page.QuantityText = string.Empty;
                 }
-                InventoryAddUpdateButton.Content = "Add/Update";
-                InventoryDeleteButton.IsEnabled = false;
+                page.SetAddUpdateButtonText("Add/Update");
+                inventoryWorkspacePageInitializedFromViewModel = true;
                 return;
             }
 
-            InventoryCategoryComboBox.SelectedItem = selectedCategory;
+            page.SelectedCategory = selectedCategory;
 
             IReadOnlyList<InventoryItemChoiceViewState> itemChoices = selectedCategory is not null
                 ? SaveEditorViewModel.GetInventoryItemsForCategory(selectedCategory.CategoryId)
@@ -2905,10 +2966,10 @@ public sealed partial class MainWindow : Window
             {
                 inventoryItemChoices.Add(itemChoice);
             }
-            InventoryItemComboBox.SelectedItem = selectedItem;
+            page.SelectedItem = selectedItem;
             selectedInventoryItemId = selectedItem is { IsPlaceholder: false } ? selectedItem.ItemId : null;
 
-            InventoryListView.SelectedItem = selectedEntry;
+            page.SelectedInventoryEntry = selectedEntry;
             selectedInventoryEntryId = selectedEntry?.ItemId;
             string inventoryQuantityText = selectedEntry?.Quantity.ToString(CultureInfo.InvariantCulture)
                 ?? (selectedItem is null || selectedItem.IsPlaceholder
@@ -2920,10 +2981,10 @@ public sealed partial class MainWindow : Window
                 selectedInventoryEntryId,
                 inventoryQuantityText))
             {
-                InventoryQuantityTextBox.Text = inventoryQuantityText;
+                page.QuantityText = inventoryQuantityText;
             }
-            InventoryAddUpdateButton.Content = selectedItem is null || selectedItem.IsPlaceholder || selectedEntry is null ? "Add/Update" : "Update";
-            InventoryDeleteButton.IsEnabled = selectedEntry is not null && InventoryListView.IsEnabled && selectedInventoryItemId.HasValue;
+            page.SetAddUpdateButtonText(selectedItem is null || selectedItem.IsPlaceholder || selectedEntry is null ? "Add/Update" : "Update");
+            inventoryWorkspacePageInitializedFromViewModel = true;
         }
         finally
         {
@@ -3789,7 +3850,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (InventoryListView.SelectedItem is not InventoryStackViewState selectedEntry)
+        if (inventoryWorkspacePage?.SelectedInventoryEntry is not InventoryStackViewState selectedEntry)
         {
             inventoryQuantityDraftDirty = false;
             selectedInventoryEntryId = null;
@@ -3819,7 +3880,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (InventoryCategoryComboBox.SelectedItem is ItemCategoryViewState selectedCategory)
+        if (inventoryWorkspacePage?.SelectedCategory is ItemCategoryViewState selectedCategory)
         {
             inventoryQuantityDraftDirty = false;
             selectedInventoryCategoryId = selectedCategory.CategoryId;
@@ -3847,7 +3908,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (InventoryItemComboBox.SelectedItem is InventoryItemChoiceViewState selectedItem)
+        if (inventoryWorkspacePage?.SelectedItem is InventoryItemChoiceViewState selectedItem)
         {
             inventoryQuantityDraftDirty = false;
             inventorySelectionState.RememberCategoryItem(selectedItem.CategoryId, selectedItem.ItemId);
@@ -3941,7 +4002,7 @@ public sealed partial class MainWindow : Window
         }
 
         ushort deletedEntryId = selectedInventoryEntryId.Value;
-        string deletedEntryDescription = InventoryListView.SelectedItem?.ToString() ?? "the selected inventory entry";
+        string deletedEntryDescription = inventoryWorkspacePage?.SelectedInventoryEntryDescription ?? "the selected inventory entry";
         if (!await ShowConfirmationAsync(
             "Delete inventory entry?",
             $"Delete {deletedEntryDescription}? This stages the deletion until you save.",
@@ -4159,7 +4220,7 @@ public sealed partial class MainWindow : Window
 
     private bool TryReadInventoryQuantity(out byte quantity)
     {
-        if (TryReadInventoryQuantityText(InventoryQuantityTextBox.Text ?? string.Empty, out quantity, out SaveDiagnostic diagnostic))
+        if (TryReadInventoryQuantityText(inventoryWorkspacePage?.QuantityText ?? string.Empty, out quantity, out SaveDiagnostic diagnostic))
         {
             return true;
         }

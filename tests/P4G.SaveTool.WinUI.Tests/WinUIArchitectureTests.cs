@@ -317,8 +317,7 @@ public sealed class WinUIArchitectureTests
             "private void UpdateShellState()",
             "private void RefreshSocialStatsState()");
 
-        Assert.Contains("InventoryQuantityTextBox.IsEnabled = canEdit && selectedInventoryItemId.HasValue;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("InventoryAddUpdateButton.IsEnabled = canEdit && selectedInventoryItemId.HasValue;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("inventoryWorkspacePage?.SetInventoryEnabled(canEdit, selectedInventoryItemId.HasValue, selectedInventoryEntryId.HasValue);", updateShellStateBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -649,7 +648,7 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"DiagnosticsStateSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"DiagnosticsListView\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CompendiumSectionHeader\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"InventorySectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"InventorySectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"YenTextBox\"", content, StringComparison.Ordinal);
@@ -734,6 +733,11 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("WorkspaceFrame.Navigate(typeof(EquipmentWorkspacePage))", source, StringComparison.Ordinal);
         Assert.Contains("ConfigureEquipmentWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
         Assert.Contains("equipmentWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.Contains("if (sectionTag == \"Inventory\")", source, StringComparison.Ordinal);
+        Assert.Contains("NavigateToInventoryWorkspace();", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(InventoryWorkspacePage))", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureInventoryWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
+        Assert.Contains("inventoryWorkspacePage = page;", source, StringComparison.Ordinal);
         Assert.True(
             source.IndexOf("if (sectionTag == \"CalendarSocialStats\")", StringComparison.Ordinal) <
             source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
@@ -743,6 +747,9 @@ public sealed class WinUIArchitectureTests
         Assert.True(
             source.IndexOf("if (sectionTag == \"Equipment\")", StringComparison.Ordinal) <
             source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
+        Assert.True(
+            source.IndexOf("if (sectionTag == \"Inventory\")", StringComparison.Ordinal) <
+            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
         Assert.DoesNotContain("case \"BasicStats\":", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("BasicStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("case \"CalendarSocialStats\":", selectedSectionBody, StringComparison.Ordinal);
@@ -751,7 +758,9 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("SocialLinksSectionHeader", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("case \"Equipment\":", selectedSectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("EquipmentSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.Equal(7, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
+        Assert.DoesNotContain("case \"Inventory\":", selectedSectionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("InventorySectionHeader", selectedSectionBody, StringComparison.Ordinal);
+        Assert.Equal(8, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
@@ -1022,7 +1031,7 @@ public sealed class WinUIArchitectureTests
         string compendiumSection = GetSection(
             content,
             "              x:Name=\"CompendiumSectionHeader\"",
-            "              x:Name=\"InventorySectionHeader\"");
+            "              x:Name=\"PersonaSummaryTextBox\"");
 
         Assert.Contains("Text=\"{Binding}\"", compendiumSection, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding DisplayName}\"", compendiumSection, StringComparison.Ordinal);
@@ -1202,11 +1211,11 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("saveEditorRefreshCoordinator.RunWithFullRefreshSuppressed(", saveBody, StringComparison.Ordinal);
         Assert.Contains("return BusyOperationCompletion.PreserveEditorState;", saveBody, StringComparison.Ordinal);
         Assert.Equal(4, Regex.Count(saveBody, Regex.Escape("RefreshFromViewModelPreservingInventoryQuantityDraft();")));
-        Assert.Contains("string inventoryQuantityDraft = InventoryQuantityTextBox.Text;", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("string inventoryQuantityDraft = inventoryWorkspacePage?.QuantityText ?? string.Empty;", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("SocialLinkDraftState? socialLinkDraft = CaptureSelectedSocialLinkDraft();", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumDraftState? compendiumDraft = preserveSelectedCompendiumDraft ? CaptureSelectedCompendiumDraft() : null;", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("InventorySelectionState.ShouldRestoreQuantityDraft(", inventoryRefreshBody, StringComparison.Ordinal);
-        Assert.Contains("InventoryQuantityTextBox.Text = inventoryQuantityDraft;", inventoryRefreshBody, StringComparison.Ordinal);
+        Assert.Contains("inventoryWorkspacePage.QuantityText = inventoryQuantityDraft;", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("if (preserveSelectedSocialLinkDraft && socialLinkDraft is not null)", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("RestoreSelectedSocialLinkDraft(socialLinkDraft.Value);", inventoryRefreshBody, StringComparison.Ordinal);
         Assert.Contains("if (compendiumDraft is not null)", inventoryRefreshBody, StringComparison.Ordinal);
@@ -1303,30 +1312,67 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("selectedCompendiumSlotIndex = null;", openBody, StringComparison.Ordinal);
         Assert.Contains("selectedSocialLinkIndex = null;", openBody, StringComparison.Ordinal);
         Assert.Contains("selectedSocialLinkLinkId = null;", openBody, StringComparison.Ordinal);
-        Assert.Contains("InventoryQuantityTextBox.Text = string.Empty;", openBody, StringComparison.Ordinal);
+        Assert.Contains("inventoryWorkspacePage.QuantityText = string.Empty;", openBody, StringComparison.Ordinal);
         Assert.Contains("ResetSelectedSocialLinkState(ref selectedSocialLinkIndex, ref selectedSocialLinkLinkId);", refreshSocialLinksBody, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MainWindowXamlExposesInventoryEditorSurface()
+    public void InventoryWorkspacePageOwnsInventoryEditorSurface()
     {
-        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "InventoryWorkspacePage.xaml"));
+        string source = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "InventoryWorkspacePage.xaml.cs"));
+        string mainWindowXaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml"));
+        string mainWindowSource = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string configureBody = GetSection(
+            mainWindowSource,
+            "private void ConfigureInventoryWorkspacePage(InventoryWorkspacePage page)",
+            "private void SelectWorkspaceNavigationItem(NavigationViewItem navigationItem)");
 
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.InventoryWorkspacePage\"", xaml);
+        Assert.Contains("public sealed partial class InventoryWorkspacePage : Page", source, StringComparison.Ordinal);
+        Assert.Contains("NavigationCacheMode = NavigationCacheMode.Required;", source, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"InventorySectionHeader\"", xaml);
         Assert.Contains("x:Name=\"InventoryListView\"", xaml);
         Assert.Contains("x:Name=\"InventoryCategoryComboBox\"", xaml);
         Assert.Contains("x:Name=\"InventoryItemComboBox\"", xaml);
         Assert.Contains("x:Name=\"InventoryQuantityTextBox\"", xaml);
         Assert.Contains("x:Name=\"InventoryAddUpdateButton\"", xaml);
         Assert.Contains("x:Name=\"InventoryDeleteButton\"", xaml);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"InventoryListView\"", xaml);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"InventoryCategoryComboBox\"", xaml);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"InventoryItemComboBox\"", xaml);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"InventoryQuantityTextBox\"", xaml);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"InventoryAddUpdateButton\"", xaml);
+        Assert.Contains("automation:AutomationProperties.AutomationId=\"InventoryDeleteButton\"", xaml);
         Assert.Contains("Text=\"{Binding}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding DisplayName}\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("x:Name=\"EquipmentCharacterComboBox\"", xaml);
-        Assert.DoesNotContain("x:Name=\"EquipmentWeaponComboBox\"", xaml);
-        Assert.DoesNotContain("x:Name=\"EquipmentArmorComboBox\"", xaml);
-        Assert.DoesNotContain("x:Name=\"EquipmentAccessoryComboBox\"", xaml);
-        Assert.DoesNotContain("x:Name=\"EquipmentCostumeComboBox\"", xaml);
+        Assert.Contains("event SelectionChangedEventHandler? InventorySelectionChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event SelectionChangedEventHandler? InventoryCategorySelectionChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event SelectionChangedEventHandler? InventoryItemSelectionChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event TextChangedEventHandler? InventoryQuantityTextChanged", source, StringComparison.Ordinal);
+        Assert.Contains("event RoutedEventHandler? InventoryAddUpdateClick", source, StringComparison.Ordinal);
+        Assert.Contains("event RoutedEventHandler? InventoryDeleteClick", source, StringComparison.Ordinal);
+        Assert.Contains("internal string QuantityText", source, StringComparison.Ordinal);
+        Assert.Contains("internal void SetInventoryEnabled(bool isEnabled, bool hasSelectedItem, bool hasSelectedEntry)", source, StringComparison.Ordinal);
+        Assert.Contains("page.InventorySelectionChanged += InventoryListView_SelectionChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.InventoryQuantityTextChanged += InventoryQuantityTextBox_TextChanged;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.InventoryAddUpdateClick += InventoryAddUpdateButton_Click;", configureBody, StringComparison.Ordinal);
+        Assert.Contains("page.InventoryDeleteClick += InventoryDeleteButton_Click;", configureBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"InventorySectionHeader\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"InventoryListView\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"InventoryCategoryComboBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"InventoryItemComboBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"InventoryQuantityTextBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"InventoryAddUpdateButton\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"InventoryDeleteButton\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentCharacterComboBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentWeaponComboBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentArmorComboBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentAccessoryComboBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"EquipmentCostumeComboBox\"", mainWindowXaml);
 
-        string equipmentXaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "Workspaces", "EquipmentWorkspacePage.xaml"));
+        string equipmentXaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "EquipmentWorkspacePage.xaml"));
         Assert.Contains("x:Name=\"EquipmentCharacterComboBox\"", equipmentXaml);
         Assert.Contains("x:Name=\"EquipmentWeaponComboBox\"", equipmentXaml);
         Assert.Contains("x:Name=\"EquipmentArmorComboBox\"", equipmentXaml);

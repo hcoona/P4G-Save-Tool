@@ -159,13 +159,14 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("selectedPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1", content, StringComparison.Ordinal);
         Assert.Contains("ClearSelectedCompendiumContext(ref selectedCompendiumSlotIndex);", memberHandlerBody, StringComparison.Ordinal);
         Assert.Contains("suppressCompendiumEvents = true;", memberHandlerBody, StringComparison.Ordinal);
-        Assert.Contains("CompendiumListView.SelectedItem = null;", memberHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("compendiumWorkspacePage.SelectedCompendiumEntry = null;", memberHandlerBody, StringComparison.Ordinal);
         Assert.Contains("suppressCompendiumEvents = false;", memberHandlerBody, StringComparison.Ordinal);
         Assert.Contains("PreserveCompendiumPersonaIdentity(currentCompendiumSlot, compendiumPersonaSlotEdit)", addPersonaBody, StringComparison.Ordinal);
         Assert.Contains("ushort selectedPersonaId = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value].PersonaId;", captureCompendiumDraftBody, StringComparison.Ordinal);
         Assert.DoesNotContain("PersonaChoiceComboBox.ItemsSource = SaveEditorViewModel.GetPersonaChoices", restoreCompendiumDraftBody, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Count(content, Regex.Escape("PersonaChoiceComboBox.ItemsSource =")));
-        Assert.Contains("PersonaChoiceComboBox.IsEnabled = canEdit && !selectedCompendiumSlotIndex.HasValue;", content, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(content, Regex.Escape("personaEditorControl.SetItemsSources(")));
+        Assert.Contains("personaEditorControl.SetPersonaEditorEnabled(", content, StringComparison.Ordinal);
+        Assert.Contains("!selectedCompendiumSlotIndex.HasValue", content, StringComparison.Ordinal);
         AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(personaMemberHandlerBody);
         AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(personaSlotHandlerBody);
         AssertPersonaSelectionHandlerGuardsDraftBeforeRefresh(compendiumListHandlerBody);
@@ -259,7 +260,7 @@ public sealed class WinUIArchitectureTests
             "private void RestorePersonaSelectionAfterBlockedDraft()",
             "private void InventoryListView_SelectionChanged(object sender, SelectionChangedEventArgs e)");
 
-        Assert.Contains("if (CompendiumListView.SelectedItem is not CompendiumPersonaViewState selectedEntry)", selectionBody, StringComparison.Ordinal);
+        Assert.Contains("if (compendiumWorkspacePage?.SelectedCompendiumEntry is not CompendiumPersonaViewState selectedEntry)", selectionBody, StringComparison.Ordinal);
         Assert.Contains("selectedCompendiumSlotIndex = null;", selectionBody, StringComparison.Ordinal);
         Assert.DoesNotContain("selectedPersonaSlotIndex = 0;", selectionBody, StringComparison.Ordinal);
         Assert.Contains("RefreshPersonaState();", selectionBody, StringComparison.Ordinal);
@@ -267,7 +268,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("selectedCompendiumSlotIndex = selectedEntry.SlotIndex;", selectionBody, StringComparison.Ordinal);
         Assert.Contains("selectedCompendiumListSlotIndex = selectedEntry.SlotIndex;", selectionBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumListView_SelectionChanged", content, StringComparison.Ordinal);
-        Assert.Contains("Tapped=\"CompendiumListView_Tapped\"", File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml")), StringComparison.Ordinal);
+        Assert.Contains("Tapped=\"CompendiumListView_Tapped\"", File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "Workspaces", "CompendiumWorkspacePage.xaml")), StringComparison.Ordinal);
         Assert.Contains("selectedCompendiumSlotIndex == selectedCompendiumListSlotIndex", tappedBody, StringComparison.Ordinal);
         Assert.Contains("!IsSelectedCompendiumListItemTapped(e, selectedEntry)", tappedBody, StringComparison.Ordinal);
         Assert.Contains("current is ListViewItem item", tappedBody, StringComparison.Ordinal);
@@ -275,13 +276,13 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("current = VisualTreeHelper.GetParent(current);", tappedBody, StringComparison.Ordinal);
         Assert.Contains("selectedCompendiumSlotIndex = selectedEntry.SlotIndex;", tappedBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumAddComboBox_SelectionChanged", content, StringComparison.Ordinal);
-        Assert.Contains("CompendiumListView.SelectedItem = selectedCompendiumListSlotIndex.HasValue", restoreBlockedDraftBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("CompendiumListView.SelectedItem = null;", restoreBlockedDraftBody, StringComparison.Ordinal);
+        Assert.Contains("compendiumWorkspacePage.SelectedCompendiumEntry = selectedCompendiumListSlotIndex.HasValue", restoreBlockedDraftBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("compendiumWorkspacePage.SelectedCompendiumEntry = null;", restoreBlockedDraftBody, StringComparison.Ordinal);
         Assert.Contains("CompendiumRemoveButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("CompendiumClearButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("RefreshCompendiumState();", content, StringComparison.Ordinal);
         Assert.Contains("selectedChoice.PersonaId == 0", addBody, StringComparison.Ordinal);
-        Assert.Contains("CompendiumListView.SelectedItem = null;", addBody, StringComparison.Ordinal);
+        Assert.Contains("compendiumWorkspacePage.SelectedCompendiumEntry = null;", addBody, StringComparison.Ordinal);
         Assert.Contains("RefreshPersonaState();", addBody, StringComparison.Ordinal);
         Assert.Contains("UpdateShellState();", addBody, StringComparison.Ordinal);
         Assert.Contains("RefreshCompendiumDraftPreservingSelection(", removeBody, StringComparison.Ordinal);
@@ -305,6 +306,35 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("ClearCompendiumPersonaSlot(", content, StringComparison.Ordinal);
         Assert.Contains("ClearCompendiumPersonaSlots(", content, StringComparison.Ordinal);
         Assert.DoesNotContain("PersonaId - 1", addBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowPartyPersonaNavigationExitsActiveCompendiumEditorContext()
+    {
+        string sourceFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs");
+        string content = File.ReadAllText(sourceFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string navigationBody = GetSection(
+            content,
+            "private void NavigateToPartyPersonaWorkspace()",
+            "private void ConfigurePartyPersonaWorkspacePage(PartyPersonaWorkspacePage page)");
+        string helperBody = GetSection(
+            content,
+            "private bool TryClearCompendiumEditorContextForPartyPersonaNavigation()",
+            "private void NavigateToCompendiumWorkspace()");
+
+        Assert.Contains("if (!TryClearCompendiumEditorContextForPartyPersonaNavigation())", navigationBody, StringComparison.Ordinal);
+        Assert.Contains("NavigateToCompendiumWorkspace();", navigationBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectWorkspaceNavigationItem(JumpCompendiumButton);", navigationBody, StringComparison.Ordinal);
+        Assert.Contains("if (!selectedCompendiumSlotIndex.HasValue)", helperBody, StringComparison.Ordinal);
+        Assert.Contains("if (!TryGuardSelectedPersonaDraftBeforeOperation())", helperBody, StringComparison.Ordinal);
+        Assert.Contains("RestorePersonaSelectionAfterBlockedDraft();", helperBody, StringComparison.Ordinal);
+        Assert.Contains("ClearSelectedCompendiumContext(ref selectedCompendiumSlotIndex);", helperBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("selectedCompendiumListSlotIndex = null;", helperBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshPersonaState();", helperBody, StringComparison.Ordinal);
+        Assert.Contains("UpdateShellState();", helperBody, StringComparison.Ordinal);
+        Assert.True(
+            navigationBody.IndexOf("TryClearCompendiumEditorContextForPartyPersonaNavigation", StringComparison.Ordinal) <
+            navigationBody.IndexOf("SelectWorkspaceNavigationItem(JumpPartyPersonaButton);", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -543,7 +573,7 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("Math.Max(1d, viewModel.MainCharacterLevel)", refreshBasicStatsBody, StringComparison.Ordinal);
         Assert.Contains("SectionNavigationView.SelectedItem = JumpOverviewButton;", content, StringComparison.Ordinal);
         Assert.Contains("private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)", content, StringComparison.Ordinal);
-        Assert.Contains("NavigateToSelectedSection(sectionTag);", content, StringComparison.Ordinal);
+        Assert.Contains("NavigateToWorkspace(sectionTag);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToBasicStatsWorkspace();", content, StringComparison.Ordinal);
         Assert.DoesNotContain("NavigateToSection(BasicStatsSectionHeader);", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToCalendarSocialStatsWorkspace();", content, StringComparison.Ordinal);
@@ -551,7 +581,7 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("NavigateToOverviewWorkspace();", content, StringComparison.Ordinal);
         Assert.Contains("NavigateToDiagnosticsWorkspace();", content, StringComparison.Ordinal);
         Assert.DoesNotContain("NavigateToSection(DiagnosticsStateSectionHeader);", content, StringComparison.Ordinal);
-        Assert.Contains("target.StartBringIntoView();", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("target.StartBringIntoView();", content, StringComparison.Ordinal);
         Assert.Contains("PersonaCalculateFromLevelButton_Click", content, StringComparison.Ordinal);
         Assert.Contains("PersonaLevelSlider_ValueChanged", content, StringComparison.Ordinal);
     }
@@ -608,10 +638,14 @@ public sealed class WinUIArchitectureTests
     [Fact]
     public void MainWindowXamlDeclaresSectionNavigationAndHelperControls()
     {
-        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xamlFile = Path.Combine(sourceRoot, "MainWindow.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string partyXaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "PartyPersonaWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string compendiumXaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "CompendiumWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string personaXaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "PersonaEditorControl.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
         string personaLevelSlider = GetSection(
-            content,
+            personaXaml,
             "x:Name=\"PersonaLevelSlider\"",
             "x:Name=\"PersonaLevelValueTextBlock\"");
 
@@ -643,12 +677,21 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"BasicStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"CalendarSocialStatsSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"SocialLinksSectionHeader\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"PartyPersonaSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"EquipmentSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"DiagnosticsStateSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"DiagnosticsListView\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"CompendiumSectionHeader\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"CompendiumSectionHeader\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"InventorySectionHeader\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CompendiumSectionHeader\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{ThemeResource SubtitleTextBlockStyle}\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{ThemeResource SubtitleTextBlockStyle}\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{ThemeResource CardBackgroundFillColorDefaultBrush}\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{ThemeResource CardBackgroundFillColorDefaultBrush}\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{ThemeResource CardBackgroundFillColorSecondaryBrush}\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{ThemeResource CardBackgroundFillColorSecondaryBrush}\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CompendiumEditorContextTextBlock\"", compendiumXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"FamilyNameTextBox\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"GivenNameTextBox\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"YenTextBox\"", content, StringComparison.Ordinal);
@@ -656,26 +699,31 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"MainCharacterLevelValueTextBlock\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"MainCharacterTotalExperienceTextBox\"", content, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"MainCharacterCalculateFromLevelButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"PersonaCalculateFromLevelButton\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"PersonaCalculateFromLevelButton\"", content, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PersonaCalculateFromLevelButton\"", personaXaml, StringComparison.Ordinal);
         Assert.Contains("Minimum=\"0\"", personaLevelSlider, StringComparison.Ordinal);
-        Assert.Contains("Click=\"PersonaCalculateFromLevelButton_Click\"", content, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"PersonaLevelValueTextBlock\"", content, StringComparison.Ordinal);
-        Assert.Contains("ValueChanged=\"PersonaLevelSlider_ValueChanged\"", content, StringComparison.Ordinal);
+        Assert.Contains("Click=\"PersonaCalculateFromLevelButton_Click\"", personaXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PersonaLevelValueTextBlock\"", personaXaml, StringComparison.Ordinal);
+        Assert.Contains("ValueChanged=\"PersonaLevelSlider_ValueChanged\"", personaXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("ElementName=MainCharacterLevelSlider", content, StringComparison.Ordinal);
         Assert.DoesNotContain("ElementName=PersonaLevelSlider", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"SectionNavigationView\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"JumpOverviewButton\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.Name=\"Overview\"", content, StringComparison.Ordinal);
         Assert.Contains("automation:AutomationProperties.AutomationId=\"JumpBasicStatsButton\"", content, StringComparison.Ordinal);
-        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", content, StringComparison.Ordinal);
-        Assert.DoesNotContain("VerticalScrollBarVisibility=\"Disabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Disabled\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Disabled\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.Contains("HorizontalScrollMode=\"Disabled\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("HorizontalScrollMode=\"Disabled\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("MinWidth=\"948\"", partyXaml + compendiumXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("VerticalScrollBarVisibility=\"Disabled\"", partyXaml + compendiumXaml, StringComparison.Ordinal);
         Assert.True(
             content.IndexOf("x:Name=\"JumpOverviewButton\"", StringComparison.Ordinal) <
             content.IndexOf("x:Name=\"JumpBasicStatsButton\"", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void MainWindowRoutesWorkspacesThroughFrameHostPage()
+    public void MainWindowRoutesWorkspacesThroughFramePages()
     {
         string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
         string xaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -684,27 +732,16 @@ public sealed class WinUIArchitectureTests
             source,
             "private void SectionNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)",
             "private void NavigateToWorkspace(string sectionTag)");
-        string routeBody = GetSection(
-            source,
-            "private void EnsureLegacyWorkspaceRouted()",
-            "private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)");
-        string selectedSectionBody = GetSection(
-            source,
-            "private void NavigateToSelectedSection(string sectionTag)",
-            "private void JumpSocialLinks_Click(object sender, RoutedEventArgs e)");
 
         Assert.Contains("<Frame", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"WorkspaceFrame\"", xaml, StringComparison.Ordinal);
         Assert.Contains("NavigationFailed=\"WorkspaceFrame_NavigationFailed\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"LegacyWorkspaceContentStore\"", xaml, StringComparison.Ordinal);
-        Assert.True(
-            xaml.IndexOf("x:Name=\"WorkspaceFrame\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"LegacyWorkspaceContentStore\"", StringComparison.Ordinal));
+        Assert.DoesNotContain("x:Name=\"LegacyWorkspaceContentStore\"", xaml, StringComparison.Ordinal);
         Assert.Contains("NavigateToWorkspace(sectionTag);", selectionHandlerBody, StringComparison.Ordinal);
         Assert.DoesNotContain("NavigateToSelectedSection(sectionTag);", selectionHandlerBody, StringComparison.Ordinal);
-        Assert.Contains("WorkspaceFrame.Navigate(typeof(WorkspaceHostPage), LegacyWorkspaceContentStore)", routeBody, StringComparison.Ordinal);
-        Assert.Contains("hostPage.SetWorkspaceContent(LegacyWorkspaceContentStore);", routeBody, StringComparison.Ordinal);
-        Assert.Contains("WorkspaceFrame.BackStack.Clear();", routeBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkspaceHostPage", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnsureLegacyWorkspaceRouted", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LegacyWorkspaceContentStore", source, StringComparison.Ordinal);
         Assert.Contains("if (sectionTag == \"Overview\")", source, StringComparison.Ordinal);
         Assert.Contains("WorkspaceFrame.Navigate(typeof(OverviewWorkspacePage), CreateOverviewWorkspaceState())", source, StringComparison.Ordinal);
         Assert.Contains("overviewPage.SetOverviewState(overviewState);", source, StringComparison.Ordinal);
@@ -738,44 +775,50 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("WorkspaceFrame.Navigate(typeof(InventoryWorkspacePage))", source, StringComparison.Ordinal);
         Assert.Contains("ConfigureInventoryWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
         Assert.Contains("inventoryWorkspacePage = page;", source, StringComparison.Ordinal);
-        Assert.True(
-            source.IndexOf("if (sectionTag == \"CalendarSocialStats\")", StringComparison.Ordinal) <
-            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
-        Assert.True(
-            source.IndexOf("if (sectionTag == \"SocialLinks\")", StringComparison.Ordinal) <
-            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
-        Assert.True(
-            source.IndexOf("if (sectionTag == \"Equipment\")", StringComparison.Ordinal) <
-            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
-        Assert.True(
-            source.IndexOf("if (sectionTag == \"Inventory\")", StringComparison.Ordinal) <
-            source.IndexOf("EnsureLegacyWorkspaceRouted();", StringComparison.Ordinal));
-        Assert.DoesNotContain("case \"BasicStats\":", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("BasicStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("case \"CalendarSocialStats\":", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("CalendarSocialStatsSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("case \"SocialLinks\":", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("SocialLinksSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("case \"Equipment\":", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("EquipmentSectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("case \"Inventory\":", selectedSectionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("InventorySectionHeader", selectedSectionBody, StringComparison.Ordinal);
-        Assert.Equal(8, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
+        Assert.Contains("if (sectionTag == \"PartyPersona\")", source, StringComparison.Ordinal);
+        Assert.Contains("NavigateToPartyPersonaWorkspace();", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(PartyPersonaWorkspacePage))", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigurePartyPersonaWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
+        Assert.Contains("partyPersonaWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.Contains("if (sectionTag == \"Compendium\")", source, StringComparison.Ordinal);
+        Assert.Contains("NavigateToCompendiumWorkspace();", source, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceFrame.Navigate(typeof(CompendiumWorkspacePage))", source, StringComparison.Ordinal);
+        Assert.Contains("ConfigureCompendiumWorkspacePage(navigatedPage);", source, StringComparison.Ordinal);
+        Assert.Contains("compendiumWorkspacePage = page;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigateToSection(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("PartyPersonaSectionHeader", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CompendiumSectionHeader", source, StringComparison.Ordinal);
+        Assert.Equal(9, Regex.Count(source, Regex.Escape("WorkspaceFrame.BackStack.Clear();")));
     }
 
     [Fact]
-    public void WorkspaceHostPageOwnsRoutedContentSlot()
+    public void PartyPersonaAndCompendiumWorkspacePagesOwnSharedPersonaSurface()
     {
         string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
-        string xaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "WorkspaceHostPage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
-        string source = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "WorkspaceHostPage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowXaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowSource = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string partyXaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "PartyPersonaWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string partySource = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "PartyPersonaWorkspacePage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string compendiumXaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "CompendiumWorkspacePage.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string compendiumSource = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "CompendiumWorkspacePage.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string personaXaml = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "PersonaEditorControl.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string personaSource = File.ReadAllText(Path.Combine(sourceRoot, "Workspaces", "PersonaEditorControl.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
 
-        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.WorkspaceHostPage\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("<ContentControl x:Name=\"WorkspaceContentHost\" />", xaml, StringComparison.Ordinal);
-        Assert.Contains("public sealed partial class WorkspaceHostPage : Page", source, StringComparison.Ordinal);
-        Assert.Contains("protected override void OnNavigatedTo(NavigationEventArgs e)", source, StringComparison.Ordinal);
-        Assert.Contains("e.Parameter is UIElement content", source, StringComparison.Ordinal);
-        Assert.Contains("WorkspaceContentHost.Content = null;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"PartySlot0ComboBox\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"CompendiumListView\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"PersonaMemberComboBox\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkspaceHostPage", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.PartyPersonaWorkspacePage\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.CompendiumWorkspacePage\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Class=\"P4G.SaveTool.WinUI.PersonaEditorControl\"", personaXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PartySlot0ComboBox\"", partyXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CompendiumListView\"", compendiumXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PersonaMemberComboBox\"", personaXaml, StringComparison.Ordinal);
+        Assert.Contains("internal void SetPersonaEditor(PersonaEditorControl editor)", partySource, StringComparison.Ordinal);
+        Assert.Contains("internal void SetPersonaEditor(PersonaEditorControl editor)", compendiumSource, StringComparison.Ordinal);
+        Assert.Contains("public sealed partial class PersonaEditorControl : UserControl", personaSource, StringComparison.Ordinal);
+        Assert.Contains("private readonly PersonaEditorControl personaEditorControl;", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("page.SetPersonaEditor(personaEditorControl);", mainWindowSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1010,8 +1053,10 @@ public sealed class WinUIArchitectureTests
     [Fact]
     public void MainWindowXamlDeclaresCompendiumEditingControls()
     {
-        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xamlFile = Path.Combine(sourceRoot, "Workspaces", "CompendiumWorkspacePage.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mainWindowXaml = File.ReadAllText(Path.Combine(sourceRoot, "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.Contains("x:Name=\"CompendiumListView\"", content, StringComparison.Ordinal);
         Assert.Contains("SelectionChanged=\"CompendiumListView_SelectionChanged\"", content, StringComparison.Ordinal);
@@ -1021,17 +1066,19 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("Click=\"CompendiumRemoveButton_Click\"", content, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CompendiumClearButton\"", content, StringComparison.Ordinal);
         Assert.Contains("Click=\"CompendiumClearButton_Click\"", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"CompendiumListView\"", mainWindowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"CompendiumAddComboBox\"", mainWindowXaml, StringComparison.Ordinal);
     }
 
     [Fact]
     public void MainWindowXamlBindsCompendiumListItemsWithoutPropertyReflection()
     {
-        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml");
+        string xamlFile = Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "Workspaces", "CompendiumWorkspacePage.xaml");
         string content = File.ReadAllText(xamlFile).Replace("\r\n", "\n", StringComparison.Ordinal);
         string compendiumSection = GetSection(
             content,
-            "              x:Name=\"CompendiumSectionHeader\"",
-            "              x:Name=\"PersonaSummaryTextBox\"");
+            "x:Name=\"CompendiumSectionHeader\"",
+            "x:Name=\"PersonaSummaryTextBox\"");
 
         Assert.Contains("Text=\"{Binding}\"", compendiumSection, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding DisplayName}\"", compendiumSection, StringComparison.Ordinal);
@@ -1042,7 +1089,11 @@ public sealed class WinUIArchitectureTests
     [Fact]
     public void MainWindowXamlUsesRuntimeBindingsWithNativeAotPreservation()
     {
-        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+        string sourceRoot = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string xaml = string.Join(
+            "\n",
+            Directory.EnumerateFiles(sourceRoot, "*.xaml", SearchOption.AllDirectories)
+                .Select(File.ReadAllText));
         string[] dataTemplateLines = xaml
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Where(line => line.Contains("<DataTemplate", StringComparison.Ordinal))
@@ -1072,15 +1123,15 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("SocialLinkFlagTextBox", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SocialLinkApplyButton", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SocialLinkDeleteButton.IsEnabled = canEdit", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("CompendiumListView.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("CompendiumAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumListSlotIndex.HasValue;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("CompendiumClearButton.IsEnabled = canEdit && compendiumItems.Count > 0;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("compendiumWorkspacePage?.SetCompendiumEnabled(canEdit, selectedCompendiumListSlotIndex.HasValue, compendiumItems.Count > 0);", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("CompendiumAddComboBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("CompendiumRemoveButton.IsEnabled = canEdit", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("CompendiumClearButton.IsEnabled = canEdit", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("basicStatsWorkspacePage?.SetBasicStatsEnabled(canEdit);", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("MainCharacterLevelSlider.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("MainCharacterTotalExperienceTextBox.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.DoesNotContain("MainCharacterCalculateFromLevelButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("PersonaCalculateFromLevelButton.IsEnabled = canEdit;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.Contains("personaEditorControl.SetPersonaEditorEnabled(", updateShellStateBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1475,15 +1526,11 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"NoSaveOpenButton\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("NoSaveEmptyStateBorder", source, StringComparison.Ordinal);
         Assert.DoesNotContain("NoSaveOpenButton", source, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"LegacyWorkspaceContentStore\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"SaveEditorScrollViewer\" Visibility=\"Collapsed\"", xaml, StringComparison.Ordinal);
-        Assert.True(
-            xaml.IndexOf("x:Name=\"SectionNavigationView\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"SaveEditorScrollViewer\"", StringComparison.Ordinal));
-
+        Assert.DoesNotContain("x:Name=\"LegacyWorkspaceContentStore\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"SaveEditorScrollViewer\"", xaml, StringComparison.Ordinal);
         Assert.Contains("bool hasSave = viewModel.HasSave;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;", updateShellStateBody, StringComparison.Ordinal);
-        Assert.Contains("SaveEditorScrollViewer.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;", updateShellStateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("SaveEditorScrollViewer.Visibility = editorVisibility;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("bool canNavigateEditorSections = canEdit;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("JumpOverviewButton.IsEnabled = canNavigateOverview;", updateShellStateBody, StringComparison.Ordinal);
         Assert.Contains("if (WorkspaceFrame.Content is OverviewWorkspacePage overviewPage)", updateShellStateBody, StringComparison.Ordinal);
@@ -1507,31 +1554,36 @@ public sealed class WinUIArchitectureTests
     [Fact]
     public void MainWindowXamlExposesPersonaEditorSurface()
     {
-        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml"));
+        string winUiDirectory = FindRepositoryDirectory("src", "P4G.SaveTool.WinUI");
+        string mainWindowXaml = File.ReadAllText(Path.Combine(winUiDirectory, "MainWindow.xaml"));
+        string partyXaml = File.ReadAllText(Path.Combine(winUiDirectory, "Workspaces", "PartyPersonaWorkspacePage.xaml"));
+        string personaXaml = File.ReadAllText(Path.Combine(winUiDirectory, "Workspaces", "PersonaEditorControl.xaml"));
 
-        Assert.Contains("x:Name=\"PartySlot0ComboBox\"", xaml);
-        Assert.Contains("x:Name=\"PartySlot1ComboBox\"", xaml);
-        Assert.Contains("x:Name=\"PartySlot2ComboBox\"", xaml);
-        Assert.DoesNotContain("PartySlot0TextBox", xaml);
-        Assert.Contains("x:Name=\"PersonaMemberComboBox\"", xaml);
-        Assert.Contains("x:Name=\"PersonaSlotComboBox\"", xaml);
-        Assert.Contains("x:Name=\"PersonaChoiceComboBox\"", xaml);
-        Assert.Contains("x:Name=\"PersonaXpTextBox\"", xaml);
-        Assert.Contains("x:Name=\"PersonaLevelSlider\"", xaml);
-        Assert.Contains("x:Name=\"PersonaStrengthSlider\"", xaml);
-        Assert.Contains("x:Name=\"PersonaMagicSlider\"", xaml);
-        Assert.Contains("x:Name=\"PersonaEnduranceSlider\"", xaml);
-        Assert.Contains("x:Name=\"PersonaAgilitySlider\"", xaml);
-        Assert.Contains("x:Name=\"PersonaLuckSlider\"", xaml);
-        Assert.Contains("x:Name=\"PersonaSkillBox1\"", xaml);
-        Assert.Contains("x:Name=\"PersonaSkillBox8\"", xaml);
+        Assert.DoesNotContain("x:Name=\"PartySlot0ComboBox\"", mainWindowXaml);
+        Assert.DoesNotContain("x:Name=\"PersonaMemberComboBox\"", mainWindowXaml);
+        Assert.Contains("x:Name=\"PartySlot0ComboBox\"", partyXaml);
+        Assert.Contains("x:Name=\"PartySlot1ComboBox\"", partyXaml);
+        Assert.Contains("x:Name=\"PartySlot2ComboBox\"", partyXaml);
+        Assert.DoesNotContain("PartySlot0TextBox", partyXaml);
+        Assert.Contains("x:Name=\"PersonaMemberComboBox\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaSlotComboBox\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaChoiceComboBox\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaXpTextBox\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaLevelSlider\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaStrengthSlider\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaMagicSlider\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaEnduranceSlider\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaAgilitySlider\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaLuckSlider\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaSkillBox1\"", personaXaml);
+        Assert.Contains("x:Name=\"PersonaSkillBox8\"", personaXaml);
     }
 
     [Fact]
     public void MainWindowPersonaDraftControlsRefreshShellState()
     {
         string source = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
-        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string xaml = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "Workspaces", "PersonaEditorControl.xaml")).Replace("\r\n", "\n", StringComparison.Ordinal);
         string refreshDraftBody = GetSection(
             source,
             "private void RefreshPersonaDraftShellState(Action? refreshValueText = null)",
@@ -1548,7 +1600,34 @@ public sealed class WinUIArchitectureTests
         Assert.Contains("RefreshPersonaDraftDiagnostics();", refreshDraftBody, StringComparison.Ordinal);
         Assert.Contains("UpdateShellState();", refreshDraftBody, StringComparison.Ordinal);
         Assert.Contains("if (suppressPersonaEvents || viewModel is null || !viewModel.HasSave)", refreshDraftBody, StringComparison.Ordinal);
-        Assert.Contains("ReadPersonaId(PersonaChoiceComboBox) != selectedSlot.PersonaId", hasPersonaDraftBody, StringComparison.Ordinal);
+        Assert.Contains("ReadPersonaId(personaEditorControl.SelectedPersona) != selectedSlot.PersonaId", hasPersonaDraftBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowPartyConfigurationDraftsRefreshShellState()
+    {
+        string source = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "P4G.SaveTool.WinUI"), "MainWindow.xaml.cs")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string hasPendingBody = GetSection(
+            source,
+            "private bool HasPendingEditorDrafts()",
+            "private bool HasBasicStatsDraft()");
+        string hasPartyDraftBody = GetSection(
+            source,
+            "private bool HasPartyConfigurationDraft()",
+            "private bool HasPersonaDraft()");
+        string partySelectionHandlerBody = GetSection(
+            source,
+            "private void PartySlot0ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)",
+            "private void SocialLinkTextBox_TextChanged(object sender, TextChangedEventArgs e)");
+
+        Assert.Contains("HasPartyConfigurationDraft()", hasPendingBody, StringComparison.Ordinal);
+        Assert.Contains("partyPersonaWorkspacePageInitializedFromViewModel", hasPartyDraftBody, StringComparison.Ordinal);
+        Assert.Contains("viewModel.PartyMembers.Count < 3", hasPartyDraftBody, StringComparison.Ordinal);
+        Assert.Contains("HasPartySlotDraft(0) || HasPartySlotDraft(1) || HasPartySlotDraft(2)", hasPartyDraftBody, StringComparison.Ordinal);
+        Assert.Contains("selectedMember.MemberValue != viewModel.PartyMembers[slotIndex].MemberValue", hasPartyDraftBody, StringComparison.Ordinal);
+        Assert.Contains("TrackPartyMemberDraftEdit(partyPersonaWorkspacePage?.SelectedPartySlot0);", partySelectionHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("TrackPartyMemberDraftEdit(partyPersonaWorkspacePage?.SelectedPartySlot1);", partySelectionHandlerBody, StringComparison.Ordinal);
+        Assert.Contains("TrackPartyMemberDraftEdit(partyPersonaWorkspacePage?.SelectedPartySlot2);", partySelectionHandlerBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1568,7 +1647,7 @@ public sealed class WinUIArchitectureTests
         Assert.DoesNotContain("x:Name=\"NextPhaseComboBox\"", xaml);
         Assert.DoesNotContain("x:Name=\"SocialLinksSectionHeader\"", xaml);
         Assert.DoesNotContain("x:Name=\"SocialLinkListView\"", xaml);
-        Assert.Contains("x:Name=\"PartyPersonaSectionHeader\"", xaml);
+        Assert.DoesNotContain("x:Name=\"PartyPersonaSectionHeader\"", xaml);
     }
 
     [Fact]

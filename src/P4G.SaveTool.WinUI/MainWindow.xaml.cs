@@ -63,7 +63,6 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<SkillChoiceViewState> personaSkillChoices8 = new();
     private readonly InventorySelectionState inventorySelectionState = new();
     private readonly SaveEditorRefreshCoordinator saveEditorRefreshCoordinator = new();
-    private readonly Brush? defaultPersonaLevelValueForeground;
     private readonly SolidColorBrush legacyLevelWarningForeground = new(Colors.Red);
     private string? startupOpenPath;
     private IReadOnlyList<SaveDiagnostic>? uiDiagnosticsOverride;
@@ -82,6 +81,8 @@ public sealed partial class MainWindow : Window
     private bool socialLinksWorkspacePageInitializedFromViewModel;
     private bool equipmentWorkspacePageInitializedFromViewModel;
     private bool inventoryWorkspacePageInitializedFromViewModel;
+    private bool partyPersonaWorkspacePageInitializedFromViewModel;
+    private bool compendiumWorkspacePageInitializedFromViewModel;
     private bool preserveEditorTextDuringInventoryRefresh;
     private bool autoSelectInventoryEntryAfterOpen;
     private bool autoSelectCompendiumEntryAfterOpen;
@@ -97,11 +98,14 @@ public sealed partial class MainWindow : Window
     private byte? selectedSocialLinkLinkId;
     private byte? selectedPersonaMemberId;
     private int selectedPersonaSlotIndex;
+    private readonly PersonaEditorControl personaEditorControl;
     private BasicStatsWorkspacePage? basicStatsWorkspacePage;
     private CalendarSocialStatsWorkspacePage? calendarSocialStatsWorkspacePage;
     private SocialLinksWorkspacePage? socialLinksWorkspacePage;
     private EquipmentWorkspacePage? equipmentWorkspacePage;
     private InventoryWorkspacePage? inventoryWorkspacePage;
+    private PartyPersonaWorkspacePage? partyPersonaWorkspacePage;
+    private CompendiumWorkspacePage? compendiumWorkspacePage;
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -111,27 +115,36 @@ public sealed partial class MainWindow : Window
         this.startupOpenPath = startupOpenPath;
         InitializeComponent();
         ResizeToDefaultMultiPaneSize();
-        CompendiumListView.ItemsSource = compendiumItems;
-        CompendiumAddComboBox.ItemsSource = compendiumAddChoices;
-        PartySlot0ComboBox.ItemsSource = partySlot0Choices;
-        PartySlot1ComboBox.ItemsSource = partySlot1Choices;
-        PartySlot2ComboBox.ItemsSource = partySlot2Choices;
-        PersonaMemberComboBox.ItemsSource = personaMemberChoices;
-        PersonaSlotComboBox.ItemsSource = personaSlotChoices;
-        PersonaChoiceComboBox.ItemsSource = personaChoices;
-        PersonaSkillBox1.ItemsSource = personaSkillChoices1;
-        PersonaSkillBox2.ItemsSource = personaSkillChoices2;
-        PersonaSkillBox3.ItemsSource = personaSkillChoices3;
-        PersonaSkillBox4.ItemsSource = personaSkillChoices4;
-        PersonaSkillBox5.ItemsSource = personaSkillChoices5;
-        PersonaSkillBox6.ItemsSource = personaSkillChoices6;
-        PersonaSkillBox7.ItemsSource = personaSkillChoices7;
-        PersonaSkillBox8.ItemsSource = personaSkillChoices8;
+        personaEditorControl = new PersonaEditorControl();
+        personaEditorControl.SetItemsSources(
+            personaMemberChoices,
+            personaSlotChoices,
+            personaChoices,
+            personaSkillChoices1,
+            personaSkillChoices2,
+            personaSkillChoices3,
+            personaSkillChoices4,
+            personaSkillChoices5,
+            personaSkillChoices6,
+            personaSkillChoices7,
+            personaSkillChoices8);
+        WirePersonaEditorControlEvents();
 
         viewModel = new SaveEditorViewModel(new SaveApplicationService());
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
-        defaultPersonaLevelValueForeground = PersonaLevelValueTextBlock.Foreground;
         SectionNavigationView.SelectedItem = JumpOverviewButton;
+    }
+
+    private void WirePersonaEditorControlEvents()
+    {
+        personaEditorControl.PersonaMemberSelectionChanged += PersonaMemberComboBox_SelectionChanged;
+        personaEditorControl.PersonaSlotSelectionChanged += PersonaSlotComboBox_SelectionChanged;
+        personaEditorControl.PersonaChoiceSelectionChanged += PersonaChoiceComboBox_SelectionChanged;
+        personaEditorControl.PersonaSkillSelectionChanged += PersonaSkillBox_SelectionChanged;
+        personaEditorControl.PersonaDraftTextChanged += PersonaDraftControl_Changed;
+        personaEditorControl.PersonaDraftValueChanged += PersonaDraftControl_Changed;
+        personaEditorControl.PersonaLevelValueChanged += PersonaLevelSlider_ValueChanged;
+        personaEditorControl.PersonaCalculateFromLevelClick += PersonaCalculateFromLevelButton_Click;
     }
 
     private void ResizeToDefaultMultiPaneSize()
@@ -234,40 +247,24 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        EnsureLegacyWorkspaceRouted();
-        if (viewModel is not null && viewModel.HasSave)
+        if (sectionTag == "PartyPersona")
         {
-            NavigateToSelectedSection(sectionTag);
-        }
-    }
-
-    private void EnsureLegacyWorkspaceRouted()
-    {
-        if (LegacyWorkspaceContentStore.Parent is Panel legacyParent)
-        {
-            legacyParent.Children.Remove(LegacyWorkspaceContentStore);
-        }
-
-        LegacyWorkspaceContentStore.Visibility = Visibility.Visible;
-
-        if (WorkspaceFrame.Content is WorkspaceHostPage hostPage)
-        {
-            hostPage.SetWorkspaceContent(LegacyWorkspaceContentStore);
+            NavigateToPartyPersonaWorkspace();
             return;
         }
 
-        if (!WorkspaceFrame.Navigate(typeof(WorkspaceHostPage), LegacyWorkspaceContentStore))
+        if (sectionTag == "Compendium")
         {
-            throw new InvalidOperationException("Could not navigate to the save editor workspace host page.");
+            NavigateToCompendiumWorkspace();
+            return;
         }
 
-        WorkspaceFrame.BackStack.Clear();
+        throw new ArgumentOutOfRangeException(nameof(sectionTag), sectionTag, "Unknown workspace section tag.");
     }
 
     private void NavigateToOverviewWorkspace()
     {
         SelectWorkspaceNavigationItem(JumpOverviewButton);
-        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is OverviewWorkspacePage overviewPage)
         {
@@ -309,7 +306,6 @@ public sealed partial class MainWindow : Window
     private void NavigateToDiagnosticsWorkspace()
     {
         SelectWorkspaceNavigationItem(JumpDiagnosticsStateButton);
-        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is DiagnosticsWorkspacePage diagnosticsPage)
         {
@@ -328,7 +324,6 @@ public sealed partial class MainWindow : Window
     private void NavigateToBasicStatsWorkspace()
     {
         SelectWorkspaceNavigationItem(JumpBasicStatsButton);
-        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is BasicStatsWorkspacePage page)
         {
@@ -375,7 +370,6 @@ public sealed partial class MainWindow : Window
     private void NavigateToCalendarSocialStatsWorkspace()
     {
         SelectWorkspaceNavigationItem(JumpCalendarSocialStatsButton);
-        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is CalendarSocialStatsWorkspacePage page)
         {
@@ -417,7 +411,6 @@ public sealed partial class MainWindow : Window
     private void NavigateToSocialLinksWorkspace()
     {
         SelectWorkspaceNavigationItem(JumpSocialLinksButton);
-        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is SocialLinksWorkspacePage page)
         {
@@ -461,7 +454,6 @@ public sealed partial class MainWindow : Window
     private void NavigateToEquipmentWorkspace()
     {
         SelectWorkspaceNavigationItem(JumpEquipmentButton);
-        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is EquipmentWorkspacePage page)
         {
@@ -512,7 +504,6 @@ public sealed partial class MainWindow : Window
     private void NavigateToInventoryWorkspace()
     {
         SelectWorkspaceNavigationItem(JumpInventoryButton);
-        LegacyWorkspaceContentStore.Visibility = Visibility.Collapsed;
 
         if (WorkspaceFrame.Content is InventoryWorkspacePage page)
         {
@@ -557,6 +548,123 @@ public sealed partial class MainWindow : Window
         page.SetInventoryEnabled(CanEditInventory(), selectedInventoryItemId.HasValue, selectedInventoryEntryId.HasValue);
     }
 
+    private void NavigateToPartyPersonaWorkspace()
+    {
+        if (!TryClearCompendiumEditorContextForPartyPersonaNavigation())
+        {
+            NavigateToCompendiumWorkspace();
+            return;
+        }
+
+        SelectWorkspaceNavigationItem(JumpPartyPersonaButton);
+
+        if (WorkspaceFrame.Content is PartyPersonaWorkspacePage page)
+        {
+            ConfigurePartyPersonaWorkspacePage(page);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(PartyPersonaWorkspacePage)))
+        {
+            throw new InvalidOperationException("Could not navigate to the party and persona workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is PartyPersonaWorkspacePage navigatedPage)
+        {
+            ConfigurePartyPersonaWorkspacePage(navigatedPage);
+        }
+    }
+
+    private void ConfigurePartyPersonaWorkspacePage(PartyPersonaWorkspacePage page)
+    {
+        partyPersonaWorkspacePage = page;
+        page.SetItemsSources(partySlot0Choices, partySlot1Choices, partySlot2Choices);
+        compendiumWorkspacePage?.ClearPersonaEditor(personaEditorControl);
+        page.SetPersonaEditor(personaEditorControl);
+        page.PartySlot0SelectionChanged -= PartySlot0ComboBox_SelectionChanged;
+        page.PartySlot0SelectionChanged += PartySlot0ComboBox_SelectionChanged;
+        page.PartySlot1SelectionChanged -= PartySlot1ComboBox_SelectionChanged;
+        page.PartySlot1SelectionChanged += PartySlot1ComboBox_SelectionChanged;
+        page.PartySlot2SelectionChanged -= PartySlot2ComboBox_SelectionChanged;
+        page.PartySlot2SelectionChanged += PartySlot2ComboBox_SelectionChanged;
+
+        if (!partyPersonaWorkspacePageInitializedFromViewModel)
+        {
+            RefreshPartyConfigurationState();
+        }
+
+        page.SetPartyConfigurationEnabled(CanEditPartyPersona());
+    }
+
+    private bool TryClearCompendiumEditorContextForPartyPersonaNavigation()
+    {
+        if (!selectedCompendiumSlotIndex.HasValue)
+        {
+            return true;
+        }
+
+        if (!TryGuardSelectedPersonaDraftBeforeOperation())
+        {
+            RestorePersonaSelectionAfterBlockedDraft();
+            UpdateShellState();
+            return false;
+        }
+
+        ClearSelectedCompendiumContext(ref selectedCompendiumSlotIndex);
+        RefreshPersonaState();
+        UpdateShellState();
+        return true;
+    }
+
+    private void NavigateToCompendiumWorkspace()
+    {
+        SelectWorkspaceNavigationItem(JumpCompendiumButton);
+
+        if (WorkspaceFrame.Content is CompendiumWorkspacePage page)
+        {
+            ConfigureCompendiumWorkspacePage(page);
+            return;
+        }
+
+        if (!WorkspaceFrame.Navigate(typeof(CompendiumWorkspacePage)))
+        {
+            throw new InvalidOperationException("Could not navigate to the compendium workspace page.");
+        }
+
+        WorkspaceFrame.BackStack.Clear();
+        if (WorkspaceFrame.Content is CompendiumWorkspacePage navigatedPage)
+        {
+            ConfigureCompendiumWorkspacePage(navigatedPage);
+        }
+    }
+
+    private void ConfigureCompendiumWorkspacePage(CompendiumWorkspacePage page)
+    {
+        compendiumWorkspacePage = page;
+        page.SetItemsSources(compendiumItems, compendiumAddChoices);
+        partyPersonaWorkspacePage?.ClearPersonaEditor(personaEditorControl);
+        page.SetPersonaEditor(personaEditorControl);
+        page.CompendiumSelectionChanged -= CompendiumListView_SelectionChanged;
+        page.CompendiumSelectionChanged += CompendiumListView_SelectionChanged;
+        page.CompendiumTapped -= CompendiumListView_Tapped;
+        page.CompendiumTapped += CompendiumListView_Tapped;
+        page.CompendiumAddSelectionChanged -= CompendiumAddComboBox_SelectionChanged;
+        page.CompendiumAddSelectionChanged += CompendiumAddComboBox_SelectionChanged;
+        page.CompendiumRemoveClick -= CompendiumRemoveButton_Click;
+        page.CompendiumRemoveClick += CompendiumRemoveButton_Click;
+        page.CompendiumClearClick -= CompendiumClearButton_Click;
+        page.CompendiumClearClick += CompendiumClearButton_Click;
+
+        if (!compendiumWorkspacePageInitializedFromViewModel)
+        {
+            RefreshCompendiumState();
+        }
+
+        RefreshPersonaSummary();
+        page.SetCompendiumEnabled(CanEditCompendium(), selectedCompendiumListSlotIndex.HasValue, compendiumItems.Count > 0);
+    }
+
     private void SelectWorkspaceNavigationItem(NavigationViewItem navigationItem)
     {
         if (SectionNavigationView.SelectedItem is NavigationViewItem selectedItem &&
@@ -586,39 +694,8 @@ public sealed partial class MainWindow : Window
     private void WorkspaceFrame_NavigationFailed(object sender, NavigationFailedEventArgs e) =>
         throw new InvalidOperationException($"Could not navigate to workspace page {e.SourcePageType.FullName}.", e.Exception);
 
-    private void NavigateToSelectedSection(string sectionTag)
-    {
-        switch (sectionTag)
-        {
-            case "PartyPersona":
-                NavigateToSection(PartyPersonaSectionHeader);
-                break;
-            case "Compendium":
-                NavigateToSection(CompendiumSectionHeader);
-                break;
-        }
-    }
-
-    private void JumpSocialLinks_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSocialLinksWorkspace();
-
-    private void JumpPartyPersona_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(PartyPersonaSectionHeader);
-
-    private void JumpEquipment_Click(object sender, RoutedEventArgs e) =>
-        NavigateToEquipmentWorkspace();
-
-    private void JumpCompendium_Click(object sender, RoutedEventArgs e) =>
-        NavigateToSection(CompendiumSectionHeader);
-
-    private void JumpInventory_Click(object sender, RoutedEventArgs e) =>
-        NavigateToInventoryWorkspace();
-
-    private void JumpDiagnosticsState_Click(object sender, RoutedEventArgs e) =>
-        NavigateToWorkspace("DiagnosticsState");
-
     private void PersonaCalculateFromLevelButton_Click(object sender, RoutedEventArgs e) =>
-        PersonaXpTextBox.Text = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)PersonaLevelSlider.Value).ToString(CultureInfo.InvariantCulture);
+        personaEditorControl.ExperienceText = LevelExperienceProjection.CalculateTotalExperienceFromLevel((byte)personaEditorControl.Level).ToString(CultureInfo.InvariantCulture);
 
     private void PersonaLevelSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
         RefreshPersonaDraftShellState(UpdatePersonaLevelValueText);
@@ -671,28 +748,21 @@ public sealed partial class MainWindow : Window
                 : basicStatsWorkspacePage.DefaultMainCharacterLevelValueForeground);
     }
 
-    private void UpdatePersonaLevelValueText() =>
-        UpdateLevelValueText(
-            PersonaLevelValueTextBlock,
-            PersonaLevelSlider.Value,
-            defaultPersonaLevelValueForeground);
-
-    private void UpdateLevelValueText(TextBlock valueTextBlock, double level, Brush? defaultForeground)
+    private void UpdatePersonaLevelValueText()
     {
         bool hasSave = viewModel is not null && viewModel.HasSave;
-        valueTextBlock.Text = hasSave
+        double level = personaEditorControl.Level;
+        personaEditorControl.SetLevelValueText(hasSave
             ? ((byte)Math.Round(level, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture)
-            : string.Empty;
-        valueTextBlock.Foreground = hasSave && IsLegacyLevelWarningValue(level)
-            ? legacyLevelWarningForeground
-            : defaultForeground;
+            : string.Empty);
+        personaEditorControl.SetLevelValueForeground(
+            hasSave && IsLegacyLevelWarningValue(level)
+                ? legacyLevelWarningForeground
+                : personaEditorControl.DefaultLevelValueForeground);
     }
 
     internal static bool IsLegacyLevelWarningValue(double level) =>
         Math.Round(level, MidpointRounding.AwayFromZero) > 99;
-
-    private static void SetLevelSliderValue(Slider slider, double rawLevel) =>
-        slider.Value = Math.Clamp(rawLevel, slider.Minimum, slider.Maximum);
 
     internal readonly record struct SocialLinkDraftState(
         int SlotIndex,
@@ -1152,9 +1222,9 @@ public sealed partial class MainWindow : Window
                 "Main character total experience must be an unsigned whole number.",
                 "MainCharacter.TotalExperience"));
         }
-        AddPartyMemberValue(PartySlot0ComboBox, 0, batch, validationDiagnostics);
-        AddPartyMemberValue(PartySlot1ComboBox, 1, batch, validationDiagnostics);
-        AddPartyMemberValue(PartySlot2ComboBox, 2, batch, validationDiagnostics);
+        AddPartyMemberValue(GetCurrentPartyMemberChoice(0), 0, batch, validationDiagnostics);
+        AddPartyMemberValue(GetCurrentPartyMemberChoice(1), 1, batch, validationDiagnostics);
+        AddPartyMemberValue(GetCurrentPartyMemberChoice(2), 2, batch, validationDiagnostics);
         AddSelectedEquipmentEdits(batch, validationDiagnostics);
         AppendGroup4Edits(
             viewModel.SocialStats,
@@ -1177,12 +1247,12 @@ public sealed partial class MainWindow : Window
     }
 
     private static void AddPartyMemberValue(
-        ComboBox comboBox,
+        PartyConfigurationChoiceViewState? selectedMember,
         int slotIndex,
         List<SaveEditCommand> edits,
         List<SaveDiagnostic> diagnostics)
     {
-        if (comboBox.SelectedItem is PartyConfigurationChoiceViewState selectedMember)
+        if (selectedMember is not null)
         {
             edits.Add(new SetPartyMemberEdit(slotIndex, selectedMember.MemberValue));
             return;
@@ -1513,21 +1583,21 @@ public sealed partial class MainWindow : Window
         return new CompendiumDraftState(
             selectedCompendiumSlotIndex.Value,
             selectedPersonaId,
-            PersonaXpTextBox.Text ?? string.Empty,
-            PersonaLevelSlider.Value,
-            PersonaStrengthSlider.Value,
-            PersonaMagicSlider.Value,
-            PersonaEnduranceSlider.Value,
-            PersonaAgilitySlider.Value,
-            PersonaLuckSlider.Value,
-            ReadSkillId(PersonaSkillBox1),
-            ReadSkillId(PersonaSkillBox2),
-            ReadSkillId(PersonaSkillBox3),
-            ReadSkillId(PersonaSkillBox4),
-            ReadSkillId(PersonaSkillBox5),
-            ReadSkillId(PersonaSkillBox6),
-            ReadSkillId(PersonaSkillBox7),
-            ReadSkillId(PersonaSkillBox8));
+            personaEditorControl.ExperienceText,
+            personaEditorControl.Level,
+            personaEditorControl.Strength,
+            personaEditorControl.Magic,
+            personaEditorControl.Endurance,
+            personaEditorControl.Agility,
+            personaEditorControl.Luck,
+            ReadSkillId(personaEditorControl.SelectedSkill1),
+            ReadSkillId(personaEditorControl.SelectedSkill2),
+            ReadSkillId(personaEditorControl.SelectedSkill3),
+            ReadSkillId(personaEditorControl.SelectedSkill4),
+            ReadSkillId(personaEditorControl.SelectedSkill5),
+            ReadSkillId(personaEditorControl.SelectedSkill6),
+            ReadSkillId(personaEditorControl.SelectedSkill7),
+            ReadSkillId(personaEditorControl.SelectedSkill8));
     }
 
     private void RestoreSelectedCompendiumDraft(CompendiumDraftState compendiumDraft)
@@ -1551,14 +1621,14 @@ public sealed partial class MainWindow : Window
                 personaChoices.Add(choice);
             }
 
-            PersonaChoiceComboBox.SelectedItem = selectedCompendiumChoice;
-            PersonaXpTextBox.Text = compendiumDraft.ExperienceText;
-            SetLevelSliderValue(PersonaLevelSlider, compendiumDraft.Level);
-            PersonaStrengthSlider.Value = compendiumDraft.Strength;
-            PersonaMagicSlider.Value = compendiumDraft.Magic;
-            PersonaEnduranceSlider.Value = compendiumDraft.Endurance;
-            PersonaAgilitySlider.Value = compendiumDraft.Agility;
-            PersonaLuckSlider.Value = compendiumDraft.Luck;
+            personaEditorControl.SelectedPersona = selectedCompendiumChoice;
+            personaEditorControl.ExperienceText = compendiumDraft.ExperienceText;
+            personaEditorControl.Level = compendiumDraft.Level;
+            personaEditorControl.Strength = compendiumDraft.Strength;
+            personaEditorControl.Magic = compendiumDraft.Magic;
+            personaEditorControl.Endurance = compendiumDraft.Endurance;
+            personaEditorControl.Agility = compendiumDraft.Agility;
+            personaEditorControl.Luck = compendiumDraft.Luck;
             SetPersonaSkillChoices(
                 [compendiumDraft.Skill1Id,
                 compendiumDraft.Skill2Id,
@@ -1638,7 +1708,7 @@ public sealed partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(edits);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        if (CompendiumAddComboBox.SelectedItem is not PersonaChoiceViewState selectedChoice ||
+        if (compendiumWorkspacePage?.SelectedCompendiumAddChoice is not PersonaChoiceViewState selectedChoice ||
             selectedChoice.PersonaId == 0)
         {
             return true;
@@ -1760,14 +1830,14 @@ public sealed partial class MainWindow : Window
 
         return TryBuildPersonaSlotEditCore(
             personaId,
-            PersonaXpTextBox.Text ?? string.Empty,
+            personaEditorControl.ExperienceText,
             skillIds,
-            PersonaLevelSlider.Value,
-            PersonaStrengthSlider.Value,
-            PersonaMagicSlider.Value,
-            PersonaEnduranceSlider.Value,
-            PersonaAgilitySlider.Value,
-            PersonaLuckSlider.Value,
+            personaEditorControl.Level,
+            personaEditorControl.Strength,
+            personaEditorControl.Magic,
+            personaEditorControl.Endurance,
+            personaEditorControl.Agility,
+            personaEditorControl.Luck,
             out personaSlotEdit,
             out diagnostic,
             maximumTotalExperience,
@@ -2008,7 +2078,7 @@ public sealed partial class MainWindow : Window
 
     private bool TryReadSelectedPersonaId(out ushort personaId, out SaveDiagnostic diagnostic)
     {
-        if (PersonaChoiceComboBox.SelectedItem is PersonaChoiceViewState selectedPersona)
+        if (personaEditorControl.SelectedPersona is PersonaChoiceViewState selectedPersona)
         {
             personaId = selectedPersona.PersonaId;
             diagnostic = CreateUiDiagnostic("P4GWINUI014", "Persona edit could not be built.", "Persona");
@@ -2024,14 +2094,14 @@ public sealed partial class MainWindow : Window
     {
         ushort[] selectedSkillIds =
         [
-            ReadSkillId(PersonaSkillBox1),
-            ReadSkillId(PersonaSkillBox2),
-            ReadSkillId(PersonaSkillBox3),
-            ReadSkillId(PersonaSkillBox4),
-            ReadSkillId(PersonaSkillBox5),
-            ReadSkillId(PersonaSkillBox6),
-            ReadSkillId(PersonaSkillBox7),
-            ReadSkillId(PersonaSkillBox8),
+            ReadSkillId(personaEditorControl.SelectedSkill1),
+            ReadSkillId(personaEditorControl.SelectedSkill2),
+            ReadSkillId(personaEditorControl.SelectedSkill3),
+            ReadSkillId(personaEditorControl.SelectedSkill4),
+            ReadSkillId(personaEditorControl.SelectedSkill5),
+            ReadSkillId(personaEditorControl.SelectedSkill6),
+            ReadSkillId(personaEditorControl.SelectedSkill7),
+            ReadSkillId(personaEditorControl.SelectedSkill8),
         ];
 
         if (selectedSkillIds.Any(static skillId => skillId == ushort.MaxValue))
@@ -2046,11 +2116,11 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
-    private static ushort ReadSkillId(ComboBox comboBox) =>
-        comboBox.SelectedItem is SkillChoiceViewState selectedSkill ? selectedSkill.SkillId : ushort.MaxValue;
+    private static ushort ReadSkillId(SkillChoiceViewState? selectedSkill) =>
+        selectedSkill is not null ? selectedSkill.SkillId : ushort.MaxValue;
 
-    private static ushort ReadPersonaId(ComboBox comboBox) =>
-        comboBox.SelectedItem is PersonaChoiceViewState selectedPersona ? selectedPersona.PersonaId : ushort.MaxValue;
+    private static ushort ReadPersonaId(PersonaChoiceViewState? selectedPersona) =>
+        selectedPersona is not null ? selectedPersona.PersonaId : ushort.MaxValue;
 
     internal static CompendiumPersonaViewState? ResolveSelectedCompendiumViewState(
         IReadOnlyList<CompendiumPersonaViewState> compendiumEntries,
@@ -2301,6 +2371,12 @@ public sealed partial class MainWindow : Window
     private bool CanEditInventory() =>
         viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
 
+    private bool CanEditPartyPersona() =>
+        viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
+
+    private bool CanEditCompendium() =>
+        viewModel.HasSave && !isBusy && !refreshEditableFieldsAfterStartupOpen;
+
     private string GetCurrentFamilyNameText() =>
         basicStatsWorkspacePage?.FamilyNameText ?? viewModel.FamilyName;
 
@@ -2386,7 +2462,6 @@ public sealed partial class MainWindow : Window
         bool canApply = canEdit && hasPendingEditorDrafts;
         bool canSave = canEdit && viewModel.IsDirty && viewModel.CanWrite && !hasPendingEditorDrafts;
         bool canSaveAs = canSave;
-        Visibility editorVisibility = hasSave ? Visibility.Visible : Visibility.Collapsed;
         bool canNavigateEditorSections = canEdit;
         bool canNavigateOverview = !isBusy && !startupRefreshPending;
 
@@ -2397,7 +2472,6 @@ public sealed partial class MainWindow : Window
         SaveAsButton.IsEnabled = canSaveAs;
         FileSaveMenuItem.IsEnabled = canSave;
         FileSaveAsMenuItem.IsEnabled = canSaveAs;
-        SaveEditorScrollViewer.Visibility = editorVisibility;
         JumpOverviewButton.IsEnabled = canNavigateOverview;
         JumpBasicStatsButton.IsEnabled = canNavigateEditorSections;
         JumpCalendarSocialStatsButton.IsEnabled = canNavigateEditorSections;
@@ -2411,32 +2485,12 @@ public sealed partial class MainWindow : Window
         calendarSocialStatsWorkspacePage?.SetCalendarSocialStatsEnabled(canEdit);
         socialLinksWorkspacePage?.SetSocialLinksEnabled(canEdit, selectedSocialLinkIndex.HasValue);
         equipmentWorkspacePage?.SetEquipmentEnabled(canEdit);
-        CompendiumListView.IsEnabled = canEdit;
-        CompendiumAddComboBox.IsEnabled = canEdit;
-        CompendiumRemoveButton.IsEnabled = canEdit && selectedCompendiumListSlotIndex.HasValue;
-        CompendiumClearButton.IsEnabled = canEdit && compendiumItems.Count > 0;
-        PartySlot0ComboBox.IsEnabled = canEdit;
-        PartySlot1ComboBox.IsEnabled = canEdit;
-        PartySlot2ComboBox.IsEnabled = canEdit;
-        PersonaMemberComboBox.IsEnabled = canEdit;
-        PersonaSlotComboBox.IsEnabled = canEdit && selectedPersonaMemberId == 0 && !selectedCompendiumSlotIndex.HasValue;
-        PersonaChoiceComboBox.IsEnabled = canEdit && !selectedCompendiumSlotIndex.HasValue;
-        PersonaXpTextBox.IsEnabled = canEdit;
-        PersonaLevelSlider.IsEnabled = canEdit;
-        PersonaCalculateFromLevelButton.IsEnabled = canEdit;
-        PersonaStrengthSlider.IsEnabled = canEdit;
-        PersonaMagicSlider.IsEnabled = canEdit;
-        PersonaEnduranceSlider.IsEnabled = canEdit;
-        PersonaAgilitySlider.IsEnabled = canEdit;
-        PersonaLuckSlider.IsEnabled = canEdit;
-        PersonaSkillBox1.IsEnabled = canEdit;
-        PersonaSkillBox2.IsEnabled = canEdit;
-        PersonaSkillBox3.IsEnabled = canEdit;
-        PersonaSkillBox4.IsEnabled = canEdit;
-        PersonaSkillBox5.IsEnabled = canEdit;
-        PersonaSkillBox6.IsEnabled = canEdit;
-        PersonaSkillBox7.IsEnabled = canEdit;
-        PersonaSkillBox8.IsEnabled = canEdit;
+        compendiumWorkspacePage?.SetCompendiumEnabled(canEdit, selectedCompendiumListSlotIndex.HasValue, compendiumItems.Count > 0);
+        partyPersonaWorkspacePage?.SetPartyConfigurationEnabled(canEdit);
+        personaEditorControl.SetPersonaEditorEnabled(
+            canEdit,
+            selectedPersonaMemberId == 0 && !selectedCompendiumSlotIndex.HasValue,
+            !selectedCompendiumSlotIndex.HasValue);
         inventoryWorkspacePage?.SetInventoryEnabled(canEdit, selectedInventoryItemId.HasValue, selectedInventoryEntryId.HasValue);
 
         FilePathTextBlock.Text = ShellStateFormatter.GetFilePathText(currentFilePath);
@@ -2458,6 +2512,7 @@ public sealed partial class MainWindow : Window
             HasSocialLinkAddDraft() ||
             HasSelectedSocialLinkDraft() ||
             HasCompendiumAddDraft() ||
+            HasPartyConfigurationDraft() ||
             HasPersonaDraft() ||
             inventoryQuantityDraftDirty);
 
@@ -2532,8 +2587,25 @@ public sealed partial class MainWindow : Window
         !selectedChoice.IsPlaceholder;
 
     private bool HasCompendiumAddDraft() =>
-        CompendiumAddComboBox.SelectedItem is PersonaChoiceViewState selectedChoice &&
+        compendiumWorkspacePage?.SelectedCompendiumAddChoice is PersonaChoiceViewState selectedChoice &&
         selectedChoice.PersonaId != 0;
+
+    private bool HasPartyConfigurationDraft()
+    {
+        if (partyPersonaWorkspacePage is null ||
+            !partyPersonaWorkspacePageInitializedFromViewModel ||
+            !viewModel.HasSave ||
+            viewModel.PartyMembers.Count < 3)
+        {
+            return false;
+        }
+
+        return HasPartySlotDraft(0) || HasPartySlotDraft(1) || HasPartySlotDraft(2);
+    }
+
+    private bool HasPartySlotDraft(int slotIndex) =>
+        partyPersonaWorkspacePage?.GetSelectedPartySlot(slotIndex) is PartyConfigurationChoiceViewState selectedMember &&
+        selectedMember.MemberValue != viewModel.PartyMembers[slotIndex].MemberValue;
 
     private bool HasPersonaDraft()
     {
@@ -2543,22 +2615,22 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
-        return ReadPersonaId(PersonaChoiceComboBox) != selectedSlot.PersonaId ||
-            !string.Equals(PersonaXpTextBox.Text ?? string.Empty, selectedSlot.TotalExperience.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
-            (byte)PersonaLevelSlider.Value != selectedSlot.Level ||
-            (byte)PersonaStrengthSlider.Value != selectedSlot.Strength ||
-            (byte)PersonaMagicSlider.Value != selectedSlot.Magic ||
-            (byte)PersonaEnduranceSlider.Value != selectedSlot.Endurance ||
-            (byte)PersonaAgilitySlider.Value != selectedSlot.Agility ||
-            (byte)PersonaLuckSlider.Value != selectedSlot.Luck ||
-            ReadSkillId(PersonaSkillBox1) != selectedSlot.SkillIds[0] ||
-            ReadSkillId(PersonaSkillBox2) != selectedSlot.SkillIds[1] ||
-            ReadSkillId(PersonaSkillBox3) != selectedSlot.SkillIds[2] ||
-            ReadSkillId(PersonaSkillBox4) != selectedSlot.SkillIds[3] ||
-            ReadSkillId(PersonaSkillBox5) != selectedSlot.SkillIds[4] ||
-            ReadSkillId(PersonaSkillBox6) != selectedSlot.SkillIds[5] ||
-            ReadSkillId(PersonaSkillBox7) != selectedSlot.SkillIds[6] ||
-            ReadSkillId(PersonaSkillBox8) != selectedSlot.SkillIds[7];
+        return ReadPersonaId(personaEditorControl.SelectedPersona) != selectedSlot.PersonaId ||
+            !string.Equals(personaEditorControl.ExperienceText, selectedSlot.TotalExperience.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+            (byte)personaEditorControl.Level != selectedSlot.Level ||
+            (byte)personaEditorControl.Strength != selectedSlot.Strength ||
+            (byte)personaEditorControl.Magic != selectedSlot.Magic ||
+            (byte)personaEditorControl.Endurance != selectedSlot.Endurance ||
+            (byte)personaEditorControl.Agility != selectedSlot.Agility ||
+            (byte)personaEditorControl.Luck != selectedSlot.Luck ||
+            ReadSkillId(personaEditorControl.SelectedSkill1) != selectedSlot.SkillIds[0] ||
+            ReadSkillId(personaEditorControl.SelectedSkill2) != selectedSlot.SkillIds[1] ||
+            ReadSkillId(personaEditorControl.SelectedSkill3) != selectedSlot.SkillIds[2] ||
+            ReadSkillId(personaEditorControl.SelectedSkill4) != selectedSlot.SkillIds[3] ||
+            ReadSkillId(personaEditorControl.SelectedSkill5) != selectedSlot.SkillIds[4] ||
+            ReadSkillId(personaEditorControl.SelectedSkill6) != selectedSlot.SkillIds[5] ||
+            ReadSkillId(personaEditorControl.SelectedSkill7) != selectedSlot.SkillIds[6] ||
+            ReadSkillId(personaEditorControl.SelectedSkill8) != selectedSlot.SkillIds[7];
     }
 
     private PersonaSlotViewState? GetSelectedPersonaSlotViewState()
@@ -2816,14 +2888,22 @@ public sealed partial class MainWindow : Window
                 }
             }
 
-            CompendiumAddComboBox.SelectedItem = viewModel.HasSave ? blankChoice : null;
+            CompendiumWorkspacePage? page = compendiumWorkspacePage;
+            if (page is null)
+            {
+                compendiumWorkspacePageInitializedFromViewModel = false;
+                return;
+            }
+
+            page.SelectedCompendiumAddChoice = viewModel.HasSave ? blankChoice : null;
 
             if (!viewModel.HasSave || compendiumItems.Count == 0)
             {
                 selectedCompendiumListSlotIndex = null;
                 selectedCompendiumSlotIndex = null;
-                CompendiumListView.SelectedItem = null;
+                page.SelectedCompendiumEntry = null;
                 autoSelectCompendiumEntryAfterOpen = false;
+                compendiumWorkspacePageInitializedFromViewModel = true;
                 return;
             }
 
@@ -2835,15 +2915,16 @@ public sealed partial class MainWindow : Window
             if (selectedEntry is not null)
             {
                 selectedCompendiumListSlotIndex = selectedEntry.SlotIndex;
-                CompendiumListView.SelectedItem = selectedEntry;
+                page.SelectedCompendiumEntry = selectedEntry;
             }
             else
             {
                 selectedCompendiumListSlotIndex = null;
                 selectedCompendiumSlotIndex = null;
-                CompendiumListView.SelectedItem = null;
+                page.SelectedCompendiumEntry = null;
             }
             autoSelectCompendiumEntryAfterOpen = false;
+            compendiumWorkspacePageInitializedFromViewModel = true;
         }
         finally
         {
@@ -3160,7 +3241,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (CompendiumListView.SelectedItem is not CompendiumPersonaViewState selectedEntry)
+        if (compendiumWorkspacePage?.SelectedCompendiumEntry is not CompendiumPersonaViewState selectedEntry)
         {
             selectedCompendiumListSlotIndex = null;
             selectedCompendiumSlotIndex = null;
@@ -3179,7 +3260,7 @@ public sealed partial class MainWindow : Window
     {
         if (suppressCompendiumEvents ||
             selectedCompendiumSlotIndex == selectedCompendiumListSlotIndex ||
-            CompendiumListView.SelectedItem is not CompendiumPersonaViewState selectedEntry ||
+            compendiumWorkspacePage?.SelectedCompendiumEntry is not CompendiumPersonaViewState selectedEntry ||
             !IsSelectedCompendiumListItemTapped(e, selectedEntry))
         {
             return;
@@ -3226,7 +3307,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (CompendiumAddComboBox.SelectedItem is not PersonaChoiceViewState selectedChoice)
+        if (compendiumWorkspacePage?.SelectedCompendiumAddChoice is not PersonaChoiceViewState selectedChoice)
         {
             return;
         }
@@ -3246,7 +3327,10 @@ public sealed partial class MainWindow : Window
             suppressCompendiumEvents = true;
             try
             {
-                CompendiumListView.SelectedItem = null;
+                if (compendiumWorkspacePage is not null)
+                {
+                    compendiumWorkspacePage.SelectedCompendiumEntry = null;
+                }
             }
             finally
             {
@@ -3305,7 +3389,7 @@ public sealed partial class MainWindow : Window
         }
 
         int removedSlotIndex = selectedCompendiumListSlotIndex.Value;
-        string removedEntryDescription = CompendiumListView.SelectedItem?.ToString() ?? "the selected compendium entry";
+        string removedEntryDescription = compendiumWorkspacePage?.SelectedCompendiumEntryDescription ?? "the selected compendium entry";
         if (!await ShowConfirmationAsync(
             "Remove compendium entry?",
             $"Remove {removedEntryDescription}? This stages the removal until you save.",
@@ -3337,7 +3421,10 @@ public sealed partial class MainWindow : Window
         suppressCompendiumEvents = true;
         try
         {
-            CompendiumAddComboBox.SelectedItem = compendiumAddChoices.FirstOrDefault(static choice => choice.PersonaId == 0);
+            if (compendiumWorkspacePage is not null)
+            {
+                compendiumWorkspacePage.SelectedCompendiumAddChoice = compendiumAddChoices.FirstOrDefault(static choice => choice.PersonaId == 0);
+            }
         }
         finally
         {
@@ -3391,9 +3478,17 @@ public sealed partial class MainWindow : Window
         suppressImmediateEditEvents = true;
         try
         {
-            SetPartyConfigurationChoices(partySlot0Choices, PartySlot0ComboBox, 0);
-            SetPartyConfigurationChoices(partySlot1Choices, PartySlot1ComboBox, 1);
-            SetPartyConfigurationChoices(partySlot2Choices, PartySlot2ComboBox, 2);
+            PartyPersonaWorkspacePage? page = partyPersonaWorkspacePage;
+            if (page is null)
+            {
+                partyPersonaWorkspacePageInitializedFromViewModel = false;
+                return;
+            }
+
+            SetPartyConfigurationChoices(partySlot0Choices, page, 0);
+            SetPartyConfigurationChoices(partySlot1Choices, page, 1);
+            SetPartyConfigurationChoices(partySlot2Choices, page, 2);
+            partyPersonaWorkspacePageInitializedFromViewModel = true;
         }
         finally
         {
@@ -3403,13 +3498,13 @@ public sealed partial class MainWindow : Window
 
     private void SetPartyConfigurationChoices(
         ObservableCollection<PartyConfigurationChoiceViewState> targetCollection,
-        ComboBox comboBox,
+        PartyPersonaWorkspacePage page,
         int slotIndex)
     {
         targetCollection.Clear();
         if (!viewModel.HasSave || viewModel.PartyMembers.Count <= slotIndex)
         {
-            comboBox.SelectedItem = null;
+            page.SetSelectedPartySlot(slotIndex, null);
             return;
         }
 
@@ -3421,7 +3516,24 @@ public sealed partial class MainWindow : Window
             targetCollection.Add(choice);
         }
 
-        comboBox.SelectedItem = selectedChoice;
+        page.SetSelectedPartySlot(slotIndex, selectedChoice);
+    }
+
+    private PartyConfigurationChoiceViewState? GetCurrentPartyMemberChoice(int slotIndex)
+    {
+        if (partyPersonaWorkspacePage is not null && partyPersonaWorkspacePageInitializedFromViewModel)
+        {
+            return partyPersonaWorkspacePage.GetSelectedPartySlot(slotIndex);
+        }
+
+        if (!viewModel.HasSave || viewModel.PartyMembers.Count <= slotIndex)
+        {
+            return null;
+        }
+
+        byte currentMemberValue = viewModel.PartyMembers[slotIndex].MemberValue;
+        _ = SaveEditorViewModel.GetPartyConfigurationChoices(currentMemberValue, out PartyConfigurationChoiceViewState selectedChoice);
+        return selectedChoice;
     }
 
     private void RefreshEquipmentState()
@@ -3500,26 +3612,26 @@ public sealed partial class MainWindow : Window
             {
                 selectedPersonaMemberId = null;
                 selectedPersonaSlotIndex = 0;
-                PersonaMemberComboBox.SelectedItem = null;
+                personaEditorControl.SelectedMember = null;
                 personaSlotChoices.Clear();
-                PersonaSlotComboBox.SelectedItem = null;
+                personaEditorControl.SelectedSlot = null;
                 personaChoices.Clear();
-                PersonaChoiceComboBox.SelectedItem = null;
-                PersonaXpTextBox.Text = string.Empty;
-                SetLevelSliderValue(PersonaLevelSlider, 0);
-                PersonaStrengthSlider.Value = 0;
-                PersonaMagicSlider.Value = 0;
-                PersonaEnduranceSlider.Value = 0;
-                PersonaAgilitySlider.Value = 0;
-                PersonaLuckSlider.Value = 0;
-                PersonaSkillBox1.SelectedItem = null;
-                PersonaSkillBox2.SelectedItem = null;
-                PersonaSkillBox3.SelectedItem = null;
-                PersonaSkillBox4.SelectedItem = null;
-                PersonaSkillBox5.SelectedItem = null;
-                PersonaSkillBox6.SelectedItem = null;
-                PersonaSkillBox7.SelectedItem = null;
-                PersonaSkillBox8.SelectedItem = null;
+                personaEditorControl.SelectedPersona = null;
+                personaEditorControl.ExperienceText = string.Empty;
+                personaEditorControl.Level = 0;
+                personaEditorControl.Strength = 0;
+                personaEditorControl.Magic = 0;
+                personaEditorControl.Endurance = 0;
+                personaEditorControl.Agility = 0;
+                personaEditorControl.Luck = 0;
+                personaEditorControl.SelectedSkill1 = null;
+                personaEditorControl.SelectedSkill2 = null;
+                personaEditorControl.SelectedSkill3 = null;
+                personaEditorControl.SelectedSkill4 = null;
+                personaEditorControl.SelectedSkill5 = null;
+                personaEditorControl.SelectedSkill6 = null;
+                personaEditorControl.SelectedSkill7 = null;
+                personaEditorControl.SelectedSkill8 = null;
                 return;
             }
 
@@ -3528,9 +3640,9 @@ public sealed partial class MainWindow : Window
                 PersonaSlotViewState currentCompendiumSlot = viewModel.CompendiumPersonaSlots[selectedCompendiumSlotIndex.Value];
                 (selectedPersonaMemberId, selectedPersonaSlotIndex) =
                     PreserveSelectedPersonaSelectionDuringCompendiumRefresh(selectedPersonaMemberId, selectedPersonaSlotIndex);
-                PersonaMemberComboBox.SelectedItem = null;
+                personaEditorControl.SelectedMember = null;
                 personaSlotChoices.Clear();
-                PersonaSlotComboBox.SelectedItem = null;
+                personaEditorControl.SelectedSlot = null;
                 personaChoices.Clear();
                 PersonaChoiceViewState selectedCompendiumChoice = default!;
                 foreach (PersonaChoiceViewState choice in SaveEditorViewModel.GetPersonaChoices(
@@ -3539,14 +3651,14 @@ public sealed partial class MainWindow : Window
                 {
                     personaChoices.Add(choice);
                 }
-                PersonaChoiceComboBox.SelectedItem = selectedCompendiumChoice;
-                PersonaXpTextBox.Text = currentCompendiumSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
-                SetLevelSliderValue(PersonaLevelSlider, currentCompendiumSlot.Level);
-                PersonaStrengthSlider.Value = currentCompendiumSlot.Strength;
-                PersonaMagicSlider.Value = currentCompendiumSlot.Magic;
-                PersonaEnduranceSlider.Value = currentCompendiumSlot.Endurance;
-                PersonaAgilitySlider.Value = currentCompendiumSlot.Agility;
-                PersonaLuckSlider.Value = currentCompendiumSlot.Luck;
+                personaEditorControl.SelectedPersona = selectedCompendiumChoice;
+                personaEditorControl.ExperienceText = currentCompendiumSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
+                personaEditorControl.Level = currentCompendiumSlot.Level;
+                personaEditorControl.Strength = currentCompendiumSlot.Strength;
+                personaEditorControl.Magic = currentCompendiumSlot.Magic;
+                personaEditorControl.Endurance = currentCompendiumSlot.Endurance;
+                personaEditorControl.Agility = currentCompendiumSlot.Agility;
+                personaEditorControl.Luck = currentCompendiumSlot.Luck;
                 SetPersonaSkillChoices(currentCompendiumSlot.SkillIds);
                 UpdateShellState();
                 return;
@@ -3560,7 +3672,7 @@ public sealed partial class MainWindow : Window
             }
 
             selectedMember ??= viewModel.PartyMemberChoices[0];
-            PersonaMemberComboBox.SelectedItem = selectedMember;
+            personaEditorControl.SelectedMember = selectedMember;
             selectedPersonaMemberId = selectedMember.MemberId;
 
             bool isProtagonist = selectedMember.MemberId == 0;
@@ -3571,7 +3683,7 @@ public sealed partial class MainWindow : Window
             if (personaSlots.Count == 0)
             {
                 personaSlotChoices.Clear();
-                PersonaSlotComboBox.SelectedItem = null;
+                personaEditorControl.SelectedSlot = null;
                 return;
             }
 
@@ -3585,38 +3697,38 @@ public sealed partial class MainWindow : Window
                 {
                     personaSlotChoices.Add(slot);
                 }
-                PersonaSlotComboBox.SelectedItem = personaSlots[selectedPersonaSlotIndex];
+                personaEditorControl.SelectedSlot = personaSlots[selectedPersonaSlotIndex];
             }
             else
             {
                 int partyPersonaSlotIndex = Math.Clamp(selectedMember.MemberId - 1, 0, personaSlots.Count - 1);
                 personaSlotChoices.Clear();
-                PersonaSlotComboBox.SelectedItem = null;
+                personaEditorControl.SelectedSlot = null;
                 personaChoices.Clear();
-                PersonaChoiceComboBox.SelectedItem = null;
-                PersonaXpTextBox.Text = string.Empty;
-                SetLevelSliderValue(PersonaLevelSlider, 0);
-                PersonaStrengthSlider.Value = 0;
-                PersonaMagicSlider.Value = 0;
-                PersonaEnduranceSlider.Value = 0;
-                PersonaAgilitySlider.Value = 0;
-                PersonaLuckSlider.Value = 0;
+                personaEditorControl.SelectedPersona = null;
+                personaEditorControl.ExperienceText = string.Empty;
+                personaEditorControl.Level = 0;
+                personaEditorControl.Strength = 0;
+                personaEditorControl.Magic = 0;
+                personaEditorControl.Endurance = 0;
+                personaEditorControl.Agility = 0;
+                personaEditorControl.Luck = 0;
                 personaSkillChoices1.Clear();
-                PersonaSkillBox1.SelectedItem = null;
+                personaEditorControl.SelectedSkill1 = null;
                 personaSkillChoices2.Clear();
-                PersonaSkillBox2.SelectedItem = null;
+                personaEditorControl.SelectedSkill2 = null;
                 personaSkillChoices3.Clear();
-                PersonaSkillBox3.SelectedItem = null;
+                personaEditorControl.SelectedSkill3 = null;
                 personaSkillChoices4.Clear();
-                PersonaSkillBox4.SelectedItem = null;
+                personaEditorControl.SelectedSkill4 = null;
                 personaSkillChoices5.Clear();
-                PersonaSkillBox5.SelectedItem = null;
+                personaEditorControl.SelectedSkill5 = null;
                 personaSkillChoices6.Clear();
-                PersonaSkillBox6.SelectedItem = null;
+                personaEditorControl.SelectedSkill6 = null;
                 personaSkillChoices7.Clear();
-                PersonaSkillBox7.SelectedItem = null;
+                personaEditorControl.SelectedSkill7 = null;
                 personaSkillChoices8.Clear();
-                PersonaSkillBox8.SelectedItem = null;
+                personaEditorControl.SelectedSkill8 = null;
                 PersonaSlotViewState partyCurrentSlot = personaSlots[partyPersonaSlotIndex];
                 personaChoices.Clear();
                 PersonaChoiceViewState partySelectedPersonaChoice = default!;
@@ -3626,14 +3738,14 @@ public sealed partial class MainWindow : Window
                 {
                     personaChoices.Add(choice);
                 }
-                PersonaChoiceComboBox.SelectedItem = partySelectedPersonaChoice;
-                PersonaXpTextBox.Text = partyCurrentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
-                SetLevelSliderValue(PersonaLevelSlider, partyCurrentSlot.Level);
-                PersonaStrengthSlider.Value = partyCurrentSlot.Strength;
-                PersonaMagicSlider.Value = partyCurrentSlot.Magic;
-                PersonaEnduranceSlider.Value = partyCurrentSlot.Endurance;
-                PersonaAgilitySlider.Value = partyCurrentSlot.Agility;
-                PersonaLuckSlider.Value = partyCurrentSlot.Luck;
+                personaEditorControl.SelectedPersona = partySelectedPersonaChoice;
+                personaEditorControl.ExperienceText = partyCurrentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
+                personaEditorControl.Level = partyCurrentSlot.Level;
+                personaEditorControl.Strength = partyCurrentSlot.Strength;
+                personaEditorControl.Magic = partyCurrentSlot.Magic;
+                personaEditorControl.Endurance = partyCurrentSlot.Endurance;
+                personaEditorControl.Agility = partyCurrentSlot.Agility;
+                personaEditorControl.Luck = partyCurrentSlot.Luck;
                 SetPersonaSkillChoices(partyCurrentSlot.SkillIds);
                 UpdateShellState();
                 return;
@@ -3646,14 +3758,14 @@ public sealed partial class MainWindow : Window
             {
                 personaChoices.Add(choice);
             }
-            PersonaChoiceComboBox.SelectedItem = selectedPersonaChoice;
-            PersonaXpTextBox.Text = currentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
-            SetLevelSliderValue(PersonaLevelSlider, currentSlot.Level);
-            PersonaStrengthSlider.Value = currentSlot.Strength;
-            PersonaMagicSlider.Value = currentSlot.Magic;
-            PersonaEnduranceSlider.Value = currentSlot.Endurance;
-            PersonaAgilitySlider.Value = currentSlot.Agility;
-            PersonaLuckSlider.Value = currentSlot.Luck;
+            personaEditorControl.SelectedPersona = selectedPersonaChoice;
+            personaEditorControl.ExperienceText = currentSlot.TotalExperience.ToString(CultureInfo.InvariantCulture);
+            personaEditorControl.Level = currentSlot.Level;
+            personaEditorControl.Strength = currentSlot.Strength;
+            personaEditorControl.Magic = currentSlot.Magic;
+            personaEditorControl.Endurance = currentSlot.Endurance;
+            personaEditorControl.Agility = currentSlot.Agility;
+            personaEditorControl.Luck = currentSlot.Luck;
 
             SetPersonaSkillChoices(currentSlot.SkillIds);
         }
@@ -3706,21 +3818,21 @@ public sealed partial class MainWindow : Window
         IReadOnlyList<SkillChoiceViewState> skill8Choices = SaveEditorViewModel.GetSkillChoices(skillIds[7], out SkillChoiceViewState skill8);
 
         SetSkillChoices(personaSkillChoices1, skill1Choices);
-        PersonaSkillBox1.SelectedItem = skill1;
+        personaEditorControl.SelectedSkill1 = skill1;
         SetSkillChoices(personaSkillChoices2, skill2Choices);
-        PersonaSkillBox2.SelectedItem = skill2;
+        personaEditorControl.SelectedSkill2 = skill2;
         SetSkillChoices(personaSkillChoices3, skill3Choices);
-        PersonaSkillBox3.SelectedItem = skill3;
+        personaEditorControl.SelectedSkill3 = skill3;
         SetSkillChoices(personaSkillChoices4, skill4Choices);
-        PersonaSkillBox4.SelectedItem = skill4;
+        personaEditorControl.SelectedSkill4 = skill4;
         SetSkillChoices(personaSkillChoices5, skill5Choices);
-        PersonaSkillBox5.SelectedItem = skill5;
+        personaEditorControl.SelectedSkill5 = skill5;
         SetSkillChoices(personaSkillChoices6, skill6Choices);
-        PersonaSkillBox6.SelectedItem = skill6;
+        personaEditorControl.SelectedSkill6 = skill6;
         SetSkillChoices(personaSkillChoices7, skill7Choices);
-        PersonaSkillBox7.SelectedItem = skill7;
+        personaEditorControl.SelectedSkill7 = skill7;
         SetSkillChoices(personaSkillChoices8, skill8Choices);
-        PersonaSkillBox8.SelectedItem = skill8;
+        personaEditorControl.SelectedSkill8 = skill8;
     }
 
     private byte GetInventoryQuantityOrDefault(ushort itemId)
@@ -3809,25 +3921,34 @@ public sealed partial class MainWindow : Window
         {
             if (selectedCompendiumSlotIndex.HasValue)
             {
-                CompendiumListView.SelectedItem = compendiumItems.FirstOrDefault(
-                    entry => entry.SlotIndex == selectedCompendiumSlotIndex.Value);
-                PersonaMemberComboBox.SelectedItem = null;
-                PersonaSlotComboBox.SelectedItem = null;
+                if (compendiumWorkspacePage is not null)
+                {
+                    compendiumWorkspacePage.SelectedCompendiumEntry = compendiumItems.FirstOrDefault(
+                        entry => entry.SlotIndex == selectedCompendiumSlotIndex.Value);
+                }
+                personaEditorControl.SelectedMember = null;
+                personaEditorControl.SelectedSlot = null;
             }
             else
             {
-                CompendiumListView.SelectedItem = selectedCompendiumListSlotIndex.HasValue
-                    ? compendiumItems.FirstOrDefault(entry => entry.SlotIndex == selectedCompendiumListSlotIndex.Value)
-                    : null;
-                PersonaMemberComboBox.SelectedItem = selectedPersonaMemberId.HasValue
+                if (compendiumWorkspacePage is not null)
+                {
+                    compendiumWorkspacePage.SelectedCompendiumEntry = selectedCompendiumListSlotIndex.HasValue
+                        ? compendiumItems.FirstOrDefault(entry => entry.SlotIndex == selectedCompendiumListSlotIndex.Value)
+                        : null;
+                }
+                personaEditorControl.SelectedMember = selectedPersonaMemberId.HasValue
                     ? personaMemberChoices.FirstOrDefault(member => member.MemberId == selectedPersonaMemberId.Value)
                     : null;
-                PersonaSlotComboBox.SelectedItem = selectedPersonaMemberId == 0
+                personaEditorControl.SelectedSlot = selectedPersonaMemberId == 0
                     ? personaSlotChoices.FirstOrDefault(slot => slot.SlotIndex == selectedPersonaSlotIndex)
                     : null;
             }
 
-            CompendiumAddComboBox.SelectedItem = compendiumAddChoices.FirstOrDefault(static choice => choice.PersonaId == 0);
+            if (compendiumWorkspacePage is not null)
+            {
+                compendiumWorkspacePage.SelectedCompendiumAddChoice = compendiumAddChoices.FirstOrDefault(static choice => choice.PersonaId == 0);
+            }
         }
         finally
         {
@@ -4054,7 +4175,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (PersonaMemberComboBox.SelectedItem is not PartyMemberChoiceViewState selectedMember)
+        if (personaEditorControl.SelectedMember is not PartyMemberChoiceViewState selectedMember)
         {
             selectedPersonaMemberId = null;
             RefreshPersonaSummary();
@@ -4069,7 +4190,10 @@ public sealed partial class MainWindow : Window
             suppressCompendiumEvents = true;
             try
             {
-                CompendiumListView.SelectedItem = null;
+                if (compendiumWorkspacePage is not null)
+                {
+                    compendiumWorkspacePage.SelectedCompendiumEntry = null;
+                }
             }
             finally
             {
@@ -4097,7 +4221,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (PersonaSlotComboBox.SelectedItem is PersonaSlotViewState selectedSlot)
+        if (personaEditorControl.SelectedSlot is PersonaSlotViewState selectedSlot)
         {
             selectedPersonaSlotIndex = selectedSlot.SlotIndex;
             RefreshPersonaState();
@@ -4112,15 +4236,15 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (PersonaChoiceComboBox.SelectedItem is PersonaChoiceViewState selectedPersonaChoice)
+        if (personaEditorControl.SelectedPersona is PersonaChoiceViewState selectedPersonaChoice)
         {
             double resolvedLevel = ResolvePersonaLevelAfterPersonaChoice(
                 selectedPersonaChoice.PersonaId,
-                PersonaLevelSlider.Value,
+                personaEditorControl.Level,
                 selectedCompendiumSlotIndex.HasValue);
-            if (resolvedLevel != PersonaLevelSlider.Value)
+            if (resolvedLevel != personaEditorControl.Level)
             {
-                SetLevelSliderValue(PersonaLevelSlider, resolvedLevel);
+                personaEditorControl.Level = resolvedLevel;
             }
         }
 
@@ -4380,18 +4504,18 @@ public sealed partial class MainWindow : Window
     }
 
     private void PartySlot0ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        TrackPartyMemberDraftEdit(PartySlot0ComboBox, 0);
+        TrackPartyMemberDraftEdit(partyPersonaWorkspacePage?.SelectedPartySlot0);
 
     private void PartySlot1ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        TrackPartyMemberDraftEdit(PartySlot1ComboBox, 1);
+        TrackPartyMemberDraftEdit(partyPersonaWorkspacePage?.SelectedPartySlot1);
 
     private void PartySlot2ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        TrackPartyMemberDraftEdit(PartySlot2ComboBox, 2);
+        TrackPartyMemberDraftEdit(partyPersonaWorkspacePage?.SelectedPartySlot2);
 
-    private void TrackPartyMemberDraftEdit(ComboBox comboBox, int slotIndex)
+    private void TrackPartyMemberDraftEdit(PartyConfigurationChoiceViewState? selectedMember)
     {
         if (!CanProcessImmediateEditEvent() ||
-            comboBox.SelectedItem is not PartyConfigurationChoiceViewState selectedMember)
+            selectedMember is null)
         {
             return;
         }
@@ -4527,11 +4651,14 @@ public sealed partial class MainWindow : Window
 
     private void RefreshPersonaSummary()
     {
-        PersonaSummaryTextBox.Text = BuildPersonaSummary();
+        if (compendiumWorkspacePage is not null)
+        {
+            compendiumWorkspacePage.PersonaSummaryText = BuildPersonaSummary();
+            compendiumWorkspacePage.SetEditorContextText(selectedCompendiumSlotIndex.HasValue
+                ? "Persona editor is editing the activated compendium row."
+                : "The list selection is for browsing; the persona editor stays on the party/protagonist slot until a compendium row is activated.");
+        }
     }
-
-    private static void NavigateToSection(FrameworkElement target) =>
-        target.StartBringIntoView();
 
     private void UpdateShellStatusInfoBar(IReadOnlyList<SaveDiagnostic> diagnostics)
     {

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+  x:Class="P4G.SaveTool.WinUI.PartyPersonaWorkspacePage"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="d">
+
+  <ScrollViewer
+    VerticalScrollBarVisibility="Auto"
+    HorizontalScrollBarVisibility="Disabled"
+    HorizontalScrollMode="Disabled">
+    <Border
+      Margin="16"
+      Padding="16"
+      VerticalAlignment="Top"
+      Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+      BorderThickness="1"
+      CornerRadius="8">
+      <StackPanel Spacing="16">
+        <TextBlock
+          x:Name="PartyPersonaSectionHeader"
+          Text="Party / Persona"
+          Style="{ThemeResource SubtitleTextBlockStyle}"
+          automation:AutomationProperties.AutomationId="PartyPersonaSectionHeader" />
+
+        <Grid ColumnSpacing="16">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="3*" />
+          </Grid.ColumnDefinitions>
+
+          <Border
+            Padding="16"
+            VerticalAlignment="Top"
+            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Party members" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+              <ComboBox
+                x:Name="PartySlot0ComboBox"
+                Header="Party slot 1"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="PartySlot0ComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="PartySlot0ComboBox"
+                automation:AutomationProperties.Name="Party slot 1">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox
+                x:Name="PartySlot1ComboBox"
+                Header="Party slot 2"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="PartySlot1ComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="PartySlot1ComboBox"
+                automation:AutomationProperties.Name="Party slot 2">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <ComboBox
+                x:Name="PartySlot2ComboBox"
+                Header="Party slot 3"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="PartySlot2ComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="PartySlot2ComboBox"
+                automation:AutomationProperties.Name="Party slot 3">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+          </Border>
+
+          <ContentControl
+            x:Name="PersonaEditorHost"
+            Grid.Column="1"
+            automation:AutomationProperties.AutomationId="PartyPersonaEditorHost" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </ScrollViewer>
+</Page>

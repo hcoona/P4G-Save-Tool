@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+  x:Class="P4G.SaveTool.WinUI.CompendiumWorkspacePage"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="d">
+
+  <ScrollViewer
+    VerticalScrollBarVisibility="Auto"
+    HorizontalScrollBarVisibility="Disabled"
+    HorizontalScrollMode="Disabled">
+    <Border
+      Margin="16"
+      Padding="16"
+      VerticalAlignment="Top"
+      Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+      BorderThickness="1"
+      CornerRadius="8">
+      <StackPanel Spacing="16">
+        <TextBlock
+          x:Name="CompendiumSectionHeader"
+          Text="Compendium"
+          Style="{ThemeResource SubtitleTextBlockStyle}"
+          automation:AutomationProperties.AutomationId="CompendiumSectionHeader" />
+
+        <Grid ColumnSpacing="16">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="3*" />
+          </Grid.ColumnDefinitions>
+
+          <Border
+            Padding="16"
+            VerticalAlignment="Top"
+            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Compendium entries" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+              <TextBlock
+                x:Name="CompendiumEditorContextTextBlock"
+                TextWrapping="Wrap"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                automation:AutomationProperties.AutomationId="CompendiumEditorContextTextBlock" />
+              <ListView
+                x:Name="CompendiumListView"
+                MinHeight="140"
+                MaxHeight="220"
+                SelectionChanged="CompendiumListView_SelectionChanged"
+                Tapped="CompendiumListView_Tapped"
+                automation:AutomationProperties.AutomationId="CompendiumListView"
+                automation:AutomationProperties.Name="Compendium">
+                <ListView.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                  </DataTemplate>
+                </ListView.ItemTemplate>
+              </ListView>
+              <ComboBox
+                x:Name="CompendiumAddComboBox"
+                Header="Add persona"
+                IsEnabled="False"
+                IsTextSearchEnabled="True"
+                SelectionChanged="CompendiumAddComboBox_SelectionChanged"
+                automation:AutomationProperties.AutomationId="CompendiumAddComboBox"
+                automation:AutomationProperties.Name="Add compendium persona">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button
+                  x:Name="CompendiumRemoveButton"
+                  Content="Remove selected"
+                  Click="CompendiumRemoveButton_Click"
+                  IsEnabled="False"
+                  automation:AutomationProperties.AutomationId="CompendiumRemoveButton"
+                  automation:AutomationProperties.Name="Remove selected compendium entry" />
+                <Button
+                  x:Name="CompendiumClearButton"
+                  Content="Clear all"
+                  Click="CompendiumClearButton_Click"
+                  IsEnabled="False"
+                  automation:AutomationProperties.AutomationId="CompendiumClearButton"
+                  automation:AutomationProperties.Name="Clear compendium" />
+              </StackPanel>
+              <TextBlock Text="Selected persona slot summary" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+              <TextBox
+                x:Name="PersonaSummaryTextBox"
+                AcceptsReturn="True"
+                IsReadOnly="True"
+                MinHeight="220"
+                TextWrapping="Wrap"
+                automation:AutomationProperties.AutomationId="PersonaSummaryTextBox"
+                automation:AutomationProperties.Name="Selected persona summary" />
+            </StackPanel>
+          </Border>
+
+          <ContentControl
+            x:Name="PersonaEditorHost"
+            Grid.Column="1"
+            automation:AutomationProperties.AutomationId="CompendiumPersonaEditorHost" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </ScrollViewer>
+</Page>

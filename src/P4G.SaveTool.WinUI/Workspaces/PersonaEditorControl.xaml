@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+  x:Class="P4G.SaveTool.WinUI.PersonaEditorControl"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="d">
+
+  <Border
+    Padding="16"
+    VerticalAlignment="Top"
+    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+    BorderThickness="1"
+    CornerRadius="8">
+    <StackPanel Spacing="8">
+      <TextBlock
+        Text="Persona editing"
+        Style="{ThemeResource BodyStrongTextBlockStyle}"
+        automation:AutomationProperties.AutomationId="PersonaEditorSectionHeader" />
+      <ComboBox
+        x:Name="PersonaMemberComboBox"
+        Header="Member"
+        IsEnabled="False"
+        IsTextSearchEnabled="True"
+        SelectionChanged="PersonaMemberComboBox_SelectionChanged"
+        automation:AutomationProperties.AutomationId="PersonaMemberComboBox"
+        automation:AutomationProperties.Name="Persona member">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <ComboBox
+        x:Name="PersonaSlotComboBox"
+        Header="Protagonist slot"
+        IsEnabled="False"
+        SelectionChanged="PersonaSlotComboBox_SelectionChanged"
+        automation:AutomationProperties.AutomationId="PersonaSlotComboBox"
+        automation:AutomationProperties.Name="Persona slot">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <ComboBox
+        x:Name="PersonaChoiceComboBox"
+        Header="Persona"
+        IsEnabled="False"
+        IsTextSearchEnabled="True"
+        SelectionChanged="PersonaChoiceComboBox_SelectionChanged"
+        automation:AutomationProperties.AutomationId="PersonaChoiceComboBox"
+        automation:AutomationProperties.Name="Persona">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <TextBox
+        x:Name="PersonaXpTextBox"
+        Header="Total XP"
+        InputScope="Number"
+        IsEnabled="False"
+        TextChanged="PersonaDraftControl_Changed"
+        automation:AutomationProperties.AutomationId="PersonaXpTextBox"
+        automation:AutomationProperties.Name="Persona total XP" />
+      <StackPanel Spacing="4">
+        <TextBlock Text="Level" />
+        <Grid ColumnSpacing="8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Slider
+            x:Name="PersonaLevelSlider"
+            Minimum="0"
+            Maximum="255"
+            TickFrequency="1"
+            StepFrequency="1"
+            IsEnabled="False"
+            ValueChanged="PersonaLevelSlider_ValueChanged"
+            automation:AutomationProperties.AutomationId="PersonaLevelSlider"
+            automation:AutomationProperties.Name="Persona level" />
+          <TextBlock
+            x:Name="PersonaLevelValueTextBlock"
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            automation:AutomationProperties.AutomationId="PersonaLevelValueTextBlock" />
+        </Grid>
+      </StackPanel>
+      <Button
+        x:Name="PersonaCalculateFromLevelButton"
+        Content="Calculate from level"
+        Click="PersonaCalculateFromLevelButton_Click"
+        IsEnabled="False"
+        automation:AutomationProperties.AutomationId="PersonaCalculateFromLevelButton"
+        automation:AutomationProperties.Name="Calculate persona XP from level" />
+      <StackPanel Spacing="4">
+        <TextBlock Text="Strength" />
+        <Slider
+          x:Name="PersonaStrengthSlider"
+          Minimum="0"
+          Maximum="255"
+          TickFrequency="1"
+          StepFrequency="1"
+          IsEnabled="False"
+          ValueChanged="PersonaDraftControl_Changed"
+          automation:AutomationProperties.AutomationId="PersonaStrengthSlider"
+          automation:AutomationProperties.Name="Persona strength" />
+      </StackPanel>
+      <StackPanel Spacing="4">
+        <TextBlock Text="Magic" />
+        <Slider
+          x:Name="PersonaMagicSlider"
+          Minimum="0"
+          Maximum="255"
+          TickFrequency="1"
+          StepFrequency="1"
+          IsEnabled="False"
+          ValueChanged="PersonaDraftControl_Changed"
+          automation:AutomationProperties.AutomationId="PersonaMagicSlider"
+          automation:AutomationProperties.Name="Persona magic" />
+      </StackPanel>
+      <StackPanel Spacing="4">
+        <TextBlock Text="Endurance" />
+        <Slider
+          x:Name="PersonaEnduranceSlider"
+          Minimum="0"
+          Maximum="255"
+          TickFrequency="1"
+          StepFrequency="1"
+          IsEnabled="False"
+          ValueChanged="PersonaDraftControl_Changed"
+          automation:AutomationProperties.AutomationId="PersonaEnduranceSlider"
+          automation:AutomationProperties.Name="Persona endurance" />
+      </StackPanel>
+      <StackPanel Spacing="4">
+        <TextBlock Text="Agility" />
+        <Slider
+          x:Name="PersonaAgilitySlider"
+          Minimum="0"
+          Maximum="255"
+          TickFrequency="1"
+          StepFrequency="1"
+          IsEnabled="False"
+          ValueChanged="PersonaDraftControl_Changed"
+          automation:AutomationProperties.AutomationId="PersonaAgilitySlider"
+          automation:AutomationProperties.Name="Persona agility" />
+      </StackPanel>
+      <StackPanel Spacing="4">
+        <TextBlock Text="Luck" />
+        <Slider
+          x:Name="PersonaLuckSlider"
+          Minimum="0"
+          Maximum="255"
+          TickFrequency="1"
+          StepFrequency="1"
+          IsEnabled="False"
+          ValueChanged="PersonaDraftControl_Changed"
+          automation:AutomationProperties.AutomationId="PersonaLuckSlider"
+          automation:AutomationProperties.Name="Persona luck" />
+      </StackPanel>
+      <Grid ColumnSpacing="8" Margin="0,4,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1*" />
+          <ColumnDefinition Width="1*" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Spacing="8">
+          <ComboBox
+            x:Name="PersonaSkillBox1"
+            Header="Skill 1"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox1"
+            automation:AutomationProperties.Name="Persona skill 1">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="PersonaSkillBox2"
+            Header="Skill 2"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox2"
+            automation:AutomationProperties.Name="Persona skill 2">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="PersonaSkillBox3"
+            Header="Skill 3"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox3"
+            automation:AutomationProperties.Name="Persona skill 3">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="PersonaSkillBox4"
+            Header="Skill 4"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox4"
+            automation:AutomationProperties.Name="Persona skill 4">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Spacing="8">
+          <ComboBox
+            x:Name="PersonaSkillBox5"
+            Header="Skill 5"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox5"
+            automation:AutomationProperties.Name="Persona skill 5">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="PersonaSkillBox6"
+            Header="Skill 6"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox6"
+            automation:AutomationProperties.Name="Persona skill 6">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="PersonaSkillBox7"
+            Header="Skill 7"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox7"
+            automation:AutomationProperties.Name="Persona skill 7">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox
+            x:Name="PersonaSkillBox8"
+            Header="Skill 8"
+            IsEnabled="False"
+            IsTextSearchEnabled="True"
+            SelectionChanged="PersonaSkillBox_SelectionChanged"
+            automation:AutomationProperties.AutomationId="PersonaSkillBox8"
+            automation:AutomationProperties.Name="Persona skill 8">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>
